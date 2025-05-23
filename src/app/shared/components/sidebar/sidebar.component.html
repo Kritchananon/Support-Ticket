@@ -1,0 +1,45 @@
+<div class="sidebar">
+  <!-- Logo Section -->
+  <div class="sidebar-header">
+    <div class="logo">
+      <i class="bi bi-headset text-primary me-2"></i>
+      <span class="logo-text">SUPPORT TICKET</span>
+    </div>
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="sidebar-nav">
+    <ul class="nav flex-column">
+      <li class="nav-item">
+        <a 
+          class="nav-link" 
+          routerLink="/dashboard"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{exact: true}">
+          <i class="bi bi-speedometer2 me-3"></i>
+          <span>Dashboard</span>
+        </a>
+      </li>
+      
+      <li class="nav-item">
+        <a 
+          class="nav-link" 
+          routerLink="/tickets/new"
+          routerLinkActive="active">
+          <i class="bi bi-plus-circle me-3"></i>
+          <span>New Ticket</span>
+        </a>
+      </li>
+      
+      <li class="nav-item">
+        <a 
+          class="nav-link" 
+          routerLink="/tickets"
+          routerLinkActive="active">
+          <i class="bi bi-list-task me-3"></i>
+          <span>All Ticket</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>

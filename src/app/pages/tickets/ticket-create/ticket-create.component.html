@@ -1,0 +1,279 @@
+<div class="new-ticket-page">
+  <!-- Breadcrumb -->
+  <div class="breadcrumb-container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+          <a routerLink="/tickets">New Ticket</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">New Ticket</li>
+      </ol>
+    </nav>
+  </div>
+
+  <!-- Page Title -->
+  <div class="page-header">
+    <h1 class="page-title">New Ticket</h1>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-card">
+    <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
+      
+      <!-- Project Name Dropdown -->
+      <div class="form-group">
+        <label class="form-label">
+          Project Name <span class="required">*</span>
+        </label>
+        <div class="dropdown-container">
+          <div 
+            class="form-select" 
+            [class.invalid]="isFieldInvalid('projectId')"
+            (click)="showProjectDropdown = !showProjectDropdown">
+            <span class="select-text">{{ getSelectedProjectName() }}</span>
+            <i class="bi bi-chevron-down dropdown-icon"></i>
+          </div>
+          
+          <!-- Project Dropdown Options -->
+          <div class="dropdown-menu" *ngIf="showProjectDropdown">
+            <div 
+              class="dropdown-item" 
+              *ngFor="let project of projects"
+              (click)="onProjectSelect(project)">
+              {{ project.name }}
+            </div>
+          </div>
+        </div>
+        <div class="error-message" *ngIf="isFieldInvalid('projectId')">
+          {{ getFieldError('projectId') }}
+        </div>
+      </div>
+
+      <!-- Categories Dropdown -->
+      <div class="form-group">
+        <label class="form-label">
+          Categories <span class="required">*</span>
+        </label>
+        <div class="dropdown-container">
+          <div 
+            class="form-select" 
+            [class.invalid]="isFieldInvalid('categoryId')"
+            (click)="showCategoryDropdown = !showCategoryDropdown">
+            <span class="select-text">{{ getSelectedCategoryName() }}</span>
+            <i class="bi bi-chevron-down dropdown-icon"></i>
+          </div>
+          
+          <!-- Category Dropdown Options -->
+          <div class="dropdown-menu" *ngIf="showCategoryDropdown">
+            <div 
+              class="dropdown-item" 
+              *ngFor="let category of categories"
+              (click)="onCategorySelect(category)">
+              {{ category.name }}
+            </div>
+          </div>
+        </div>
+        <div class="error-message" *ngIf="isFieldInvalid('categoryId')">
+          {{ getFieldError('categoryId') }}
+        </div>
+      </div>
+
+      <!-- Issue Description -->
+      <div class="form-group">
+        <label class="form-label">
+          Issue <span class="required">*</span>
+        </label>
+        
+        <!-- Rich Text Editor Toolbar -->
+        <div class="editor-toolbar">
+          <div class="toolbar-group">
+            <!-- Font formatting -->
+            <select class="font-select">
+              <option>Noto Sans Thai</option>
+              <option>Arial</option>
+              <option>Times New Roman</option>
+            </select>
+            
+            <select class="size-select">
+              <option>14</option>
+              <option>12</option>
+              <option>16</option>
+              <option>18</option>
+            </select>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <!-- Text formatting buttons -->
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('bold')"
+              title="Bold">
+              <i class="bi bi-type-bold"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('italic')"
+              title="Italic">
+              <i class="bi bi-type-italic"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('underline')"
+              title="Underline">
+              <i class="bi bi-type-underline"></i>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <!-- Alignment buttons -->
+            <button 
+              type="button" 
+              class="toolbar-btn active" 
+              (click)="formatText('justifyLeft')"
+              title="Align Left">
+              <i class="bi bi-text-left"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('justifyCenter')"
+              title="Align Center">
+              <i class="bi bi-text-center"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('justifyRight')"
+              title="Align Right">
+              <i class="bi bi-text-right"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="formatText('justifyFull')"
+              title="Justify">
+              <i class="bi bi-justify"></i>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <!-- List buttons -->
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="insertList(false)"
+              title="Bullet List">
+              <i class="bi bi-list-ul"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="insertList(true)"
+              title="Numbered List">
+              <i class="bi bi-list-ol"></i>
+            </button>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <!-- Link button -->
+            <button 
+              type="button" 
+              class="toolbar-btn" 
+              (click)="insertLink()"
+              title="Insert Link">
+              <i class="bi bi-link-45deg"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Rich Text Editor Content -->
+        <div 
+          class="rich-editor"
+          [class.invalid]="isFieldInvalid('issueDescription')"
+          contenteditable="true"
+          (input)="onDescriptionInput($event)"
+          placeholder="Typing for description">
+        </div>
+        
+        <div class="error-message" *ngIf="isFieldInvalid('issueDescription')">
+          {{ getFieldError('issueDescription') }}
+        </div>
+      </div>
+
+      <!-- File Attachment -->
+      <div class="form-group">
+        <label class="form-label">
+          Attachment <span class="required">*</span>
+        </label>
+        
+        <div class="file-upload-area">
+          <!-- File Upload Button -->
+          <div class="file-upload-button">
+            <label for="fileInput" class="upload-label">
+              <div class="upload-icon">
+                <i class="bi bi-plus-circle"></i>
+              </div>
+              <span class="upload-text">Choose file</span>
+            </label>
+            <input 
+              id="fileInput" 
+              type="file" 
+              multiple 
+              (change)="onFileSelect($event)"
+              class="file-input"
+              accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.txt">
+          </div>
+
+          <!-- Selected Files List -->
+          <div class="selected-files" *ngIf="selectedFiles.length > 0">
+            <div class="file-item" *ngFor="let file of selectedFiles; let i = index">
+              <div class="file-info">
+                <i class="bi bi-file-earmark file-icon"></i>
+                <div class="file-details">
+                  <span class="file-name">{{ file.name }}</span>
+                  <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                class="remove-file-btn"
+                (click)="removeFile(i)"
+                title="Remove file">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-actions">
+        <button 
+          type="submit" 
+          class="btn btn-primary"
+          [disabled]="isSubmitting || ticketForm.invalid">
+          <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
+          <span *ngIf="!isSubmitting">New Ticket</span>
+          <span *ngIf="isSubmitting">Creating...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

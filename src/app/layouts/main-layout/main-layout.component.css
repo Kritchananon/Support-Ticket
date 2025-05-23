@@ -1,0 +1,268 @@
+.main-layout {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Main Content Area */
+.main-content {
+  margin-left: 250px;
+  margin-top: 70px;
+  min-height: calc(100vh - 70px);
+  background-color: #f8f9fa;
+  transition: margin-left 0.3s ease;
+  position: relative;
+}
+
+.content-wrapper {
+  padding: 2rem;
+  max-width: 100%;
+  min-height: calc(100vh - 70px - 4rem);
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Animation for content loading */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile Overlay */
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.mobile-overlay.show {
+  display: block;
+  opacity: 1;
+  animation: overlayFadeIn 0.3s ease;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Layout States */
+.main-layout.sidebar-collapsed .main-content {
+  margin-left: 0;
+}
+
+.main-layout.fullscreen .main-content {
+  margin-left: 0;
+  margin-top: 0;
+}
+
+/* Content Loading States */
+.content-wrapper.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.content-wrapper.loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.content-wrapper.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4285f4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 1001;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Scrollbar Styling for Content */
+.content-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.content-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.content-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    margin-top: 70px;
+  }
+  
+  .content-wrapper {
+    padding: 1rem;
+    min-height: calc(100vh - 70px - 2rem);
+  }
+  
+  .mobile-overlay.show {
+    display: block;
+  }
+}
+
+@media (max-width: 576px) {
+  .content-wrapper {
+    padding: 0.75rem;
+    min-height: calc(100vh - 70px - 1.5rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .content-wrapper {
+    padding: 0.5rem;
+    min-height: calc(100vh - 70px - 1rem);
+  }
+}
+
+/* Tablet Portrait */
+@media (max-width: 1024px) and (orientation: portrait) {
+  .content-wrapper {
+    padding: 1.5rem;
+  }
+}
+
+/* Large Desktop */
+@media (min-width: 1400px) {
+  .content-wrapper {
+    padding: 2.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+}
+
+/* Body scroll lock when mobile menu is open */
+:global(body.mobile-menu-open) {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* Print Styles */
+@media print {
+  .main-content {
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+  }
+  
+  .content-wrapper {
+    padding: 0 !important;
+  }
+  
+  .mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .main-layout {
+    background-color: #ffffff;
+  }
+  
+  .main-content {
+    background-color: #ffffff;
+  }
+  
+  .mobile-overlay {
+    background-color: rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .main-content,
+  .content-wrapper,
+  .mobile-overlay {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .main-layout {
+    background-color: #1a1a1a;
+  }
+  
+  .main-content {
+    background-color: #1a1a1a;
+  }
+  
+  .content-wrapper {
+    color: #e0e0e0;
+  }
+  
+  .mobile-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Focus Management */
+.main-layout:focus-within .content-wrapper {
+  outline: none;
+}
+
+/* Safe Area for iOS devices with notch */
+@supports(padding: max(0px)) {
+  .content-wrapper {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+  
+  @media (max-width: 768px) {
+    .content-wrapper {
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
+  }
+}
