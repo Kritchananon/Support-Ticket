@@ -5,17 +5,14 @@ import { Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
+import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
 import { ProjectDDL } from '../../../shared/models/project.model';
-
-interface Category {
-  id: number;
-  name: string;
-}
+import { CategoryDDL } from '../../../shared/models/category.model';
 
 @Component({
   selector: 'app-ticket-create',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ProjectDropdownComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ProjectDropdownComponent, CategoryDropdownComponent],
   templateUrl: './ticket-create.component.html',
   styleUrls: ['./ticket-create.component.css']
 })
@@ -26,15 +23,14 @@ export class TicketCreateComponent implements OnInit {
   private router = inject(Router);
 
   ticketForm: FormGroup;
-  categories: Category[] = [];
   
   isLoading = false;
   isSubmitting = false;
   selectedFiles: File[] = [];
   
   currentUser: any;
-  showCategoryDropdown = false;
   selectedProject: ProjectDDL | null = null;
+  selectedCategory: CategoryDDL | null = null;
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -47,28 +43,6 @@ export class TicketCreateComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
-    this.loadCategories();
-  }
-
-  loadCategories(): void {
-    this.apiService.getTicketCategories().subscribe({
-      next: (response) => {
-        if (response.code === '2' || response.status === 1) {
-          this.categories = response.data;
-        }
-      },
-      error: (error) => {
-        console.error('Error loading categories:', error);
-        // Mock data for demonstration
-        this.categories = [
-          { id: 1, name: 'ระบบล่ม/ใช้งานไม่ได้' },
-          { id: 2, name: 'ปัญหาการใช้งาน' },
-          { id: 3, name: 'ขอเพิ่มฟีเจอร์ใหม่' },
-          { id: 4, name: 'ขอแก้ไขข้อมูล' },
-          { id: 5, name: 'อื่นๆ' }
-        ];
-      }
-    });
   }
 
   onProjectSelected(event: {project: ProjectDDL | null, projectId: number | string}): void {
@@ -77,15 +51,10 @@ export class TicketCreateComponent implements OnInit {
     console.log('Selected Project:', event);
   }
 
-  onCategorySelect(category: Category): void {
-    this.ticketForm.patchValue({ categoryId: category.id });
-    this.showCategoryDropdown = false;
-  }
-
-  getSelectedCategoryName(): string {
-    const categoryId = this.ticketForm.get('categoryId')?.value;
-    const category = this.categories.find(c => c.id === categoryId);
-    return category ? category.name : 'เลือกหมวดหมู่';
+  onCategorySelected(event: {category: CategoryDDL | null, categoryId: number | string}): void {
+    this.selectedCategory = event.category;
+    this.ticketForm.patchValue({ categoryId: event.categoryId });
+    console.log('Selected Category:', event);
   }
 
   onFileSelect(event: Event): void {
@@ -125,6 +94,7 @@ export class TicketCreateComponent implements OnInit {
 
       console.log('Submitting ticket:', ticketData);
       console.log('Selected project info:', this.selectedProject);
+      console.log('Selected category info:', this.selectedCategory);
 
       this.apiService.createTicket(ticketData).subscribe({
         next: (response) => {
@@ -170,7 +140,10 @@ export class TicketCreateComponent implements OnInit {
 
   private onTicketCreated(): void {
     this.isSubmitting = false;
-    alert(`สร้างตั๋วเรียบร้อยแล้ว${this.selectedProject ? ' สำหรับโปรเจค: ' + this.selectedProject.projectName : ''}`);
+    const projectName = this.selectedProject ? this.selectedProject.projectName : '';
+    const categoryName = this.selectedCategory ? this.selectedCategory.categoryName : '';
+    
+    alert(`สร้างตั๋วเรียบร้อยแล้ว${projectName ? ' สำหรับโปรเจค: ' + projectName : ''}${categoryName ? ' หมวดหมู่: ' + categoryName : ''}`);
     this.router.navigate(['/dashboard']);
   }
 

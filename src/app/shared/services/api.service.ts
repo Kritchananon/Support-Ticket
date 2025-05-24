@@ -4,6 +4,7 @@ import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { ProjectDDLRequest, ProjectDDLResponse } from '../models/project.model';
+import { CategoryDDLRequest, CategoryDDLResponse } from '../models/category.model';
 
 export interface ApiResponse<T> {
   code?: string;
@@ -91,38 +92,59 @@ export class ApiService {
     return throwError(() => error);
   }
 
-  // ===== Project DDL Methods (ใหม่) =====
+  // ===== Project DDL Methods =====
   
-  // เพิ่ม method สำหรับ Project DDL
   getProjectDDL(request: ProjectDDLRequest = { status: 'active' }): Observable<ProjectDDLResponse> {
     return this.http.post<ProjectDDLResponse>(`${this.apiUrl}/getProjectDDL`, request, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }
 
-  // เพิ่ม method สำหรับ Project DDL แบบ GET (ถ้า API รองรับ)
   getProjectDDLGet(): Observable<ProjectDDLResponse> {
     return this.http.get<ProjectDDLResponse>(`${this.apiUrl}/getProjectDDL`, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }
 
-  // Method สำหรับดึงโปรเจคที่ active เท่านั้น
   getActiveProjectDDL(): Observable<ProjectDDLResponse> {
     return this.getProjectDDL({ status: 'active' });
   }
 
-  // Method สำหรับดึงโปรเจคทั้งหมด
   getAllProjectDDL(): Observable<ProjectDDLResponse> {
     return this.getProjectDDL({ status: 'all' });
   }
 
-  // Method สำหรับดึงโปรเจคที่ inactive เท่านั้น
   getInactiveProjectDDL(): Observable<ProjectDDLResponse> {
     return this.getProjectDDL({ status: 'inactive' });
   }
 
-  // ===== User APIs (เดิม) =====
+  // ===== Categories DDL Methods (ใหม่) =====
+  
+  getCategoriesDDL(request: CategoryDDLRequest = { status: 'active' }): Observable<CategoryDDLResponse> {
+    return this.http.post<CategoryDDLResponse>(`${this.apiUrl}/getCategoriesDDL`, request, {
+      headers: this.getAuthHeaders()
+    }).pipe(catchError(this.handleError));
+  }
+
+  getCategoriesDDLGet(): Observable<CategoryDDLResponse> {
+    return this.http.get<CategoryDDLResponse>(`${this.apiUrl}/getCategoriesDDL`, {
+      headers: this.getAuthHeaders()
+    }).pipe(catchError(this.handleError));
+  }
+
+  getActiveCategoriesDDL(): Observable<CategoryDDLResponse> {
+    return this.getCategoriesDDL({ status: 'active' });
+  }
+
+  getAllCategoriesDDL(): Observable<CategoryDDLResponse> {
+    return this.getCategoriesDDL({ status: 'all' });
+  }
+
+  getInactiveCategoriesDDL(): Observable<CategoryDDLResponse> {
+    return this.getCategoriesDDL({ status: 'inactive' });
+  }
+
+  // ===== User APIs =====
   getUsers(): Observable<ApiResponse<UserData[]>> {
     return this.http.get<ApiResponse<UserData[]>>(`${this.apiUrl}/users`, {
       headers: this.getAuthHeaders()
@@ -135,7 +157,7 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Customer For Project APIs (เดิม) =====
+  // ===== Customer For Project APIs =====
   getCustomerForProject(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/customer-for-project`, {
       headers: this.getAuthHeaders()
@@ -166,7 +188,7 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Project APIs (เดิม) =====
+  // ===== Project APIs =====
   getProjects(): Observable<ApiResponse<ProjectData[]>> {
     return this.http.get<ApiResponse<ProjectData[]>>(`${this.apiUrl}/project`, {
       headers: this.getAuthHeaders()
@@ -197,7 +219,7 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Customer APIs (เดิม) =====
+  // ===== Customer APIs =====
   getCustomers(): Observable<ApiResponse<CustomerData[]>> {
     return this.http.get<ApiResponse<CustomerData[]>>(`${this.apiUrl}/customer`, {
       headers: this.getAuthHeaders()
@@ -228,7 +250,7 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Ticket APIs (เดิม) =====
+  // ===== Ticket APIs =====
   getTickets(): Observable<ApiResponse<TicketData[]>> {
     return this.http.get<ApiResponse<TicketData[]>>(`${this.apiUrl}/ticket`, {
       headers: this.getAuthHeaders()
@@ -273,14 +295,14 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Dashboard/Statistics APIs (เดิม) =====
+  // ===== Dashboard/Statistics APIs =====
   getDashboardStats(): Observable<ApiResponse<any>> {
     return this.http.get<ApiResponse<any>>(`${this.apiUrl}/dashboard/stats`, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== File Upload API (เดิม) =====
+  // ===== File Upload API =====
   uploadFile(file: File, ticketId?: number): Observable<ApiResponse<any>> {
     const formData = new FormData();
     formData.append('file', file);

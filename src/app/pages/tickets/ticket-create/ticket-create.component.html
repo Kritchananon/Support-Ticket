@@ -20,7 +20,7 @@
   <div class="content-card">
     <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
       
-      <!-- Project Name Dropdown - ใช้ Component ใหม่ -->
+      <!-- Project Name Dropdown -->
       <div class="form-group">
         <app-project-dropdown
           label="Project Name"
@@ -34,31 +34,14 @@
 
       <!-- Categories Dropdown -->
       <div class="form-group">
-        <label class="form-label">
-          Categories <span class="required">*</span>
-        </label>
-        <div class="dropdown-container">
-          <div 
-            class="form-select" 
-            [class.invalid]="isFieldInvalid('categoryId')"
-            (click)="showCategoryDropdown = !showCategoryDropdown">
-            <span class="select-text">{{ getSelectedCategoryName() }}</span>
-            <i class="bi bi-chevron-down dropdown-icon"></i>
-          </div>
-          
-          <!-- Category Dropdown Options -->
-          <div class="dropdown-menu" *ngIf="showCategoryDropdown">
-            <div 
-              class="dropdown-item" 
-              *ngFor="let category of categories"
-              (click)="onCategorySelect(category)">
-              {{ category.name }}
-            </div>
-          </div>
-        </div>
-        <div class="error-message" *ngIf="isFieldInvalid('categoryId')">
-          {{ getFieldError('categoryId') }}
-        </div>
+        <app-category-dropdown
+          label="Categories"
+          [required]="true"
+          [errorText]="isFieldInvalid('categoryId') ? getFieldError('categoryId') : ''"
+          status="active"
+          [showCode]="false"
+          (selectionChange)="onCategorySelected($event)">
+        </app-category-dropdown>
       </div>
 
       <!-- Issue Description -->
@@ -246,9 +229,9 @@
         </div>
       </div>
 
-      <!-- Selected Project Info -->
-      <div *ngIf="selectedProject" class="selected-project-info">
-        <div class="info-card">
+      <!-- Selected Project & Category Info -->
+      <div *ngIf="selectedProject || selectedCategory" class="selected-info">
+        <div class="info-card" *ngIf="selectedProject">
           <h6 class="info-title">โปรเจคที่เลือก:</h6>
           <div class="project-details">
             <div class="detail-item">
@@ -256,6 +239,15 @@
             </div>
             <div class="detail-item">
               <strong>ชื่อ:</strong> {{ selectedProject.projectName }}
+            </div>
+          </div>
+        </div>
+        
+        <div class="info-card" *ngIf="selectedCategory">
+          <h6 class="info-title">หมวดหมู่ที่เลือก:</h6>
+          <div class="category-details">
+            <div class="detail-item">
+              <strong>ชื่อ:</strong> {{ selectedCategory.categoryName }}
             </div>
           </div>
         </div>
@@ -277,9 +269,12 @@
 </div>
 
 <style>
-/* เพิ่ม CSS สำหรับ Selected Project Info */
-.selected-project-info {
+/* เพิ่ม CSS สำหรับ Selected Info */
+.selected-info {
   margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .info-card {
@@ -296,7 +291,8 @@
   font-size: 14px;
 }
 
-.project-details {
+.project-details,
+.category-details {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -313,7 +309,12 @@
 }
 
 @media (max-width: 768px) {
-  .project-details {
+  .selected-info {
+    gap: 0.75rem;
+  }
+  
+  .project-details,
+  .category-details {
     gap: 0.5rem;
   }
 }

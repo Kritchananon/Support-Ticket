@@ -1,22 +1,21 @@
-
 <div class="form-group">
-  <label *ngIf="label" for="projectSelect" class="form-label">
+  <label *ngIf="label" for="categorySelect" class="form-label">
     {{ label }}
     <span *ngIf="required" class="required">*</span>
   </label>
   
   <div class="select-wrapper">
     <select 
-      id="projectSelect"
+      id="categorySelect"
       class="form-select"
       [class.is-invalid]="hasError"
-      [value]="selectedProjectId"
+      [value]="selectedCategoryId"
       (change)="onSelectionChange($event)"
       [disabled]="loading || disabled">
       
       <option value="">{{ placeholder }}</option>
-      <option *ngFor="let project of projects" [value]="project.id">
-        {{ getProjectDisplayName(project) }}
+      <option *ngFor="let category of categories" [value]="category.id">
+        {{ getCategoryDisplayName(category) }}
       </option>
     </select>
   </div>

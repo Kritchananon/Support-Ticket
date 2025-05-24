@@ -3,22 +3,22 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { ProjectService } from '../../services/project.service';
-import { ProjectDDL } from '../../models/project.model';
+import { CategoryService } from '../../services/category.service';
+import { CategoryDDL } from '../../models/category.model';
 
 @Component({
-  selector: 'app-project-dropdown',
+  selector: 'app-category-dropdown',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './project-dropdown.component.html',
-  styleUrls: ['./project-dropdown.component.css']
+  templateUrl: './category-dropdown.component.html',
+  styleUrls: ['./category-dropdown.component.css']
 })
-export class ProjectDropdownComponent implements OnInit, OnDestroy {
-  private projectService = inject(ProjectService);
+export class CategoryDropdownComponent implements OnInit, OnDestroy {
+  private categoryService = inject(CategoryService);
   
-  @Input() label: string = 'เลือกโปรเจค';
-  @Input() placeholder: string = '-- เลือกโปรเจค --';
-  @Input() selectedProjectId: number | string = '';
+  @Input() label: string = 'เลือกหมวดหมู่';
+  @Input() placeholder: string = '-- เลือกหมวดหมู่ --';
+  @Input() selectedCategoryId: number | string = '';
   @Input() status: string = 'active';
   @Input() required: boolean = false;
   @Input() disabled: boolean = false;
@@ -26,11 +26,11 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
   @Input() errorText: string = '';
   
   @Output() selectionChange = new EventEmitter<{
-    project: ProjectDDL | null, 
-    projectId: number | string
+    category: CategoryDDL | null, 
+    categoryId: number | string
   }>();
 
-  projects: ProjectDDL[] = [];
+  categories: CategoryDDL[] = [];
   loading = false;
   error: string = '';
   hasError = false;
@@ -38,7 +38,7 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   ngOnInit(): void {
-    this.loadProjects();
+    this.loadCategories();
   }
 
   ngOnDestroy(): void {
@@ -46,62 +46,62 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadProjects(): void {
+  loadCategories(): void {
     this.loading = true;
     this.error = '';
     this.hasError = false;
 
-    this.projectService.getProjectDDL({ status: this.status })
+    this.categoryService.getCategoriesDDL({ status: this.status })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('Project DDL Response:', response);
+          console.log('Categories DDL Response:', response);
           if (response.code === 1) {
-            this.projects = response.data;
+            this.categories = response.data;
             this.error = '';
           } else {
             this.error = response.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-            this.projects = [];
+            this.categories = [];
           }
           this.loading = false;
         },
         error: (err) => {
           this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-          this.projects = [];
+          this.categories = [];
           this.loading = false;
-          console.error('Error loading projects:', err);
+          console.error('Error loading categories:', err);
         }
       });
   }
 
   onSelectionChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
-    const projectId = target.value;
-    let selectedProject: ProjectDDL | null = null;
+    const categoryId = target.value;
+    let selectedCategory: CategoryDDL | null = null;
     
-    if (projectId) {
-      selectedProject = this.projects.find(p => p.id === +projectId) || null;
+    if (categoryId) {
+      selectedCategory = this.categories.find(c => c.id === +categoryId) || null;
     }
 
     // Reset validation error when user selects something
-    if (projectId && this.hasError) {
+    if (categoryId && this.hasError) {
       this.hasError = false;
     }
 
-    this.selectedProjectId = projectId;
+    this.selectedCategoryId = categoryId;
     this.selectionChange.emit({
-      project: selectedProject,
-      projectId: projectId
+      category: selectedCategory,
+      categoryId: categoryId
     });
   }
 
   refresh(): void {
-    this.loadProjects();
+    this.loadCategories();
   }
 
   // Method สำหรับ validation จากภายนอก
   validate(): boolean {
-    if (this.required && !this.selectedProjectId) {
+    if (this.required && !this.selectedCategoryId) {
       this.hasError = true;
       return false;
     }
@@ -109,18 +109,18 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  getProjectDisplayName(project: any): string {
-    // รองรับทั้ง format จาก API ใหม่ (projectName) และ API เก่า (name)
-    return project.projectName || project.name || 'Unknown Project';
+  getCategoryDisplayName(category: any): string {
+    // รองรับทั้ง format จาก API ใหม่ (categoryName) และ API เก่า (name)
+    return category.categoryName || category.name || 'Unknown Category';
   }
 
   // Method สำหรับ reset
   reset(): void {
-    this.selectedProjectId = '';
+    this.selectedCategoryId = '';
     this.hasError = false;
     this.selectionChange.emit({
-      project: null,
-      projectId: ''
+      category: null,
+      categoryId: ''
     });
   }
 }
