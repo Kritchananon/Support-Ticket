@@ -4,17 +4,17 @@
   position: fixed;
   top: 0;
   left: 0;
-  background-color: #ffffff;
-  border-right: 1px solid #e0e0e0;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  background-color: #ffffff; /* พื้นหลังสีขาว */
+  border-right: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05); /* เงาเบาลง */
   z-index: 1000;
   overflow-y: auto;
 }
 
 .sidebar-header {
-  padding: 1.5rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  padding: 1rem 1rem;
+  border-bottom: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
+  background-color: #ffffff; /* พื้นหลังสีขาว */
 }
 
 .logo {
@@ -22,16 +22,16 @@
   align-items: center;
   font-weight: 700;
   font-size: 1.1rem;
-  color: #2c3e50;
+  color: #2d3436; /* สีเทาเข้ม */
 }
 
 .logo i {
   font-size: 1.5rem;
-  color: #4285f4;
+  color: #6c5ce7; /* สีม่วง */
 }
 
 .logo-text {
-  background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+  background: linear-gradient(135deg, #6c5ce7 0%, #5a4fcf 100%); /* สีม่วง */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   padding: 0.75rem 1.5rem;
-  color: #6c757d;
+  color: #6c757d; /* สีเทา */
   text-decoration: none;
   transition: all 0.3s ease;
   border-radius: 0;
@@ -64,15 +64,15 @@
 }
 
 .nav-link:hover {
-  background-color: #f8f9fa;
-  color: #4285f4;
+  background-color: #f8f9fa; /* พื้นหลังเทาอ่อนเมื่อ hover */
+  color: #6c5ce7; /* สีม่วงเมื่อ hover */
   transform: translateX(5px);
 }
 
 .nav-link.active {
-  background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+  background: linear-gradient(135deg, #6c5ce7 0%, #5a4fcf 100%); /* gradient สีม่วง */
   color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(66, 133, 244, 0.3);
+  box-shadow: 0 2px 4px rgba(108, 92, 231, 0.3);
   border-radius: 0 25px 25px 0;
   margin-right: 10px;
 }
@@ -99,11 +99,12 @@
 .nav-section-title small {
   font-weight: 600;
   letter-spacing: 0.5px;
+  color: #6c757d; /* สีเทา */
 }
 
 .sidebar-divider {
   margin: 1rem 1.5rem;
-  border-color: #e0e0e0;
+  border-color: #e9ecef; /* สีเทาอ่อน */
 }
 
 /* Hover Effects */
@@ -145,6 +146,7 @@
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+    background-color: #ffffff; /* รักษาสีขาวใน mobile */
   }
   
   .sidebar.show {
@@ -155,6 +157,7 @@
 @media (max-width: 576px) {
   .sidebar {
     width: 280px;
+    background-color: #ffffff;
   }
   
   .nav-link {
@@ -177,64 +180,31 @@
 }
 
 .sidebar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f8f9fa;
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #dee2e6;
   border-radius: 3px;
   transition: background 0.2s ease;
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #adb5bd;
 }
 
 /* Focus States for Accessibility */
 .nav-link:focus {
-  outline: 2px solid #4285f4;
+  outline: 2px solid #6c5ce7; /* สีม่วง */
   outline-offset: 2px;
   background-color: #f8f9fa;
-}
-
-/* Dark Mode Support (Future) */
-@media (prefers-color-scheme: dark) {
-  .sidebar {
-    background-color: #2c3e50;
-    border-right-color: #495057;
-  }
-  
-  .sidebar-header {
-    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
-    border-bottom-color: #495057;
-  }
-  
-  .logo {
-    color: #ecf0f1;
-  }
-  
-  .nav-link {
-    color: #bdc3c7;
-  }
-  
-  .nav-link:hover {
-    background-color: #34495e;
-    color: #4285f4;
-  }
-  
-  .nav-section-title small {
-    color: #95a5a6;
-  }
-  
-  .sidebar-divider {
-    border-color: #495057;
-  }
 }
 
 /* High Contrast Mode Support */
 @media (prefers-contrast: high) {
   .sidebar {
     border-right: 2px solid #000;
+    background-color: #ffffff;
   }
   
   .nav-link:hover {

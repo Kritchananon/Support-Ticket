@@ -1,16 +1,17 @@
 .dashboard {
   padding: 2rem;
-  background-color: #ffffff; /* เปลี่ยนเป็นพื้นหลังสีขาว */
+  background-color: #ffffff; /* พื้นหลังสีขาว */
   min-height: calc(100vh - 70px);
 }
 
 .card {
   border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* เบาลงเล็กน้อย */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   margin-bottom: 1.5rem;
-  border-radius: 12px; /* เพิ่มความโค้งมน */
+  border-radius: 12px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  background-color: #ffffff;
+  background-color: #ffffff; /* พื้นหลัง card สีขาว */
+  border: 1px solid #e9ecef; /* เพิ่มกรอบบาง */
 }
 
 .card:hover {
@@ -20,11 +21,12 @@
 
 .card-body {
   padding: 1.5rem;
+  /* รักษาสี gradient เดิมสำหรับ stats cards */
 }
 
 .card-header {
   background-color: #ffffff;
-  border-bottom: 1px solid #f0f0f0; /* เปลี่ยนเป็นสีเทาอ่อน */
+  border-bottom: 1px solid #e9ecef;
   padding: 1rem 1.5rem;
   border-radius: 12px 12px 0 0;
 }
@@ -47,12 +49,13 @@
   letter-spacing: 0.5px;
   padding: 1rem 0.75rem;
   background-color: #ffffff;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .table td {
   padding: 0.75rem;
   vertical-align: middle;
-  border-top: 1px solid #f0f0f0; /* เปลี่ยนเป็นสีเทาอ่อน */
+  border-top: 1px solid #e9ecef;
   background-color: #ffffff;
 }
 
@@ -63,11 +66,11 @@
 .badge {
   font-size: 0.75rem;
   padding: 0.375rem 0.75rem;
-  border-radius: 6px; /* เพิ่มความโค้งมน */
+  border-radius: 6px;
   font-weight: 500;
 }
 
-/* Stats Cards Styles - ปรับสีให้ตรงกับรูป */
+/* Stats Cards Styles - รักษาสี gradient เดิม */
 .bg-primary {
   background: linear-gradient(135deg, #6c5ce7 0%, #5a4fcf 100%) !important; /* สีม่วง */
 }
@@ -96,11 +99,15 @@
 .spinner-border {
   width: 2rem;
   height: 2rem;
+  border-color: #e9ecef;
+  border-top-color: #6c5ce7; /* สีม่วง */
 }
 
 .spinner-border-sm {
   width: 1rem;
   height: 1rem;
+  border-color: #e9ecef;
+  border-top-color: #6c5ce7; /* สีม่วง */
 }
 
 /* Header Section */
@@ -134,7 +141,7 @@
 }
 
 .text-muted {
-  color: #636e72 !important;
+  color: #6c757d !important;
   font-size: 0.875rem;
 }
 
@@ -187,7 +194,7 @@
 /* Empty State */
 .text-center.text-muted {
   padding: 2rem;
-  color: #636e72 !important;
+  color: #6c757d !important;
   font-style: italic;
 }
 
@@ -213,7 +220,7 @@
 .col-md-3:nth-child(3) .card { animation-delay: 0.3s; }
 .col-md-3:nth-child(4) .card { animation-delay: 0.4s; }
 
-/* เพิ่มสไตล์พิเศษสำหรับ white theme */
+/* White Theme Specific */
 .dashboard .row {
   background-color: transparent;
 }
@@ -222,4 +229,48 @@
 .dashboard .col-md-8,
 .dashboard .col-md-4 {
   background-color: transparent;
+}
+
+/* เพิ่ม contrast สำหรับ text บน gradient background */
+.card.bg-primary .card-body,
+.card.bg-warning .card-body,
+.card.bg-info .card-body,
+.card.bg-success .card-body,
+.card.bg-danger .card-body,
+.card.bg-secondary .card-body {
+  color: #ffffff;
+}
+
+.card.bg-primary h4,
+.card.bg-warning h4,
+.card.bg-info h4,
+.card.bg-success h4,
+.card.bg-danger h4,
+.card.bg-secondary h4 {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.card.bg-primary p,
+.card.bg-warning p,
+.card.bg-info p,
+.card.bg-success p,
+.card.bg-danger p,
+.card.bg-secondary p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* White cards สำหรับ Recent Tickets และ Customer Projects */
+.card:not(.bg-primary):not(.bg-warning):not(.bg-info):not(.bg-success):not(.bg-danger):not(.bg-secondary) {
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
+}
+
+.card:not(.bg-primary):not(.bg-warning):not(.bg-info):not(.bg-success):not(.bg-danger):not(.bg-secondary) .card-header {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.card:not(.bg-primary):not(.bg-warning):not(.bg-info):not(.bg-success):not(.bg-danger):not(.bg-secondary) .card-body {
+  background-color: #ffffff;
 }

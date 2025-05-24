@@ -22,7 +22,7 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
   @Input() status: string = 'active';
   @Input() required: boolean = false;
   @Input() disabled: boolean = false;
-  @Input() showCode: boolean = true;
+  @Input() showCode: boolean = false; // เปลี่ยนจาก true เป็น false
   @Input() showRefreshButton: boolean = true;
   @Input() errorText: string = '';
   
@@ -108,6 +108,11 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     }
     this.hasError = false;
     return true;
+  }
+
+  getProjectDisplayName(project: any): string {
+    // รองรับทั้ง format จาก API ใหม่ (projectName) และ API เก่า (name)
+    return project.projectName || project.name || 'Unknown Project';
   }
 
   // Method สำหรับ reset

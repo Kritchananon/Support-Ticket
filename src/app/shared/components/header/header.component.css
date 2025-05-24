@@ -4,9 +4,9 @@
   top: 0;
   left: 250px;
   right: 0;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: #ffffff; /* พื้นหลังสีขาว */
+  border-bottom: 1px solid #e9ecef; /* เปลี่ยนเป็นสีเทาอ่อน */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* เงาเบาลง */
   z-index: 999;
   transition: left 0.3s ease;
 }
@@ -14,7 +14,7 @@
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: flex-end; /* เปลี่ยนให้ชิดขวา */
+  justify-content: space-between;
   height: 100%;
   padding: 0 2rem;
 }
@@ -28,26 +28,29 @@
   padding: 0.5rem;
   border-radius: 6px;
   transition: all 0.2s ease;
-  position: absolute; /* วางตำแหน่งแบบ absolute */
-  left: 2rem; /* ติดด้านซ้าย */
+  display: none;
 }
 
-/* Page Title - ซ่อนในรูปแบบปกติ */
+.mobile-menu-toggle:hover {
+  background-color: #f8f9fa;
+  color: #6c5ce7; /* สีม่วง */
+}
+
+/* Page Title - ซ่อนทั้งหมด */
 .page-title {
-  display: none !important; /* ซ่อนเพื่อให้ header สะอาด */
+  display: none;
 }
 
-/* Header Navigation - ให้อยู่ขวาสุด */
+/* Header Navigation */
 .header-nav {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto; /* Push ไปขวาสุด */
 }
 
 /* Language Button Styles */
 .language-btn {
-  border-color: #dee2e6;
+  border-color: #e9ecef; /* เปลี่ยนเป็นสีเทาอ่อน */
   color: #6c757d;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -62,16 +65,16 @@
 }
 
 .language-btn:hover {
-  border-color: #4285f4;
-  color: #4285f4;
+  border-color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
   background-color: #f8f9fa;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(66, 133, 244, 0.2);
+  box-shadow: 0 2px 4px rgba(108, 92, 231, 0.2);
 }
 
 .language-btn:focus {
-  border-color: #4285f4;
-  box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+  border-color: #6c5ce7; /* สีม่วง */
+  box-shadow: 0 0 0 0.2rem rgba(108, 92, 231, 0.25);
 }
 
 .flag-emoji {
@@ -81,7 +84,7 @@
 
 /* User Dropdown Styles */
 .user-dropdown {
-  color: #2c3e50;
+  color: #2d3436;
   text-decoration: none;
   padding: 0.5rem 1rem;
   border: none;
@@ -95,12 +98,12 @@
 
 .user-dropdown:hover {
   background-color: #f8f9fa;
-  color: #4285f4;
+  color: #6c5ce7; /* สีม่วง */
   transform: translateY(-1px);
 }
 
 .user-dropdown:focus {
-  outline: 2px solid #4285f4;
+  outline: 2px solid #6c5ce7; /* สีม่วง */
   outline-offset: 2px;
   background-color: #f8f9fa;
 }
@@ -112,7 +115,7 @@
 }
 
 .user-dropdown:hover .user-avatar i {
-  color: #4285f4;
+  color: #6c5ce7; /* สีม่วง */
 }
 
 .user-name {
@@ -132,6 +135,8 @@
   padding: 0;
   min-width: 250px;
   animation: dropdownFadeIn 0.2s ease-out;
+  background-color: #ffffff; /* พื้นหลังสีขาว */
+  border: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
 }
 
 @keyframes dropdownFadeIn {
@@ -148,7 +153,7 @@
 .dropdown-header {
   padding: 1rem;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid #e9ecef;
   border-radius: 12px 12px 0 0;
 }
 
@@ -159,7 +164,7 @@
 
 .user-avatar-large i {
   font-size: 2.5rem;
-  color: #4285f4;
+  color: #6c5ce7; /* สีม่วง */
 }
 
 .user-details {
@@ -170,7 +175,7 @@
 
 .user-name-full {
   font-weight: 600;
-  color: #2c3e50;
+  color: #2d3436;
   font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
@@ -189,26 +194,27 @@
 .dropdown-item {
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
-  color: #2c3e50;
+  color: #2d3436;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   font-weight: 500;
+  background-color: transparent;
 }
 
 .dropdown-item:hover {
   background-color: #f8f9fa;
-  color: #4285f4;
+  color: #6c5ce7; /* สีม่วง */
   padding-left: 1.25rem;
 }
 
 .dropdown-item.active {
-  background-color: #4285f4;
+  background-color: #6c5ce7; /* สีม่วง */
   color: white;
 }
 
 .dropdown-item.active:hover {
-  background-color: #3367d6;
+  background-color: #5a4fcf; /* สีม่วงเข้ม */
   color: white;
 }
 
@@ -230,22 +236,23 @@
 
 .dropdown-divider {
   margin: 0.5rem 0;
-  border-color: #dee2e6;
+  border-color: #e9ecef;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
   .header {
     left: 0;
+    background-color: #ffffff;
   }
   
   .header-content {
     padding: 0 1rem;
-    justify-content: flex-end; /* ยังคงชิดขวาใน mobile */
+    justify-content: space-between;
   }
   
   .mobile-menu-toggle {
-    left: 1rem; /* ปรับตำแหน่งใน mobile */
+    display: block;
   }
   
   .user-name {
@@ -254,6 +261,7 @@
   
   .dropdown-menu {
     min-width: 220px;
+    background-color: #ffffff;
   }
 }
 
@@ -288,7 +296,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #4285f4, transparent);
+  background: linear-gradient(90deg, transparent, #6c5ce7, transparent); /* สีม่วง */
   animation: loading 1.5s infinite;
 }
 
@@ -299,16 +307,17 @@
 
 /* Focus Improvements for Accessibility */
 .dropdown-item:focus {
-  outline: 2px solid #4285f4;
+  outline: 2px solid #6c5ce7; /* สีม่วง */
   outline-offset: -2px;
   background-color: #f8f9fa;
-  color: #4285f4;
+  color: #6c5ce7;
 }
 
 /* High Contrast Mode Support */
 @media (prefers-contrast: high) {
   .header {
     border-bottom: 2px solid #000;
+    background-color: #ffffff;
   }
   
   .dropdown-item:hover {
@@ -323,64 +332,68 @@
   }
 }
 
-/* Dark Mode Support (Future) */
+/* Dark Mode Override - Force White Theme */
 @media (prefers-color-scheme: dark) {
   .header {
-    background-color: #2c3e50;
-    border-bottom-color: #34495e;
-  }
-  
-  .page-title h4 {
-    color: #ecf0f1;
+    background-color: #ffffff !important;
+    border-bottom-color: #e9ecef !important;
   }
   
   .mobile-menu-toggle {
-    color: #bdc3c7;
+    color: #6c757d !important;
   }
   
   .mobile-menu-toggle:hover {
-    color: #4285f4;
-    background-color: #34495e;
+    color: #6c5ce7 !important;
+    background-color: #f8f9fa !important;
   }
   
   .language-btn {
-    background-color: #34495e;
-    border-color: #495057;
-    color: #bdc3c7;
+    background-color: #ffffff !important;
+    border-color: #e9ecef !important;
+    color: #6c757d !important;
   }
   
   .language-btn:hover {
-    background-color: #495057;
-    border-color: #4285f4;
-    color: #4285f4;
+    background-color: #f8f9fa !important;
+    border-color: #6c5ce7 !important;
+    color: #6c5ce7 !important;
   }
   
   .user-dropdown {
-    color: #ecf0f1;
+    color: #2d3436 !important;
   }
   
   .user-dropdown:hover {
-    background-color: #34495e;
-    color: #4285f4;
+    background-color: #f8f9fa !important;
+    color: #6c5ce7 !important;
   }
   
   .dropdown-menu {
-    background-color: #2c3e50;
-    border: 1px solid #34495e;
+    background-color: #ffffff !important;
+    border: 1px solid #e9ecef !important;
   }
   
   .dropdown-header {
-    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
-    border-bottom-color: #495057;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-bottom-color: #e9ecef !important;
   }
   
   .dropdown-item {
-    color: #bdc3c7;
+    color: #2d3436 !important;
   }
   
   .dropdown-item:hover {
-    background-color: #34495e;
-    color: #4285f4;
+    background-color: #f8f9fa !important;
+    color: #6c5ce7 !important;
+  }
+  
+  .user-name-full {
+    color: #2d3436 !important;
+  }
+  
+  .user-email {
+    color: #6c757d !important;
   }
 }
 

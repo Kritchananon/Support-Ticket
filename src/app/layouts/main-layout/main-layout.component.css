@@ -104,7 +104,7 @@
   height: 40px;
   margin: -20px 0 0 -20px;
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #74b9ff; /* เปลี่ยนเป็นสีฟ้า */
+  border-top: 3px solid #6c5ce7; /* เปลี่ยนเป็นสีม่วง */
   border-radius: 50%;
   animation: spin 1s linear infinite;
   z-index: 1001;
@@ -126,12 +126,12 @@
 }
 
 .content-wrapper::-webkit-scrollbar-thumb {
-  background: #e0e0e0;
+  background: #e9ecef;
   border-radius: 4px;
 }
 
 .content-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #b2bec3;
+  background: #dee2e6;
 }
 
 /* Responsive Design */
@@ -255,4 +255,17 @@
       padding-right: max(1rem, env(safe-area-inset-right));
     }
   }
+}
+
+/* White Theme Specific Enhancements */
+.main-layout {
+  border: none;
+}
+
+.main-content {
+  box-shadow: none;
+}
+
+.content-wrapper {
+  border-radius: 0;
 }

@@ -5,8 +5,8 @@
 .form-label {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #2d3436;
+  font-weight: 500; /* ปรับให้ไม่หนามาก */
+  color: #2d3436; /* สีเทาเข้มสำหรับ label */
   font-size: 14px;
 }
 
@@ -28,15 +28,24 @@
   border-radius: 8px;
   font-size: 14px;
   background-color: #ffffff;
-  color: #2d3436;
+  color: #2d3436; /* สีเทาเข้มสำหรับข้อความใน select */
   transition: border-color 0.2s, box-shadow 0.2s;
   font-family: 'Noto Sans Thai', sans-serif;
+  font-weight: 500; /* เพิ่มความหนาของตัวอักษรใน select */
+}
+
+/* สำหรับ option ใน dropdown */
+.form-select option {
+  color: #2d3436; /* สีเทาเข้มสำหรับ options */
+  background-color: #ffffff;
+  font-weight: 500;
+  padding: 8px 12px;
 }
 
 .form-select:focus {
   outline: none;
-  border-color: #74b9ff;
-  box-shadow: 0 0 0 0.2rem rgba(116, 185, 255, 0.25);
+  border-color: #6c5ce7; /* สีม่วง */
+  box-shadow: 0 0 0 0.2rem rgba(108, 92, 231, 0.25);
 }
 
 .form-select:disabled {
@@ -47,6 +56,12 @@
 
 .form-select.is-invalid {
   border-color: #e17055;
+}
+
+/* Placeholder text styling */
+.form-select option[value=""] {
+  color: #6c757d; /* สีเทาอ่อนสำหรับ placeholder */
+  font-style: italic;
 }
 
 .refresh-btn {
@@ -67,8 +82,8 @@
 
 .refresh-btn:hover:not(:disabled) {
   background-color: #f8f9fa;
-  color: #74b9ff;
-  border-color: #74b9ff;
+  color: #6c5ce7; /* สีม่วง */
+  border-color: #6c5ce7;
 }
 
 .refresh-btn:disabled {
@@ -82,6 +97,7 @@
   font-size: 12px;
   display: flex;
   align-items: center;
+  font-weight: 500;
 }
 
 .error-message {
@@ -94,6 +110,7 @@
   font-size: 12px;
   display: flex;
   align-items: center;
+  font-weight: 500;
 }
 
 .retry-btn {
@@ -105,6 +122,7 @@
   cursor: pointer;
   font-size: 12px;
   transition: background-color 0.2s;
+  font-weight: 500;
 }
 
 .retry-btn:hover {
@@ -115,6 +133,7 @@
   margin-top: 0.25rem;
   color: #e17055;
   font-size: 12px;
+  font-weight: 500;
 }
 
 /* Responsive Design */
@@ -129,17 +148,29 @@
     width: 100%;
     justify-content: center;
   }
+  
+  .form-label {
+    font-size: 15px; /* เพิ่มขนาดใน mobile */
+    font-weight: 500; /* ปรับให้ไม่หนามาก */
+  }
 }
 
 @media (max-width: 576px) {
   .form-select {
     font-size: 16px; /* Prevent zoom on iOS */
+    font-weight: 500;
   }
   
   .loading-message,
   .error-message,
   .validation-error {
     font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .form-label {
+    font-size: 16px;
+    font-weight: 500; /* ปรับให้ไม่หนามาก */
   }
 }
 
@@ -154,6 +185,13 @@
 @media (prefers-contrast: high) {
   .form-select {
     border: 2px solid #000;
+    color: #000;
+    font-weight: 700;
+  }
+  
+  .form-label {
+    color: #000;
+    font-weight: 700;
   }
   
   .form-select:focus {
@@ -163,50 +201,61 @@
   
   .refresh-btn {
     border: 2px solid #000;
+    color: #000;
   }
   
   .error-message {
     background-color: #ffcccc;
     border-color: #ff0000;
     color: #cc0000;
+    font-weight: 700;
   }
 }
 
-/* Dark Mode Support */
+/* Dark Mode Override - Force White Theme */
 @media (prefers-color-scheme: dark) {
   .form-label {
-    color: #ecf0f1;
+    color: #2d3436 !important;
+    font-weight: 500 !important; /* ปรับให้ไม่หนามาก */
   }
   
   .form-select {
-    background-color: #2c3e50;
-    border-color: #495057;
-    color: #ecf0f1;
+    background-color: #ffffff !important;
+    border-color: #e0e0e0 !important;
+    color: #2d3436 !important;
+    font-weight: 500 !important;
+  }
+  
+  .form-select option {
+    background-color: #ffffff !important;
+    color: #2d3436 !important;
+    font-weight: 500 !important;
   }
   
   .form-select:focus {
-    border-color: #74b9ff;
+    border-color: #6c5ce7 !important;
   }
   
   .refresh-btn {
-    background-color: #2c3e50;
-    border-color: #495057;
-    color: #bdc3c7;
+    background-color: #ffffff !important;
+    border-color: #e0e0e0 !important;
+    color: #636e72 !important;
   }
   
   .refresh-btn:hover:not(:disabled) {
-    background-color: #34495e;
-    color: #74b9ff;
-    border-color: #74b9ff;
+    background-color: #f8f9fa !important;
+    color: #6c5ce7 !important;
+    border-color: #6c5ce7 !important;
   }
   
   .loading-message {
-    color: #bdc3c7;
+    color: #636e72 !important;
   }
   
   .error-message {
-    background-color: rgba(225, 112, 85, 0.2);
-    border-color: rgba(225, 112, 85, 0.3);
+    background-color: rgba(225, 112, 85, 0.1) !important;
+    border-color: rgba(225, 112, 85, 0.2) !important;
+    color: #e17055 !important;
   }
 }
 
@@ -223,16 +272,26 @@
   .error-message {
     display: none;
   }
+  
+  .form-label {
+    color: #000 !important;
+    font-weight: 500 !important; /* ปรับให้ไม่หนามาก */
+  }
+  
+  .form-select {
+    color: #000 !important;
+    font-weight: 600 !important;
+  }
 }
 
 /* Focus Management for Accessibility */
 .form-select:focus-visible {
-  outline: 2px solid #74b9ff;
+  outline: 2px solid #6c5ce7;
   outline-offset: 2px;
 }
 
 .refresh-btn:focus-visible {
-  outline: 2px solid #74b9ff;
+  outline: 2px solid #6c5ce7;
   outline-offset: 2px;
 }
 
@@ -262,15 +321,25 @@
   .form-label {
     font-size: 16px;
     margin-bottom: 0.75rem;
+    font-weight: 500; /* ปรับให้ไม่หนามาก */
   }
   
   .form-select {
     padding: 14px 16px;
     font-size: 16px;
+    font-weight: 500;
   }
   
   .refresh-btn {
     padding: 14px;
     height: 48px;
   }
+}
+
+/* เพิ่มการจัดสีสำหรับ text ที่ชัดเจนขึ้น */
+.form-label,
+.form-select,
+.form-select option {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

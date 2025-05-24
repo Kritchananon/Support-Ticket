@@ -15,7 +15,7 @@
       
       <option value="">{{ placeholder }}</option>
       <option *ngFor="let project of projects" [value]="project.id">
-        {{ showCode ? project.projectCode + ' - ' : '' }}{{ project.projectName }}
+        {{ getProjectDisplayName(project) }}
       </option>
     </select>
     

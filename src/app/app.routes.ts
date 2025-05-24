@@ -41,7 +41,7 @@ export const routes: Routes = [
         children: [
           {
             path: '',
-            component: TicketListComponent
+            component: TicketListComponent // เปลี่ยนจาก ticket-list เป็น all tickets
           },
           {
             path: 'new',
