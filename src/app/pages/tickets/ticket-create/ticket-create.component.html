@@ -20,33 +20,16 @@
   <div class="content-card">
     <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
       
-      <!-- Project Name Dropdown -->
+      <!-- Project Name Dropdown - ใช้ Component ใหม่ -->
       <div class="form-group">
-        <label class="form-label">
-          Project Name <span class="required">*</span>
-        </label>
-        <div class="dropdown-container">
-          <div 
-            class="form-select" 
-            [class.invalid]="isFieldInvalid('projectId')"
-            (click)="showProjectDropdown = !showProjectDropdown">
-            <span class="select-text">{{ getSelectedProjectName() }}</span>
-            <i class="bi bi-chevron-down dropdown-icon"></i>
-          </div>
-          
-          <!-- Project Dropdown Options -->
-          <div class="dropdown-menu" *ngIf="showProjectDropdown">
-            <div 
-              class="dropdown-item" 
-              *ngFor="let project of projects"
-              (click)="onProjectSelect(project)">
-              {{ project.name }}
-            </div>
-          </div>
-        </div>
-        <div class="error-message" *ngIf="isFieldInvalid('projectId')">
-          {{ getFieldError('projectId') }}
-        </div>
+        <app-project-dropdown
+          label="Project Name"
+          [required]="true"
+          [errorText]="isFieldInvalid('projectId') ? getFieldError('projectId') : ''"
+          status="active"
+          [showCode]="true"
+          (selectionChange)="onProjectSelected($event)">
+        </app-project-dropdown>
       </div>
 
       <!-- Categories Dropdown -->
@@ -263,6 +246,21 @@
         </div>
       </div>
 
+      <!-- Selected Project Info -->
+      <div *ngIf="selectedProject" class="selected-project-info">
+        <div class="info-card">
+          <h6 class="info-title">โปรเจคที่เลือก:</h6>
+          <div class="project-details">
+            <div class="detail-item">
+              <strong>รหัส:</strong> {{ selectedProject.projectCode }}
+            </div>
+            <div class="detail-item">
+              <strong>ชื่อ:</strong> {{ selectedProject.projectName }}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Submit Button -->
       <div class="form-actions">
         <button 
@@ -277,3 +275,46 @@
     </form>
   </div>
 </div>
+
+<style>
+/* เพิ่ม CSS สำหรับ Selected Project Info */
+.selected-project-info {
+  margin-top: 1rem;
+}
+
+.info-card {
+  background-color: rgba(116, 185, 255, 0.1);
+  border: 1px solid rgba(116, 185, 255, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.info-title {
+  color: #74b9ff;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  font-size: 14px;
+}
+
+.project-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item {
+  font-size: 12px;
+  color: #2d3436;
+}
+
+.detail-item strong {
+  color: #636e72;
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .project-details {
+    gap: 0.5rem;
+  }
+}
+</style>

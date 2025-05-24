@@ -4,11 +4,8 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-
-interface Project {
-  id: number;
-  name: string;
-}
+import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
+import { ProjectDDL } from '../../../shared/models/project.model';
 
 interface Category {
   id: number;
@@ -18,7 +15,7 @@ interface Category {
 @Component({
   selector: 'app-ticket-create',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ProjectDropdownComponent],
   templateUrl: './ticket-create.component.html',
   styleUrls: ['./ticket-create.component.css']
 })
@@ -29,7 +26,6 @@ export class TicketCreateComponent implements OnInit {
   private router = inject(Router);
 
   ticketForm: FormGroup;
-  projects: Project[] = [];
   categories: Category[] = [];
   
   isLoading = false;
@@ -37,8 +33,8 @@ export class TicketCreateComponent implements OnInit {
   selectedFiles: File[] = [];
   
   currentUser: any;
-  showProjectDropdown = false;
   showCategoryDropdown = false;
+  selectedProject: ProjectDDL | null = null;
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -51,27 +47,7 @@ export class TicketCreateComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
-    this.loadProjects();
     this.loadCategories();
-  }
-
-  loadProjects(): void {
-    this.apiService.getProjects().subscribe({
-      next: (response) => {
-        if (response.code === '2' || response.status === 1) {
-          this.projects = response.data;
-        }
-      },
-      error: (error) => {
-        console.error('Error loading projects:', error);
-        // Mock data for demonstration
-        this.projects = [
-          { id: 1, name: 'Human Resource Management System' },
-          { id: 2, name: 'Customer Management System' },
-          { id: 3, name: 'Inventory Management System' }
-        ];
-      }
-    });
   }
 
   loadCategories(): void {
@@ -95,20 +71,15 @@ export class TicketCreateComponent implements OnInit {
     });
   }
 
-  onProjectSelect(project: Project): void {
-    this.ticketForm.patchValue({ projectId: project.id });
-    this.showProjectDropdown = false;
+  onProjectSelected(event: {project: ProjectDDL | null, projectId: number | string}): void {
+    this.selectedProject = event.project;
+    this.ticketForm.patchValue({ projectId: event.projectId });
+    console.log('Selected Project:', event);
   }
 
   onCategorySelect(category: Category): void {
     this.ticketForm.patchValue({ categoryId: category.id });
     this.showCategoryDropdown = false;
-  }
-
-  getSelectedProjectName(): string {
-    const projectId = this.ticketForm.get('projectId')?.value;
-    const project = this.projects.find(p => p.id === projectId);
-    return project ? project.name : 'เลือกโปรเจกต์';
   }
 
   getSelectedCategoryName(): string {
@@ -153,14 +124,19 @@ export class TicketCreateComponent implements OnInit {
       };
 
       console.log('Submitting ticket:', ticketData);
+      console.log('Selected project info:', this.selectedProject);
 
       this.apiService.createTicket(ticketData).subscribe({
         next: (response) => {
           if (response.code === '2' || response.status === 1) {
-            // Handle file uploads if any
-            if (this.selectedFiles.length > 0) {
-              this.uploadFiles(response.data.id);
+            const ticketId = response.data?.id;
+            
+            if (ticketId && this.selectedFiles.length > 0) {
+              this.uploadFiles(ticketId);
+            } else if (ticketId) {
+              this.onTicketCreated();
             } else {
+              console.warn('Ticket created but no ID returned');
               this.onTicketCreated();
             }
           } else {
@@ -188,15 +164,14 @@ export class TicketCreateComponent implements OnInit {
       })
       .catch((error) => {
         console.error('Error uploading files:', error);
-        this.onTicketCreated(); // Still proceed even if file upload fails
+        this.onTicketCreated();
       });
   }
 
   private onTicketCreated(): void {
     this.isSubmitting = false;
-    // Show success message or navigate
-    alert('สร้างตั๋วเรียบร้อยแล้ว');
-    this.router.navigate(['/tickets']);
+    alert(`สร้างตั๋วเรียบร้อยแล้ว${this.selectedProject ? ' สำหรับโปรเจค: ' + this.selectedProject.projectName : ''}`);
+    this.router.navigate(['/dashboard']);
   }
 
   private onSubmitError(message: string): void {

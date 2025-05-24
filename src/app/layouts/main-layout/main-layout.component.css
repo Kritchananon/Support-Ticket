@@ -1,6 +1,6 @@
 .main-layout {
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background-color: #ffffff; /* เปลี่ยนเป็นพื้นหลังสีขาว */
   position: relative;
   overflow-x: hidden;
 }
@@ -10,7 +10,7 @@
   margin-left: 250px;
   margin-top: 70px;
   min-height: calc(100vh - 70px);
-  background-color: #f8f9fa;
+  background-color: #ffffff; /* พื้นหลังสีขาว */
   transition: margin-left 0.3s ease;
   position: relative;
 }
@@ -20,6 +20,7 @@
   max-width: 100%;
   min-height: calc(100vh - 70px - 4rem);
   animation: fadeIn 0.3s ease-in;
+  background-color: #ffffff; /* พื้นหลังสีขาว */
 }
 
 /* Animation for content loading */
@@ -103,7 +104,7 @@
   height: 40px;
   margin: -20px 0 0 -20px;
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #4285f4;
+  border-top: 3px solid #74b9ff; /* เปลี่ยนเป็นสีฟ้า */
   border-radius: 50%;
   animation: spin 1s linear infinite;
   z-index: 1001;
@@ -120,17 +121,17 @@
 }
 
 .content-wrapper::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f8f9fa;
   border-radius: 4px;
 }
 
 .content-wrapper::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #e0e0e0;
   border-radius: 4px;
 }
 
 .content-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #b2bec3;
 }
 
 /* Responsive Design */
@@ -138,11 +139,13 @@
   .main-content {
     margin-left: 0;
     margin-top: 70px;
+    background-color: #ffffff;
   }
   
   .content-wrapper {
     padding: 1rem;
     min-height: calc(100vh - 70px - 2rem);
+    background-color: #ffffff;
   }
   
   .mobile-overlay.show {
@@ -154,6 +157,7 @@
   .content-wrapper {
     padding: 0.75rem;
     min-height: calc(100vh - 70px - 1.5rem);
+    background-color: #ffffff;
   }
 }
 
@@ -161,6 +165,7 @@
   .content-wrapper {
     padding: 0.5rem;
     min-height: calc(100vh - 70px - 1rem);
+    background-color: #ffffff;
   }
 }
 
@@ -168,6 +173,7 @@
 @media (max-width: 1024px) and (orientation: portrait) {
   .content-wrapper {
     padding: 1.5rem;
+    background-color: #ffffff;
   }
 }
 
@@ -177,6 +183,7 @@
     padding: 2.5rem;
     max-width: 1400px;
     margin: 0 auto;
+    background-color: #ffffff;
   }
 }
 
@@ -192,10 +199,12 @@
   .main-content {
     margin-left: 0 !important;
     margin-top: 0 !important;
+    background-color: #ffffff !important;
   }
   
   .content-wrapper {
     padding: 0 !important;
+    background-color: #ffffff !important;
   }
   
   .mobile-overlay {
@@ -225,25 +234,6 @@
   .mobile-overlay {
     transition: none;
     animation: none;
-  }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  .main-layout {
-    background-color: #1a1a1a;
-  }
-  
-  .main-content {
-    background-color: #1a1a1a;
-  }
-  
-  .content-wrapper {
-    color: #e0e0e0;
-  }
-  
-  .mobile-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
   }
 }
 

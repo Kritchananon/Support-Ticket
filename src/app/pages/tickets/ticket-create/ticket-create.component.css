@@ -1,13 +1,13 @@
 .new-ticket-page {
   padding: 0;
-  background-color: #f5f5f9;
+  background-color: #ffffff; /* เปลี่ยนเป็นพื้นหลังสีขาว */
   min-height: calc(100vh - 70px);
 }
 
 /* Breadcrumb */
 .breadcrumb-container {
   background-color: #ffffff;
-  border: 1px solid #ececec;
+  border: 1px solid #f0f0f0; /* เปลี่ยนเป็นสีเทาอ่อน */
   border-radius: 8px;
   padding: 11px 12px;
   margin-bottom: 24px;
@@ -21,22 +21,22 @@
 }
 
 .breadcrumb-item {
-  color: #737373;
+  color: #636e72; /* เปลี่ยนเป็นสีเทา */
 }
 
 .breadcrumb-item.active {
-  color: #000000;
+  color: #2d3436; /* สีเทาเข้ม */
   font-weight: 500;
 }
 
 .breadcrumb-item a {
-  color: #737373;
+  color: #636e72;
   text-decoration: none;
 }
 
 .breadcrumb-item + .breadcrumb-item::before {
   content: "›";
-  color: #414141;
+  color: #2d3436;
   font-weight: bold;
   margin: 0 6px;
 }
@@ -50,7 +50,7 @@
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 19px;
   font-weight: 600;
-  color: #212121;
+  color: #2d3436; /* สีเทาเข้ม */
   margin: 0;
 }
 
@@ -59,7 +59,8 @@
   background-color: #ffffff;
   border-radius: 12px;
   padding: 21px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* เบาลงเล็กน้อย */
+  border: 1px solid #f0f0f0; /* เพิ่มกรอบบาง */
 }
 
 /* Form Styles */
@@ -78,13 +79,13 @@
 .form-label {
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  font-weight: 400;
-  color: #212121;
+  font-weight: 500; /* เพิ่มน้ำหนักตัวอักษร */
+  color: #2d3436;
   margin: 0;
 }
 
 .required {
-  color: #dc3545;
+  color: #e17055; /* เปลี่ยนเป็นสีส้ม */
   margin-left: 2px;
 }
 
@@ -101,37 +102,37 @@
   justify-content: space-between;
   padding: 11px 16px;
   background-color: #ffffff;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0; /* เปลี่ยนเป็นสีเทาอ่อน */
   border-radius: 8px;
   cursor: pointer;
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  color: #212121;
+  color: #2d3436;
   transition: all 0.2s ease;
   height: 38px;
   box-sizing: border-box;
 }
 
 .form-select:hover {
-  border-color: #4285f4;
+  border-color: #74b9ff; /* สีฟ้าอ่อน */
 }
 
 .form-select.invalid {
-  border-color: #dc3545;
+  border-color: #e17055;
 }
 
 .select-text {
-  color: #b5b5b5;
+  color: #636e72;
   flex: 1;
   text-align: left;
 }
 
 .form-select:has(.select-text:not(:empty)) .select-text {
-  color: #212121;
+  color: #2d3436;
 }
 
 .dropdown-icon {
-  color: #414141;
+  color: #636e72;
   font-size: 16px;
   transition: transform 0.2s ease;
 }
@@ -146,9 +147,9 @@
   left: 0;
   right: 0;
   background-color: #ffffff;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* เบาลง */
   z-index: 1000;
   max-height: 200px;
   overflow-y: auto;
@@ -159,9 +160,10 @@
   padding: 12px 16px;
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  color: #212121;
+  color: #2d3436;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  background-color: #ffffff;
 }
 
 .dropdown-item:hover {
@@ -182,7 +184,7 @@
   align-items: center;
   padding: 16px;
   background-color: #ffffff;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0;
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   gap: 16px;
@@ -198,11 +200,11 @@
 .font-select,
 .size-select {
   padding: 11px 16px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  color: #212121;
+  color: #2d3436;
   background-color: #ffffff;
   width: 230px;
 }
@@ -214,7 +216,7 @@
 .toolbar-divider {
   width: 1px;
   height: 38px;
-  background-color: #d9d9d9;
+  background-color: #e0e0e0;
 }
 
 .toolbar-btn {
@@ -228,17 +230,17 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #737373;
+  color: #636e72;
 }
 
 .toolbar-btn:hover {
   background-color: #f8f9fa;
-  color: #4285f4;
+  color: #74b9ff;
 }
 
 .toolbar-btn.active {
-  background-color: #5873f8;
-  color: #f5f5f9;
+  background-color: #74b9ff; /* เปลี่ยนเป็นสีฟ้า */
+  color: #ffffff;
 }
 
 .toolbar-btn i {
@@ -248,35 +250,35 @@
 .rich-editor {
   min-height: 193px;
   padding: 16px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0;
   border-radius: 0 0 6px 6px;
   background-color: #ffffff;
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  color: #212121;
+  color: #2d3436;
   outline: none;
   overflow-y: auto;
   line-height: 1.5;
 }
 
 .rich-editor.invalid {
-  border-color: #dc3545;
+  border-color: #e17055;
 }
 
 .rich-editor:empty::before {
   content: attr(placeholder);
-  color: #b5b5b5;
+  color: #636e72;
   pointer-events: none;
 }
 
 .rich-editor:focus {
-  border-color: #4285f4;
-  box-shadow: 0 0 0 0.2rem rgba(66, 133, 244, 0.25);
+  border-color: #74b9ff;
+  box-shadow: 0 0 0 0.2rem rgba(116, 185, 255, 0.25);
 }
 
 /* File Upload */
 .file-upload-area {
-  border: 1px solid #d9d9d9;
+  border: 1px solid #e0e0e0;
   border-radius: 6px;
   padding: 16px;
   background-color: #ffffff;
@@ -293,7 +295,7 @@
   justify-content: center;
   width: 100px;
   height: 100px;
-  background-color: rgba(88, 115, 248, 0.1);
+  background-color: rgba(116, 185, 255, 0.1); /* เปลี่ยนเป็นสีฟ้าอ่อน */
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -301,18 +303,18 @@
 }
 
 .upload-label:hover {
-  background-color: rgba(88, 115, 248, 0.2);
+  background-color: rgba(116, 185, 255, 0.2);
 }
 
 .upload-icon i {
   font-size: 20px;
-  color: #5873f8;
+  color: #74b9ff; /* สีฟ้า */
 }
 
 .upload-text {
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
-  color: #5873f8;
+  color: #74b9ff;
   text-align: center;
 }
 
@@ -335,7 +337,7 @@
   padding: 12px;
   background-color: #f8f9fa;
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid #f0f0f0; /* เปลี่ยนเป็นสีเทาอ่อน */
 }
 
 .file-info {
@@ -347,7 +349,7 @@
 
 .file-icon {
   font-size: 20px;
-  color: #6c757d;
+  color: #636e72;
 }
 
 .file-details {
@@ -360,19 +362,19 @@
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #212121;
+  color: #2d3436;
 }
 
 .file-size {
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 12px;
-  color: #6c757d;
+  color: #636e72;
 }
 
 .remove-file-btn {
   background: none;
   border: none;
-  color: #dc3545;
+  color: #e17055;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -380,7 +382,7 @@
 }
 
 .remove-file-btn:hover {
-  background-color: #dc3545;
+  background-color: #e17055;
   color: white;
 }
 
@@ -408,18 +410,18 @@
 }
 
 .btn-primary {
-  background-color: #707070;
-  color: #f0f0f0;
+  background-color: #636e72; /* สีเทา */
+  color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #5a5a5a;
+  background-color: #2d3436;
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
 .btn:disabled {
-  background-color: #6c757d;
+  background-color: #b2bec3;
   color: #ffffff;
   cursor: not-allowed;
   opacity: 0.6;
@@ -429,7 +431,7 @@
 .error-message {
   font-family: 'Noto Sans Thai', sans-serif;
   font-size: 12px;
-  color: #dc3545;
+  color: #e17055;
   margin-top: 4px;
 }
 
@@ -444,6 +446,7 @@
 @media (max-width: 768px) {
   .new-ticket-page {
     padding: 1rem;
+    background-color: #ffffff;
   }
   
   .content-card {
@@ -523,139 +526,5 @@
   
   .upload-text {
     font-size: 12px;
-  }
-}
-
-/* Animation Effects */
-.dropdown-menu {
-  animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.file-item {
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Focus States */
-.form-select:focus-within {
-  outline: 2px solid #4285f4;
-  outline-offset: 2px;
-}
-
-.toolbar-btn:focus {
-  outline: 2px solid #4285f4;
-  outline-offset: 2px;
-}
-
-.upload-label:focus-within {
-  outline: 2px solid #4285f4;
-  outline-offset: 2px;
-}
-
-/* High Contrast Mode Support */
-@media (prefers-contrast: high) {
-  .form-select,
-  .rich-editor,
-  .dropdown-menu {
-    border: 2px solid #000;
-  }
-  
-  .dropdown-item:hover {
-    background-color: #000;
-    color: #fff;
-  }
-  
-  .toolbar-btn:hover {
-    background-color: #000;
-    color: #fff;
-  }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  .new-ticket-page {
-    background-color: #1a1a1a;
-  }
-  
-  .content-card,
-  .breadcrumb-container {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-  }
-  
-  .page-title,
-  .form-label,
-  .select-text,
-  .dropdown-item {
-    color: #ecf0f1;
-  }
-  
-  .form-select,
-  .rich-editor,
-  .dropdown-menu {
-    background-color: #34495e;
-    border-color: #495057;
-    color: #ecf0f1;
-  }
-  
-  .dropdown-item:hover {
-    background-color: #495057;
-  }
-  
-  .toolbar-btn {
-    color: #bdc3c7;
-  }
-  
-  .toolbar-btn:hover {
-    background-color: #495057;
-    color: #4285f4;
-  }
-  
-  .file-item {
-    background-color: #34495e;
-    border-color: #495057;
-  }
-  
-  .upload-label {
-    background-color: rgba(88, 115, 248, 0.2);
-  }
-}
-
-/* Print Styles */
-@media print {
-  .editor-toolbar,
-  .file-upload-area,
-  .form-actions {
-    display: none;
-  }
-  
-  .rich-editor {
-    border: 1px solid #000;
-    border-radius: 4px;
-  }
-  
-  .new-ticket-page {
-    background-color: white;
   }
 }
