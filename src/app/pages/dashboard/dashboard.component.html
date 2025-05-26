@@ -1,152 +1,189 @@
 <div class="dashboard">
-  <!-- Header Section -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Dashboard</h1>
-    <div class="d-flex align-items-center">
-      <span class="me-3">สวัสดี, {{ currentUser?.firstname }} {{ currentUser?.lastname }}</span>
-      <button class="btn btn-outline-danger btn-sm" (click)="logout()">
-        <i class="bi bi-box-arrow-right me-1"></i>
-        ออกจากระบบ
-      </button>
-    </div>
+  <!-- Breadcrumb - ตรงกับ Figma -->
+  <div class="breadcrumb-container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+          <a href="#" routerLink="/dashboard">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+      </ol>
+    </nav>
   </div>
 
-  <!-- Stats Cards -->
-  <div class="row mb-4">
-    <div class="col-md-3 mb-3">
-      <div class="card bg-primary text-white">
+  <!-- Dashboard Header Card - ตรงกับ Figma -->
+  <div class="dashboard-header-card">
+    <h1>Dashboard</h1>
+    
+    <!-- Stats Cards Row -->
+    <div class="d-flex justify-content-between align-items-center gap-4">
+      <!-- Total Ticket -->
+      <div class="stats-card bg-primary">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <div>
-              <h4 class="mb-0">{{ dashboardStats?.totalTickets || 240 }}</h4>
-              <p class="mb-0">Total Tickets</p>
-            </div>
-            <div class="align-self-center">
-              <i class="bi bi-ticket-perforated fs-2"></i>
-            </div>
+          <div class="stats-icon-container">
+            <i class="bi bi-ticket-perforated stats-icon" style="color: #5873F8;"></i>
+          </div>
+          <div class="stats-text-container">
+            <p>Total Ticket</p>
+            <h4>{{ dashboardStats?.totalTickets || 240 }}</h4>
           </div>
         </div>
       </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-      <div class="card bg-warning text-white">
+      
+      <!-- New Ticket -->
+      <div class="stats-card bg-warning">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <div>
-              <h4 class="mb-0">{{ dashboardStats?.newTickets || 20 }}</h4>
-              <p class="mb-0">New Tickets</p>
-            </div>
-            <div class="align-self-center">
-              <i class="bi bi-plus-circle fs-2"></i>
-            </div>
+          <div class="stats-icon-container">
+            <i class="bi bi-plus-circle stats-icon" style="color: #FFC107;"></i>
+          </div>
+          <div class="stats-text-container">
+            <p>New Ticket</p>
+            <h4>{{ dashboardStats?.newTickets || 20 }}</h4>
           </div>
         </div>
       </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-      <div class="card bg-info text-white">
+      
+      <!-- In Progress -->
+      <div class="stats-card bg-info">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <div>
-              <h4 class="mb-0">{{ dashboardStats?.inProgress || 20 }}</h4>
-              <p class="mb-0">In Progress</p>
-            </div>
-            <div class="align-self-center">
-              <i class="bi bi-clock-history fs-2"></i>
-            </div>
+          <div class="stats-icon-container">
+            <i class="bi bi-chat stats-icon" style="color: #1FBCD5;"></i>
+          </div>
+          <div class="stats-text-container">
+            <p>In Progress</p>
+            <h4>{{ dashboardStats?.inProgress || 20 }}</h4>
           </div>
         </div>
       </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-      <div class="card bg-success text-white">
+      
+      <!-- Complete -->
+      <div class="stats-card bg-success">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <div>
-              <h4 class="mb-0">{{ dashboardStats?.completed || 210 }}</h4>
-              <p class="mb-0">Completed</p>
-            </div>
-            <div class="align-self-center">
-              <i class="bi bi-check-circle fs-2"></i>
-            </div>
+          <div class="stats-icon-container">
+            <i class="bi bi-check-circle stats-icon" style="color: #28A745;"></i>
+          </div>
+          <div class="stats-text-container">
+            <p>Complete</p>
+            <h4>{{ dashboardStats?.completed || 210 }}</h4>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Recent Tickets -->
+  <!-- Charts Section -->
   <div class="row">
-    <div class="col-md-8">
-      <div class="card">
+    <!-- All Tickets at Month Chart -->
+    <div class="col-md-12 mb-4">
+      <div class="card chart-card">
         <div class="card-header">
-          <h5 class="card-title mb-0">Recent Tickets</h5>
-        </div>
-        <div class="card-body">
-          <div *ngIf="loading" class="text-center">
-            <div class="spinner-border" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <h5 class="card-title">All Tickets at Month</h5>
+            <div class="chart-controls">
+              <div class="chart-legend">
+                <span class="legend-item">
+                  <span class="legend-color" style="background-color: #FFC107;"></span>
+                  New Ticket
+                </span>
+                <span class="legend-item">
+                  <span class="legend-color" style="background-color: #28A745;"></span>
+                  Complete
+                </span>
+              </div>
+              <div class="d-flex gap-2">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <span>{{ selectedMonth }}</span>
+                    <i class="bi bi-chevron-down ms-2"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" (click)="selectMonth('February')">February</a></li>
+                    <li><a class="dropdown-item" href="#" (click)="selectMonth('January')">January</a></li>
+                    <li><a class="dropdown-item" href="#" (click)="selectMonth('March')">March</a></li>
+                  </ul>
+                </div>
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <span>{{ selectedYear }}</span>
+                    <i class="bi bi-chevron-down ms-2"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" (click)="selectYear('2025')">2025</a></li>
+                    <li><a class="dropdown-item" href="#" (click)="selectYear('2024')">2024</a></li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div *ngIf="!loading && tickets.length === 0" class="text-center text-muted">
-            ไม่มีข้อมูลตั๋ว
-          </div>
-          
-          <div *ngIf="!loading && tickets.length > 0" class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Ticket No</th>
-                  <th>Project</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let ticket of tickets.slice(0, 5)">
-                  <td>{{ ticket.ticket_no }}</td>
-                  <td>{{ ticket.project?.name || 'N/A' }}</td>
-                  <td>
-                    <span class="badge" [class]="getStatusBadgeClass(ticket.status_id)">
-                      {{ getStatusText(ticket.status_id) }}
-                    </span>
-                  </td>
-                  <td>{{ formatDate(ticket.create_date) }}</td>
-                </tr>
-              </tbody>
-            </table>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas #monthlyChart id="monthlyChart" width="800" height="276"></canvas>
           </div>
         </div>
       </div>
     </div>
-    
-    <div class="col-md-4">
-      <div class="card">
+  </div>
+
+  <div class="row">
+    <!-- All Ticket Summary by Categories Chart -->
+    <div class="col-md-8 mb-4">
+      <div class="card chart-card">
         <div class="card-header">
-          <h5 class="card-title mb-0">Customer Projects</h5>
-        </div>
-        <div class="card-body">
-          <div *ngIf="loadingCustomers" class="text-center">
-            <div class="spinner-border spinner-border-sm" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <h5 class="card-title">All Ticket Summary by Categories</h5>
+            <div class="dropdown">
+              <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <span>{{ selectedCategoryYear }}</span>
+                <i class="bi bi-chevron-down ms-2"></i>
+              </button>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" (click)="selectCategoryYear('2025')">2025</a></li>
+                <li><a class="dropdown-item" href="#" (click)="selectCategoryYear('2024')">2024</a></li>
+              </ul>
             </div>
           </div>
-          
-          <div *ngIf="!loadingCustomers && customerForProjects.length === 0" class="text-center text-muted">
-            ไม่มีข้อมูลโปรเจกต์
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas #categoryChart id="categoryChart" width="600" height="276"></canvas>
           </div>
-          
-          <div *ngIf="!loadingCustomers && customerForProjects.length > 0">
-            <div *ngFor="let item of customerForProjects.slice(0, 5)" class="d-flex justify-content-between align-items-center mb-2">
-              <div>
-                <small class="text-muted">{{ item.customer?.name || 'Unknown' }}</small>
-                <div class="fw-bold">{{ item.project?.name || 'Unknown Project' }}</div>
-              </div>
-              <span class="badge bg-secondary">{{ item.user?.firstname || 'Unassigned' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ticket Summary by Categories Pie Chart -->
+    <div class="col-md-4 mb-4">
+      <div class="card chart-card">
+        <div class="card-header">
+          <div class="text-center w-100">
+            <h5 class="card-title">Ticket Summary by Categories</h5>
+          </div>
+        </div>
+        <div class="card-body text-center">
+          <div class="chart-container d-flex justify-content-center align-items-center">
+            <canvas #pieChart id="pieChart" width="204" height="204"></canvas>
+          </div>
+          <div class="pie-legend">
+            <div class="pie-legend-column">
+              <span class="legend-item">
+                <span class="legend-color" style="background-color: #1FBCD5;"></span>
+                บันทึกข้อมูลไม่ได้
+              </span>
+              <span class="legend-item">
+                <span class="legend-color" style="background-color: #DC3545;"></span>
+                ระบบล่ม/ใช้งานไม่ได้
+              </span>
+            </div>
+            <div class="pie-legend-column">
+              <span class="legend-item">
+                <span class="legend-color" style="background-color: #5873F8;"></span>
+                ปัญหาเจอบัค
+              </span>
+              <span class="legend-item">
+                <span class="legend-color" style="background-color: #6C757D;"></span>
+                อื่นๆ
+              </span>
             </div>
           </div>
         </div>

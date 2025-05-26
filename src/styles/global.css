@@ -4,7 +4,7 @@
 
 body {
   font-family: var(--font-family);
-  background-color: #ffffff; /* เปลี่ยนเป็นพื้นหลังสีขาว */
+  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   margin: 0;
   padding: 0;
   color: #2d3436; /* สีตัวอักษรเทาเข้ม */
@@ -15,7 +15,7 @@ body {
   padding-top: var(--header-height);
   min-height: 100vh;
   padding: 2rem;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
+  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
 }
 
 .card {
@@ -23,35 +23,34 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  background-color: #ffffff;
+  background-color: #ffffff; /* รักษาสีขาวสำหรับ cards */
   border: 1px solid #e9ecef; /* เพิ่มกรอบบางๆ */
 }
 
-/* Sidebar - เปลี่ยนเป็นสีขาว */
+/* Sidebar - รักษาสีขาว */
 .sidebar {
   width: var(--sidebar-width);
   height: 100vh;
   position: fixed;
   top: 0;
   left: 0;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
+  background-color: #ffffff; /* รักษาสีขาวสำหรับ sidebar */
   box-shadow: 2px 0 8px rgba(0,0,0,0.08);
   z-index: 1000;
   overflow-y: auto;
   border-right: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
 }
 
-/* Header - เปลี่ยนเป็นสีขาว */
+/* Header - รักษาสีขาว */
 .header {
   height: var(--header-height);
   position: fixed;
   top: 0;
   left: var(--sidebar-width);
   right: 0;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
+  background-color: #ffffff; /* รักษาสีขาวสำหรับ header */
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   z-index: 999;
-  /* display: flex; */
   align-items: center;
   padding: 0 2rem;
   border-bottom: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
@@ -392,7 +391,7 @@ body {
   .main-content {
     margin-left: 0;
     padding-top: var(--header-height);
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
   
   .header {

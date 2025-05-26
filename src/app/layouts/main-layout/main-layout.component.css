@@ -1,6 +1,6 @@
 .main-layout {
   min-height: 100vh;
-  background-color: #ffffff; /* เปลี่ยนเป็นพื้นหลังสีขาว */
+  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   position: relative;
   overflow-x: hidden;
 }
@@ -10,7 +10,7 @@
   margin-left: 250px;
   margin-top: 70px;
   min-height: calc(100vh - 70px);
-  background-color: #ffffff; /* พื้นหลังสีขาว */
+  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   transition: margin-left 0.3s ease;
   position: relative;
 }
@@ -20,7 +20,7 @@
   max-width: 100%;
   min-height: calc(100vh - 70px - 4rem);
   animation: fadeIn 0.3s ease-in;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
+  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
 }
 
 /* Animation for content loading */
@@ -88,7 +88,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(245, 245, 249, 0.8); /* ปรับสีให้ตรงกับพื้นหลังใหม่ */
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -139,13 +139,13 @@
   .main-content {
     margin-left: 0;
     margin-top: 70px;
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
   
   .content-wrapper {
     padding: 1rem;
     min-height: calc(100vh - 70px - 2rem);
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
   
   .mobile-overlay.show {
@@ -157,7 +157,7 @@
   .content-wrapper {
     padding: 0.75rem;
     min-height: calc(100vh - 70px - 1.5rem);
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
 }
 
@@ -165,7 +165,7 @@
   .content-wrapper {
     padding: 0.5rem;
     min-height: calc(100vh - 70px - 1rem);
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
 }
 
@@ -173,7 +173,7 @@
 @media (max-width: 1024px) and (orientation: portrait) {
   .content-wrapper {
     padding: 1.5rem;
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
 }
 
@@ -183,7 +183,7 @@
     padding: 2.5rem;
     max-width: 1400px;
     margin: 0 auto;
-    background-color: #ffffff;
+    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
   }
 }
 
@@ -257,7 +257,7 @@
   }
 }
 
-/* White Theme Specific Enhancements */
+/* New Background Theme Specific Enhancements */
 .main-layout {
   border: none;
 }
