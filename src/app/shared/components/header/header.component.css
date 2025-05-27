@@ -2,13 +2,15 @@
   height: 70px;
   position: fixed;
   top: 0;
-  left: 250px;
+  left: 290px; /* เปลี่ยนจาก 250px เป็น 267px เพื่อให้มีระยะห่าง 17px */
   right: 0;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
-  border-bottom: 1px solid #e9ecef; /* เปลี่ยนเป็นสีเทาอ่อน */
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* เงาเบาลง */
+  background-color: #ffffff;
+  border-bottom: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(134, 134, 134, 0.25); /* เปลี่ยน shadow ให้เหมือนในรูป */
   z-index: 999;
   transition: left 0.3s ease;
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
 }
 
 .header-content {
@@ -33,7 +35,7 @@
 
 .mobile-menu-toggle:hover {
   background-color: #f8f9fa;
-  color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
 }
 
 /* Page Title - ซ่อนทั้งหมด */
@@ -50,7 +52,7 @@
 
 /* Language Button Styles */
 .language-btn {
-  border-color: #e9ecef; /* เปลี่ยนเป็นสีเทาอ่อน */
+  border-color: #e9ecef;
   color: #6c757d;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -65,7 +67,7 @@
 }
 
 .language-btn:hover {
-  border-color: #6c5ce7; /* สีม่วง */
+  border-color: #6c5ce7;
   color: #6c5ce7;
   background-color: #f8f9fa;
   transform: translateY(-1px);
@@ -73,7 +75,7 @@
 }
 
 .language-btn:focus {
-  border-color: #6c5ce7; /* สีม่วง */
+  border-color: #6c5ce7;
   box-shadow: 0 0 0 0.2rem rgba(108, 92, 231, 0.25);
 }
 
@@ -98,12 +100,12 @@
 
 .user-dropdown:hover {
   background-color: #f8f9fa;
-  color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
   transform: translateY(-1px);
 }
 
 .user-dropdown:focus {
-  outline: 2px solid #6c5ce7; /* สีม่วง */
+  outline: 2px solid #6c5ce7;
   outline-offset: 2px;
   background-color: #f8f9fa;
 }
@@ -115,7 +117,7 @@
 }
 
 .user-dropdown:hover .user-avatar i {
-  color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
 }
 
 .user-name {
@@ -135,8 +137,8 @@
   padding: 0;
   min-width: 250px;
   animation: dropdownFadeIn 0.2s ease-out;
-  background-color: #ffffff; /* พื้นหลังสีขาว */
-  border: 1px solid #e9ecef; /* กรอบสีเทาอ่อน */
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
 }
 
 @keyframes dropdownFadeIn {
@@ -164,7 +166,7 @@
 
 .user-avatar-large i {
   font-size: 2.5rem;
-  color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
 }
 
 .user-details {
@@ -204,17 +206,17 @@
 
 .dropdown-item:hover {
   background-color: #f8f9fa;
-  color: #6c5ce7; /* สีม่วง */
+  color: #6c5ce7;
   padding-left: 1.25rem;
 }
 
 .dropdown-item.active {
-  background-color: #6c5ce7; /* สีม่วง */
+  background-color: #6c5ce7;
   color: white;
 }
 
 .dropdown-item.active:hover {
-  background-color: #5a4fcf; /* สีม่วงเข้ม */
+  background-color: #5a4fcf;
   color: white;
 }
 
@@ -237,6 +239,30 @@
 .dropdown-divider {
   margin: 0.5rem 0;
   border-color: #e9ecef;
+}
+
+/* ปรับ main content ให้สอดคล้องกับ header ใหม่ */
+.main-content {
+  margin-left: 250px; /* เปลี่ยนจาก 250px เป็น 267px */
+  margin-top: 70px;
+  min-height: calc(100vh - 70px);
+  background-color: #F5F5F9;
+  transition: margin-left 0.3s ease;
+  position: relative;
+}
+
+/* เพิ่มการปรับแต่งสำหรับ sidebar */
+.sidebar {
+  width: 249px; /* คงขนาดเดิม */
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: #ffffff;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.08);
+  z-index: 1000;
+  overflow-y: auto;
+  border-right: 1px solid #e9ecef;
 }
 
 /* Responsive Design */
@@ -262,6 +288,10 @@
   .dropdown-menu {
     min-width: 220px;
     background-color: #ffffff;
+  }
+  
+  .main-content {
+    margin-left: 0;
   }
 }
 
@@ -296,7 +326,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #6c5ce7, transparent); /* สีม่วง */
+  background: linear-gradient(90deg, transparent, #6c5ce7, transparent);
   animation: loading 1.5s infinite;
 }
 
@@ -307,7 +337,7 @@
 
 /* Focus Improvements for Accessibility */
 .dropdown-item:focus {
-  outline: 2px solid #6c5ce7; /* สีม่วง */
+  outline: 2px solid #6c5ce7;
   outline-offset: -2px;
   background-color: #f8f9fa;
   color: #6c5ce7;

@@ -20,162 +20,220 @@
   <div class="content-card">
     <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
       
-      <!-- Project Name Dropdown -->
+      <!-- First Dropdown - Project Name -->
       <div class="form-group">
-        <app-project-dropdown
-          label="Project Name"
-          [required]="true"
-          [errorText]="isFieldInvalid('projectId') ? getFieldError('projectId') : ''"
-          status="active"
-          [showCode]="true"
-          (selectionChange)="onProjectSelected($event)">
-        </app-project-dropdown>
+        <label class="form-label">
+          <span>Project Name</span>
+          <span class="required">*</span>
+        </label>
+        <div class="dropdown-container">
+          <select 
+            class="form-select"
+            [class.invalid]="isFieldInvalid('projectId')"
+            formControlName="projectId">
+            <option value="" disabled>-- Select Project --</option>
+            <option value="1">Human Resource Management System</option>
+            <option value="2">Inventory Management System</option>
+            <option value="3">Customer Relationship Management</option>
+          </select>
+        </div>
+        <div class="error-message" *ngIf="isFieldInvalid('projectId')">
+          {{ getFieldError('projectId') }}
+        </div>
       </div>
 
-      <!-- Categories Dropdown -->
+      <!-- Second Dropdown - Categories -->
       <div class="form-group">
-        <app-category-dropdown
-          label="Categories"
-          [required]="true"
-          [errorText]="isFieldInvalid('categoryId') ? getFieldError('categoryId') : ''"
-          status="active"
-          [showCode]="false"
-          (selectionChange)="onCategorySelected($event)">
-        </app-category-dropdown>
+        <label class="form-label">
+          <span>Categories</span>
+          <span class="required">*</span>
+        </label>
+        <div class="dropdown-container">
+          <select 
+            class="form-select"
+            [class.invalid]="isFieldInvalid('categoryId')"
+            formControlName="categoryId">
+            <option value="" disabled>-- Select Category --</option>
+            <option value="1">ระบบล่ม/ใช้งานไม่ได้</option>
+            <option value="2">บันทึกข้อมูลไม่ได้</option>
+            <option value="3">ปัญหาเจอบัค</option>
+            <option value="4">อื่นๆ</option>
+          </select>
+        </div>
+        <div class="error-message" *ngIf="isFieldInvalid('categoryId')">
+          {{ getFieldError('categoryId') }}
+        </div>
       </div>
 
       <!-- Issue Description -->
       <div class="form-group">
         <label class="form-label">
-          Issue <span class="required">*</span>
+          <span>Issue</span>
+          <span class="required">*</span>
         </label>
         
-        <!-- Rich Text Editor Toolbar -->
-        <div class="editor-toolbar">
-          <div class="toolbar-group">
-            <!-- Font formatting -->
-            <select class="font-select">
-              <option>Noto Sans Thai</option>
-              <option>Arial</option>
-              <option>Times New Roman</option>
-            </select>
-            
-            <select class="size-select">
-              <option>14</option>
-              <option>12</option>
-              <option>16</option>
-              <option>18</option>
-            </select>
+        <!-- Rich Text Editor Container -->
+        <div class="rich-text-editor-container">
+          <!-- Rich Text Editor Toolbar -->
+          <div class="editor-toolbar">
+            <div class="toolbar-section">
+              <!-- Font formatting -->
+              <select class="font-select">
+                <option>Noto Sans Thai</option>
+                <option>Arial</option>
+                <option>Times New Roman</option>
+              </select>
+              
+              <select class="size-select">
+                <option>14</option>
+                <option>12</option>
+                <option>16</option>
+                <option>18</option>
+              </select>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <!-- Image upload button -->
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="insertImage()"
+                title="Insert Image">
+                <i class="bi bi-image"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <!-- Text formatting buttons -->
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('bold')"
+                title="Bold">
+                <i class="bi bi-type-bold"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('italic')"
+                title="Italic">
+                <i class="bi bi-type-italic"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('underline')"
+                title="Underline">
+                <i class="bi bi-type-underline"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <!-- Alignment buttons -->
+              <button 
+                type="button" 
+                class="toolbar-btn active" 
+                (click)="formatText('justifyLeft')"
+                title="Align Left">
+                <i class="bi bi-text-left"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('justifyCenter')"
+                title="Align Center">
+                <i class="bi bi-text-center"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('justifyRight')"
+                title="Align Right">
+                <i class="bi bi-text-right"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="formatText('justifyFull')"
+                title="Justify">
+                <i class="bi bi-justify"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <!-- List buttons -->
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="insertList(false)"
+                title="Bullet List">
+                <i class="bi bi-list-ul"></i>
+              </button>
+              
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="insertList(true)"
+                title="Numbered List">
+                <i class="bi bi-list-ol"></i>
+              </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-section">
+              <!-- Link button -->
+              <button 
+                type="button" 
+                class="toolbar-btn" 
+                (click)="insertLink()"
+                title="Insert Link">
+                <i class="bi bi-link-45deg"></i>
+              </button>
+            </div>
           </div>
 
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-group">
-            <!-- Text formatting buttons -->
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('bold')"
-              title="Bold">
-              <i class="bi bi-type-bold"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('italic')"
-              title="Italic">
-              <i class="bi bi-type-italic"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('underline')"
-              title="Underline">
-              <i class="bi bi-type-underline"></i>
-            </button>
+          <!-- Rich Text Editor Content -->
+          <div 
+            class="rich-editor"
+            [class.invalid]="isFieldInvalid('issueDescription')"
+            contenteditable="true"
+            (input)="onDescriptionInput($event)"
+            placeholder="Typing for description">
           </div>
-
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-group">
-            <!-- Alignment buttons -->
-            <button 
-              type="button" 
-              class="toolbar-btn active" 
-              (click)="formatText('justifyLeft')"
-              title="Align Left">
-              <i class="bi bi-text-left"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('justifyCenter')"
-              title="Align Center">
-              <i class="bi bi-text-center"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('justifyRight')"
-              title="Align Right">
-              <i class="bi bi-text-right"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="formatText('justifyFull')"
-              title="Justify">
-              <i class="bi bi-justify"></i>
-            </button>
-          </div>
-
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-group">
-            <!-- List buttons -->
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="insertList(false)"
-              title="Bullet List">
-              <i class="bi bi-list-ul"></i>
-            </button>
-            
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="insertList(true)"
-              title="Numbered List">
-              <i class="bi bi-list-ol"></i>
-            </button>
-          </div>
-
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-group">
-            <!-- Link button -->
-            <button 
-              type="button" 
-              class="toolbar-btn" 
-              (click)="insertLink()"
-              title="Insert Link">
-              <i class="bi bi-link-45deg"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Rich Text Editor Content -->
-        <div 
-          class="rich-editor"
-          [class.invalid]="isFieldInvalid('issueDescription')"
-          contenteditable="true"
-          (input)="onDescriptionInput($event)"
-          placeholder="Typing for description">
         </div>
         
         <div class="error-message" *ngIf="isFieldInvalid('issueDescription')">
@@ -186,68 +244,57 @@
       <!-- File Attachment -->
       <div class="form-group">
         <label class="form-label">
-          Attachment <span class="required">*</span>
+          <span>Attachment</span>
+          <span class="required">*</span>
         </label>
         
         <div class="file-upload-area">
-          <!-- File Upload Button -->
-          <div class="file-upload-button">
-            <label for="fileInput" class="upload-label">
-              <div class="upload-icon">
-                <i class="bi bi-plus-circle"></i>
-              </div>
-              <span class="upload-text">Choose file</span>
-            </label>
-            <input 
-              id="fileInput" 
-              type="file" 
-              multiple 
-              (change)="onFileSelect($event)"
-              class="file-input"
-              accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.txt">
-          </div>
+          <!-- Files Container -->
+          <div class="files-container">
+            <!-- File Upload Button -->
+            <div class="file-upload-button">
+              <label for="fileInput" class="upload-label">
+                <div class="upload-icon">
+                  <i class="bi bi-plus-circle"></i>
+                </div>
+                <span class="upload-text">Choose file</span>
+              </label>
+              <input 
+                id="fileInput" 
+                type="file" 
+                multiple 
+                (change)="onFileSelect($event)"
+                class="file-input"
+                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.txt">
+            </div>
 
-          <!-- Selected Files List -->
-          <div class="selected-files" *ngIf="selectedFiles.length > 0">
-            <div class="file-item" *ngFor="let file of selectedFiles; let i = index">
-              <div class="file-info">
-                <i class="bi bi-file-earmark file-icon"></i>
-                <div class="file-details">
-                  <span class="file-name">{{ file.name }}</span>
+            <!-- Selected Files -->
+            <div class="selected-files" *ngIf="selectedFiles.length > 0">
+              <div class="file-item" *ngFor="let file of selectedFiles; let i = index">
+                <!-- File Preview -->
+                <div class="file-preview">
+                  <img *ngIf="isImageFile(file)" [src]="getFilePreview(file)" alt="Preview">
+                  <i *ngIf="!isImageFile(file)" 
+                     class="file-icon-large" 
+                     [class]="getFileIconClass(file)"
+                     [ngClass]="getFileTypeClass(file)"></i>
+                </div>
+                
+                <!-- Remove Button -->
+                <button 
+                  type="button" 
+                  class="remove-file-btn"
+                  (click)="removeFile(i)"
+                  title="Remove file">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+                
+                <!-- File Info -->
+                <div class="file-info">
+                  <span class="file-name" [title]="file.name">{{ file.name }}</span>
                   <span class="file-size">{{ formatFileSize(file.size) }}</span>
                 </div>
               </div>
-              <button 
-                type="button" 
-                class="remove-file-btn"
-                (click)="removeFile(i)"
-                title="Remove file">
-                <i class="bi bi-x-lg"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Selected Project & Category Info -->
-      <div *ngIf="selectedProject || selectedCategory" class="selected-info">
-        <div class="info-card" *ngIf="selectedProject">
-          <h6 class="info-title">โปรเจคที่เลือก:</h6>
-          <div class="project-details">
-            <div class="detail-item">
-              <strong>รหัส:</strong> {{ selectedProject.projectCode }}
-            </div>
-            <div class="detail-item">
-              <strong>ชื่อ:</strong> {{ selectedProject.projectName }}
-            </div>
-          </div>
-        </div>
-        
-        <div class="info-card" *ngIf="selectedCategory">
-          <h6 class="info-title">หมวดหมู่ที่เลือก:</h6>
-          <div class="category-details">
-            <div class="detail-item">
-              <strong>ชื่อ:</strong> {{ selectedCategory.categoryName }}
             </div>
           </div>
         </div>
@@ -267,55 +314,3 @@
     </form>
   </div>
 </div>
-
-<style>
-/* เพิ่ม CSS สำหรับ Selected Info */
-.selected-info {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.info-card {
-  background-color: rgba(116, 185, 255, 0.1);
-  border: 1px solid rgba(116, 185, 255, 0.2);
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.info-title {
-  color: #74b9ff;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
-  font-size: 14px;
-}
-
-.project-details,
-.category-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.detail-item {
-  font-size: 12px;
-  color: #2d3436;
-}
-
-.detail-item strong {
-  color: #636e72;
-  margin-right: 0.5rem;
-}
-
-@media (max-width: 768px) {
-  .selected-info {
-    gap: 0.75rem;
-  }
-  
-  .project-details,
-  .category-details {
-    gap: 0.5rem;
-  }
-}
-</style>

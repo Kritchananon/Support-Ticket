@@ -1,22 +1,20 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
-import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
-import { ProjectDDL } from '../../../shared/models/project.model';
-import { CategoryDDL } from '../../../shared/models/category.model';
 
 @Component({
   selector: 'app-ticket-create',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ProjectDropdownComponent, CategoryDropdownComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './ticket-create.component.html',
-  styleUrls: ['./ticket-create.component.css']
+  styleUrls: ['./ticket-create.component.css'],
+  encapsulation: ViewEncapsulation.None // เพิ่มบรรทัดนี้เพื่อให้ CSS สามารถ override global styles ได้
 })
 export class TicketCreateComponent implements OnInit {
+  // ... rest of the component code remains the same
   private fb = inject(FormBuilder);
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
@@ -27,10 +25,9 @@ export class TicketCreateComponent implements OnInit {
   isLoading = false;
   isSubmitting = false;
   selectedFiles: File[] = [];
+  filePreviewUrls: { [key: string]: string } = {};
   
   currentUser: any;
-  selectedProject: ProjectDDL | null = null;
-  selectedCategory: CategoryDDL | null = null;
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -45,30 +42,81 @@ export class TicketCreateComponent implements OnInit {
     this.currentUser = this.authService.getCurrentUser();
   }
 
-  onProjectSelected(event: {project: ProjectDDL | null, projectId: number | string}): void {
-    this.selectedProject = event.project;
-    this.ticketForm.patchValue({ projectId: event.projectId });
-    console.log('Selected Project:', event);
-  }
-
-  onCategorySelected(event: {category: CategoryDDL | null, categoryId: number | string}): void {
-    this.selectedCategory = event.category;
-    this.ticketForm.patchValue({ categoryId: event.categoryId });
-    console.log('Selected Category:', event);
-  }
-
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files) {
       const newFiles = Array.from(input.files);
+      
+      // Create preview URLs for image files
+      newFiles.forEach(file => {
+        if (this.isImageFile(file)) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.filePreviewUrls[file.name] = e.target?.result as string;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
       this.selectedFiles = [...this.selectedFiles, ...newFiles];
       this.ticketForm.patchValue({ attachments: this.selectedFiles });
     }
   }
 
   removeFile(index: number): void {
+    const file = this.selectedFiles[index];
+    // Clean up preview URL
+    if (this.filePreviewUrls[file.name]) {
+      URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+      delete this.filePreviewUrls[file.name];
+    }
+    
     this.selectedFiles.splice(index, 1);
     this.ticketForm.patchValue({ attachments: this.selectedFiles });
+  }
+
+  isImageFile(file: File): boolean {
+    return file.type.startsWith('image/');
+  }
+
+  getFilePreview(file: File): string {
+    return this.filePreviewUrls[file.name] || '';
+  }
+
+  getFileIconClass(file: File): string {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'bi-file-earmark-pdf';
+      case 'doc':
+      case 'docx':
+        return 'bi-file-earmark-word';
+      case 'txt':
+        return 'bi-file-earmark-text';
+      case 'xls':
+      case 'xlsx':
+        return 'bi-file-earmark-excel';
+      case 'ppt':
+      case 'pptx':
+        return 'bi-file-earmark-ppt';
+      default:
+        return 'bi-file-earmark';
+    }
+  }
+
+  getFileTypeClass(file: File): string {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'file-icon-pdf';
+      case 'doc':
+      case 'docx':
+        return 'file-icon-doc';
+      case 'txt':
+        return 'file-icon-txt';
+      default:
+        return 'file-icon-default';
+    }
   }
 
   formatFileSize(bytes: number): string {
@@ -93,8 +141,6 @@ export class TicketCreateComponent implements OnInit {
       };
 
       console.log('Submitting ticket:', ticketData);
-      console.log('Selected project info:', this.selectedProject);
-      console.log('Selected category info:', this.selectedCategory);
 
       this.apiService.createTicket(ticketData).subscribe({
         next: (response) => {
@@ -140,10 +186,7 @@ export class TicketCreateComponent implements OnInit {
 
   private onTicketCreated(): void {
     this.isSubmitting = false;
-    const projectName = this.selectedProject ? this.selectedProject.projectName : '';
-    const categoryName = this.selectedCategory ? this.selectedCategory.categoryName : '';
-    
-    alert(`สร้างตั๋วเรียบร้อยแล้ว${projectName ? ' สำหรับโปรเจค: ' + projectName : ''}${categoryName ? ' หมวดหมู่: ' + categoryName : ''}`);
+    alert('สร้างตั๋วเรียบร้อยแล้ว');
     this.router.navigate(['/dashboard']);
   }
 
@@ -173,6 +216,13 @@ export class TicketCreateComponent implements OnInit {
     const url = prompt('Enter URL:');
     if (url) {
       document.execCommand('createLink', false, url);
+    }
+  }
+
+  insertImage(): void {
+    const url = prompt('Enter image URL:');
+    if (url) {
+      document.execCommand('insertImage', false, url);
     }
   }
 

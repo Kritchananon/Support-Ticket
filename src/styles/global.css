@@ -449,3 +449,83 @@ body {
   background-color: rgba(108, 92, 231, 0.3);
   color: #2d3436;
 }
+
+/* ===== NEW TICKET PAGE OVERRIDES ===== */
+/* Override main layout styles for new ticket page */
+.main-layout .main-content {
+  background-color: #F5F5F9 !important;
+}
+
+.main-layout .content-wrapper {
+  background-color: #F5F5F9 !important;
+}
+
+/* Specific overrides for new ticket page */
+app-ticket-create .new-ticket-page {
+  background-color: #ffffff !important;
+  padding: 20px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  min-height: calc(100vh - 70px) !important;
+  border-radius: 12px;
+}
+
+/* Override any card or content wrapper styles */
+app-ticket-create .content-card {
+  background-color: #ffffff !important;
+  border-radius: 12px !important;
+  padding: 21px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Override breadcrumb container */
+app-ticket-create .breadcrumb-container {
+  background-color: #ffffff !important;
+  border: 1px solid #ECECEC !important;
+  border-radius: 8px !important;
+  margin-bottom: 24px !important;
+}
+
+/* Ensure proper spacing and layout */
+app-ticket-create .page-header {
+  margin-bottom: 24px !important;
+}
+
+/* Override any global form styles */
+app-ticket-create .form-group {
+  margin-bottom: 20px !important;
+}
+
+app-ticket-create .form-select {
+  width: 453px !important;
+  max-width: 100% !important;
+  border: 1px solid #D9D9D9 !important;
+  background-color: #ffffff !important;
+}
+
+/* Override rich text editor styles */
+app-ticket-create .rich-text-editor-container {
+  border: 1px solid #D9D9D9 !important;
+  background-color: #ffffff !important;
+}
+
+/* Override file upload area */
+app-ticket-create .file-upload-area {
+  border: 1px solid #D9D9D9 !important;
+  background-color: #ffffff !important;
+}
+
+/* Make sure responsive works properly */
+@media (max-width: 768px) {
+  app-ticket-create .dropdown-container {
+    width: 100% !important;
+  }
+  
+  app-ticket-create .form-select {
+    width: 100% !important;
+  }
+}

@@ -1,26 +1,27 @@
 .main-layout {
   min-height: 100vh;
-  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+  background-color: #F5F5F9;
   position: relative;
   overflow-x: hidden;
 }
 
-/* Main Content Area */
+/* Main Content Area - ปรับให้สอดคล้องกับ header */
 .main-content {
-  margin-left: 250px;
+  margin-left: 250px; /* เปลี่ยนจาก 250px เป็น 267px */
   margin-top: 70px;
   min-height: calc(100vh - 70px);
-  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+  background-color: #F5F5F9;
   transition: margin-left 0.3s ease;
   position: relative;
 }
 
 .content-wrapper {
   padding: 2rem;
-  max-width: 100%;
+  max-width: none;
   min-height: calc(100vh - 70px - 4rem);
   animation: fadeIn 0.3s ease-in;
-  background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+  background-color: #F5F5F9;
+  margin: 0;
 }
 
 /* Animation for content loading */
@@ -88,7 +89,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(245, 245, 249, 0.8); /* ปรับสีให้ตรงกับพื้นหลังใหม่ */
+  background-color: rgba(245, 245, 249, 0.8);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -104,7 +105,7 @@
   height: 40px;
   margin: -20px 0 0 -20px;
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #6c5ce7; /* เปลี่ยนเป็นสีม่วง */
+  border-top: 3px solid #6c5ce7;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   z-index: 1001;
@@ -139,13 +140,13 @@
   .main-content {
     margin-left: 0;
     margin-top: 70px;
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    background-color: #F5F5F9;
   }
   
   .content-wrapper {
     padding: 1rem;
     min-height: calc(100vh - 70px - 2rem);
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    background-color: #F5F5F9;
   }
   
   .mobile-overlay.show {
@@ -157,7 +158,7 @@
   .content-wrapper {
     padding: 0.75rem;
     min-height: calc(100vh - 70px - 1.5rem);
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    background-color: #F5F5F9;
   }
 }
 
@@ -165,7 +166,7 @@
   .content-wrapper {
     padding: 0.5rem;
     min-height: calc(100vh - 70px - 1rem);
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    background-color: #F5F5F9;
   }
 }
 
@@ -173,7 +174,7 @@
 @media (max-width: 1024px) and (orientation: portrait) {
   .content-wrapper {
     padding: 1.5rem;
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    background-color: #F5F5F9;
   }
 }
 
@@ -181,9 +182,9 @@
 @media (min-width: 1400px) {
   .content-wrapper {
     padding: 2.5rem;
-    max-width: 1400px;
-    margin: 0 auto;
-    background-color: #F5F5F9; /* เปลี่ยนเป็นสีใหม่ */
+    max-width: none;
+    margin: 0;
+    background-color: #F5F5F9;
   }
 }
 
@@ -268,4 +269,43 @@
 
 .content-wrapper {
   border-radius: 0;
+}
+
+/* ===== NEW TICKET PAGE FIXES ===== */
+/* Fix for New Ticket Page */
+.main-layout .main-content {
+  background-color: #F5F5F9;
+  margin-left: 250px; /* อัพเดทให้ตรงกับ header */
+  margin-top: 70px;
+  min-height: calc(100vh - 70px);
+  transition: margin-left 0.3s ease;
+  position: relative;
+  padding: 0;
+}
+
+.main-layout .content-wrapper {
+  padding: 2rem;
+  max-width: none;
+  min-height: calc(100vh - 70px - 4rem);
+  animation: fadeIn 0.3s ease-in;
+  background-color: #F5F5F9;
+  margin: 0;
+}
+
+/* Specific fix for ticket create page */
+.main-layout app-ticket-create .content-wrapper {
+  padding: 2rem !important;
+  background-color: #F5F5F9 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* For large screens, remove the centering (Updated) */
+@media (min-width: 1400px) {
+  .main-layout .content-wrapper {
+    padding: 2.5rem;
+    max-width: none;
+    margin: 0;
+    background-color: #F5F5F9;
+  }
 }
