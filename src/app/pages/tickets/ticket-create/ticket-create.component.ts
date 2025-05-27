@@ -1,9 +1,10 @@
-import { Component, OnInit, inject, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
+import { TicketService } from '../../../shared/services/ticket.service';
 
 @Component({
   selector: 'app-ticket-create',
@@ -11,14 +12,14 @@ import { AuthService } from '../../../shared/services/auth.service';
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './ticket-create.component.html',
   styleUrls: ['./ticket-create.component.css'],
-  encapsulation: ViewEncapsulation.None // เพิ่มบรรทัดนี้เพื่อให้ CSS สามารถ override global styles ได้
+  encapsulation: ViewEncapsulation.None
 })
-export class TicketCreateComponent implements OnInit {
-  // ... rest of the component code remains the same
+export class TicketCreateComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private ticketService = inject(TicketService);
 
   ticketForm: FormGroup;
   
@@ -26,6 +27,7 @@ export class TicketCreateComponent implements OnInit {
   isSubmitting = false;
   selectedFiles: File[] = [];
   filePreviewUrls: { [key: string]: string } = {};
+  fileErrors: string[] = [];
   
   currentUser: any;
 
@@ -40,6 +42,16 @@ export class TicketCreateComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
+    console.log('Current user:', this.currentUser);
+  }
+
+  ngOnDestroy(): void {
+    // Clean up all preview URLs to prevent memory leaks
+    Object.values(this.filePreviewUrls).forEach(url => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
   }
 
   onFileSelect(event: Event): void {
@@ -47,61 +59,223 @@ export class TicketCreateComponent implements OnInit {
     if (input.files) {
       const newFiles = Array.from(input.files);
       
+      // Clear previous errors
+      this.fileErrors = [];
+      
+      // ตรวจสอบไฟล์ก่อนเพิ่ม (รวมไฟล์เดิมที่เลือกไว้แล้ว)
+      const allFiles = [...this.selectedFiles, ...newFiles];
+      const validation = this.ticketService.validateFiles(allFiles);
+      
+      if (!validation.isValid) {
+        this.fileErrors = validation.errors;
+        input.value = ''; // Clear input
+        return;
+      }
+      
       // Create preview URLs for image files
-      newFiles.forEach(file => {
-        if (this.isImageFile(file)) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            this.filePreviewUrls[file.name] = e.target?.result as string;
-          };
-          reader.readAsDataURL(file);
-        }
+      const imagePromises = newFiles
+        .filter(file => this.isImageFile(file))
+        .map(file => 
+          this.ticketService.createImagePreview(file)
+            .then(url => this.filePreviewUrls[file.name] = url)
+            .catch(err => console.warn('Failed to create preview for', file.name, err))
+        );
+      
+      // Wait for all image previews to load
+      Promise.all(imagePromises).then(() => {
+        this.selectedFiles = [...this.selectedFiles, ...newFiles];
+        this.ticketForm.patchValue({ attachments: this.selectedFiles });
+        console.log('Files selected:', this.selectedFiles.length);
       });
       
-      this.selectedFiles = [...this.selectedFiles, ...newFiles];
-      this.ticketForm.patchValue({ attachments: this.selectedFiles });
+      // Clear the input to allow selecting the same files again if needed
+      input.value = '';
     }
   }
 
   removeFile(index: number): void {
     const file = this.selectedFiles[index];
+    
     // Clean up preview URL
     if (this.filePreviewUrls[file.name]) {
-      URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+      // For blob URLs, revoke them to prevent memory leaks
+      if (this.filePreviewUrls[file.name].startsWith('blob:')) {
+        URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+      }
       delete this.filePreviewUrls[file.name];
     }
     
     this.selectedFiles.splice(index, 1);
     this.ticketForm.patchValue({ attachments: this.selectedFiles });
+    
+    // Clear file errors if files are now valid
+    if (this.selectedFiles.length === 0) {
+      this.fileErrors = [];
+    } else {
+      const validation = this.ticketService.validateFiles(this.selectedFiles);
+      this.fileErrors = validation.errors;
+    }
+    
+    console.log('File removed. Remaining files:', this.selectedFiles.length);
+  }
+
+  onSubmit(): void {
+    if (this.ticketForm.valid && !this.isSubmitting) {
+      this.isSubmitting = true;
+      
+      const formData = this.ticketForm.value;
+      console.log('Submitting ticket with files:', { 
+        formData, 
+        filesCount: this.selectedFiles.length 
+      });
+
+      // ตรวจสอบไฟล์ก่อนส่ง
+      if (this.selectedFiles.length > 0) {
+        const validation = this.ticketService.validateFiles(this.selectedFiles);
+        
+        if (!validation.isValid) {
+          this.onSubmitError(validation.errors.join('\n'));
+          return;
+        }
+
+        // สร้างตั๋วพร้อมไฟล์แนบ
+        this.ticketService.createTicketWithAttachments(
+          validation.validFiles,
+          parseInt(formData.projectId),
+          parseInt(formData.categoryId),
+          formData.issueDescription,
+          'reporter'
+        ).subscribe({
+          next: (response) => {
+            console.log('Ticket created with attachments:', response);
+            if (response.code === '2' || response.code === 2 || response.status === true || response.status === 1) {
+              this.onTicketCreatedWithAttachments(response.data);
+            } else {
+              this.onSubmitError('Failed to create ticket: ' + response.message);
+            }
+          },
+          error: (error) => {
+            console.error('Error creating ticket with attachments:', error);
+            this.onSubmitError(typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการสร้างตั๋ว');
+          }
+        });
+      } else {
+        // สร้างตั๋วโดยไม่มีไฟล์แนบ (ใช้ API เดิม)
+        const ticketData = {
+          project_id: parseInt(formData.projectId),
+          categories_id: parseInt(formData.categoryId),
+          issue_description: formData.issueDescription,
+          status_id: 1, // Default to "New" status
+          create_by: this.currentUser?.id
+        };
+
+        console.log('Creating ticket without attachments:', ticketData);
+
+        this.apiService.createTicket(ticketData).subscribe({
+          next: (response) => {
+            console.log('Ticket created:', response);
+            if (response.code === '2' || response.status === 1) {
+              this.onTicketCreated();
+            } else {
+              this.onSubmitError('Failed to create ticket: ' + response.message);
+            }
+          },
+          error: (error) => {
+            console.error('Error creating ticket:', error);
+            this.onSubmitError('เกิดข้อผิดพลาดในการสร้างตั๋ว');
+          }
+        });
+      }
+    } else {
+      this.markFormGroupTouched();
+    }
+  }
+
+  private onTicketCreatedWithAttachments(data: any): void {
+    this.isSubmitting = false;
+    
+    const ticketInfo = data.ticket;
+    const attachments = data.attachments;
+    
+    console.log('Ticket created successfully:', ticketInfo);
+    console.log('Attachments uploaded:', attachments);
+    
+    // แสดงข้อความสำเร็จพร้อมรายละเอียด
+    const message = `สร้างตั๋วสำเร็จ!\n` +
+                   `เลขที่ตั๋ว: ${ticketInfo.ticket_no}\n` +
+                   `ไฟล์แนบ: ${attachments.length} ไฟล์`;
+    
+    alert(message);
+    this.router.navigate(['/dashboard']);
+  }
+
+  private onTicketCreated(): void {
+    this.isSubmitting = false;
+    alert('สร้างตั๋วเรียบร้อยแล้ว');
+    this.router.navigate(['/dashboard']);
+  }
+
+  private uploadFiles(ticketId: number): void {
+    // ใช้สำหรับกรณีที่สร้างตั๋วแล้วค่อยอัปโหลดไฟล์ทีหลัง
+    if (this.selectedFiles.length === 0) {
+      this.onTicketCreated();
+      return;
+    }
+
+    const validation = this.ticketService.validateFiles(this.selectedFiles);
+    
+    if (!validation.isValid) {
+      console.warn('Invalid files detected during upload:', validation.errors);
+      this.onTicketCreated(); // ยังคงแสดงว่าตั๋วสร้างสำเร็จ
+      return;
+    }
+
+    this.ticketService.updateTicketAttachments(
+      ticketId,
+      validation.validFiles,
+      'reporter'
+    ).subscribe({
+      next: (response) => {
+        console.log('Files uploaded successfully:', response);
+        this.onTicketCreatedWithAttachments(response.data);
+      },
+      error: (error) => {
+        console.error('Error uploading files:', error);
+        // แม้อัปโหลดไฟล์ไม่สำเร็จ ก็ยังคงแสดงว่าตั๋วสร้างสำเร็จ
+        alert('ตั๋วถูกสร้างเรียบร้อยแล้ว แต่เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
+        this.onTicketCreated();
+      }
+    });
+  }
+
+  private onSubmitError(message: string): void {
+    this.isSubmitting = false;
+    console.error('Submit error:', message);
+    alert(message);
+  }
+
+  private markFormGroupTouched(): void {
+    Object.keys(this.ticketForm.controls).forEach(key => {
+      const control = this.ticketForm.get(key);
+      control?.markAsTouched();
+    });
+  }
+
+  // Helper methods for file handling
+  getFileIconClass(file: File): string {
+    return this.ticketService.getFileIcon(file.name);
+  }
+
+  formatFileSize(bytes: number): string {
+    return this.ticketService.formatFileSize(bytes);
   }
 
   isImageFile(file: File): boolean {
-    return file.type.startsWith('image/');
+    return this.ticketService.isImageFile(file);
   }
 
   getFilePreview(file: File): string {
     return this.filePreviewUrls[file.name] || '';
-  }
-
-  getFileIconClass(file: File): string {
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return 'bi-file-earmark-pdf';
-      case 'doc':
-      case 'docx':
-        return 'bi-file-earmark-word';
-      case 'txt':
-        return 'bi-file-earmark-text';
-      case 'xls':
-      case 'xlsx':
-        return 'bi-file-earmark-excel';
-      case 'ppt':
-      case 'pptx':
-        return 'bi-file-earmark-ppt';
-      default:
-        return 'bi-file-earmark';
-    }
   }
 
   getFileTypeClass(file: File): string {
@@ -114,92 +288,12 @@ export class TicketCreateComponent implements OnInit {
         return 'file-icon-doc';
       case 'txt':
         return 'file-icon-txt';
+      case 'xls':
+      case 'xlsx':
+        return 'file-icon-excel';
       default:
         return 'file-icon-default';
     }
-  }
-
-  formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  onSubmit(): void {
-    if (this.ticketForm.valid && !this.isSubmitting) {
-      this.isSubmitting = true;
-      
-      const formData = this.ticketForm.value;
-      const ticketData = {
-        project_id: formData.projectId,
-        categories_id: formData.categoryId,
-        issue_description: formData.issueDescription,
-        status_id: 1, // Default to "New" status
-        create_by: this.currentUser?.id
-      };
-
-      console.log('Submitting ticket:', ticketData);
-
-      this.apiService.createTicket(ticketData).subscribe({
-        next: (response) => {
-          if (response.code === '2' || response.status === 1) {
-            const ticketId = response.data?.id;
-            
-            if (ticketId && this.selectedFiles.length > 0) {
-              this.uploadFiles(ticketId);
-            } else if (ticketId) {
-              this.onTicketCreated();
-            } else {
-              console.warn('Ticket created but no ID returned');
-              this.onTicketCreated();
-            }
-          } else {
-            this.onSubmitError('Failed to create ticket: ' + response.message);
-          }
-        },
-        error: (error) => {
-          console.error('Error creating ticket:', error);
-          this.onSubmitError('เกิดข้อผิดพลาดในการสร้างตั๋ว');
-        }
-      });
-    } else {
-      this.markFormGroupTouched();
-    }
-  }
-
-  private uploadFiles(ticketId: number): void {
-    const uploadPromises = this.selectedFiles.map(file => 
-      this.apiService.uploadFile(file, ticketId).toPromise()
-    );
-
-    Promise.all(uploadPromises)
-      .then(() => {
-        this.onTicketCreated();
-      })
-      .catch((error) => {
-        console.error('Error uploading files:', error);
-        this.onTicketCreated();
-      });
-  }
-
-  private onTicketCreated(): void {
-    this.isSubmitting = false;
-    alert('สร้างตั๋วเรียบร้อยแล้ว');
-    this.router.navigate(['/dashboard']);
-  }
-
-  private onSubmitError(message: string): void {
-    this.isSubmitting = false;
-    alert(message);
-  }
-
-  private markFormGroupTouched(): void {
-    Object.keys(this.ticketForm.controls).forEach(key => {
-      const control = this.ticketForm.get(key);
-      control?.markAsTouched();
-    });
   }
 
   // Text editor methods (for rich text functionality)
@@ -232,6 +326,7 @@ export class TicketCreateComponent implements OnInit {
     this.ticketForm.patchValue({ issueDescription: content });
   }
 
+  // Form validation helper methods
   isFieldInvalid(fieldName: string): boolean {
     const field = this.ticketForm.get(fieldName);
     return field ? field.invalid && field.touched : false;
