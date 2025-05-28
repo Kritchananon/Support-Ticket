@@ -26,6 +26,7 @@
             [(ngModel)]="loginData.username"
             [placeholder]="getLanguageText('ชื่อผู้ใช้งาน', 'Username')"
             required
+            maxlength="50"
             autocomplete="username">
         </div>
 
@@ -44,6 +45,7 @@
               [(ngModel)]="loginData.password"
               [placeholder]="getLanguageText('รหัสผ่าน', 'Password')"
               required
+              maxlength="50"
               autocomplete="current-password">
             <button 
               type="button" 

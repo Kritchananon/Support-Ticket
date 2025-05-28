@@ -1,3 +1,4 @@
+// ticket-create.component.ts
 import { Component, OnInit, OnDestroy, inject, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -5,11 +6,21 @@ import { Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { TicketService } from '../../../shared/services/ticket.service';
+// เพิ่ม imports สำหรับ dropdown components
+import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
+import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
+import { timeout } from 'rxjs';
 
 @Component({
   selector: 'app-ticket-create',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    ProjectDropdownComponent,  // เพิ่มตรงนี้
+    CategoryDropdownComponent  // เพิ่มตรงนี้
+  ],
   templateUrl: './ticket-create.component.html',
   styleUrls: ['./ticket-create.component.css'],
   encapsulation: ViewEncapsulation.None
@@ -30,6 +41,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   fileErrors: string[] = [];
   
   currentUser: any;
+  
+  // เพิ่ม properties สำหรับ dropdown data
+  selectedProject: any = null;
+  selectedCategory: any = null;
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -52,6 +67,19 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         URL.revokeObjectURL(url);
       }
     });
+  }
+
+  // เพิ่ม event handlers สำหรับ dropdowns
+  onProjectChange(event: { project: any, projectId: string | number }): void {
+    this.selectedProject = event.project;
+    this.ticketForm.patchValue({ projectId: event.projectId });
+    console.log('Project selected:', event);
+  }
+
+  onCategoryChange(event: { category: any, categoryId: string | number }): void {
+    this.selectedCategory = event.category;
+    this.ticketForm.patchValue({ categoryId: event.categoryId });
+    console.log('Category selected:', event);
   }
 
   onFileSelect(event: Event): void {
@@ -145,17 +173,23 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           parseInt(formData.categoryId),
           formData.issueDescription,
           'reporter'
+        ).pipe(timeout(5000)
         ).subscribe({
           next: (response) => {
-            console.log('Ticket created with attachments:', response);
+            console.log('Full API response:', response);
+            console.log('Response type:', typeof response);
+            console.log('Response keys:', Object.keys(response || {}));
+            
             if (response.code === '2' || response.code === 2 || response.status === true || response.status === 1) {
-              this.onTicketCreatedWithAttachments(response.data);
+              this.onTicketCreatedWithAttachments(response.data || response);
             } else {
-              this.onSubmitError('Failed to create ticket: ' + response.message);
+              this.onSubmitError('Failed to create ticket: ' + (response.message || 'Unknown error'));
             }
           },
           error: (error) => {
             console.error('Error creating ticket with attachments:', error);
+            console.error('Error type:', typeof error);
+            console.error('Error details:', error);
             this.onSubmitError(typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการสร้างตั๋ว');
           }
         });
@@ -194,16 +228,48 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private onTicketCreatedWithAttachments(data: any): void {
     this.isSubmitting = false;
     
-    const ticketInfo = data.ticket;
-    const attachments = data.attachments;
+    console.log('Full response data:', data);
+    
+    // ตรวจสอบ structure ของ response
+    let ticketInfo = null;
+    let attachments = [];
+    let ticketNo = '';
+    
+    // ลองหา ticket info ในรูปแบบต่างๆ
+    if (data && data.ticket) {
+      ticketInfo = data.ticket;
+      attachments = data.attachments || [];
+    } else if (data && data.data && data.data.ticket) {
+      ticketInfo = data.data.ticket;
+      attachments = data.data.attachments || [];
+    } else if (data) {
+      // ถ้า data เป็น ticket object โดยตรง
+      ticketInfo = data;
+      attachments = [];
+    }
+    
+    // ลองหา ticket_no ในรูปแบบต่างๆ
+    if (ticketInfo) {
+      ticketNo = ticketInfo.ticket_no || 
+                ticketInfo.ticketNo || 
+                ticketInfo.ticket_number || 
+                ticketInfo.id || 
+                'ไม่ระบุ';
+    }
     
     console.log('Ticket created successfully:', ticketInfo);
     console.log('Attachments uploaded:', attachments);
     
     // แสดงข้อความสำเร็จพร้อมรายละเอียด
-    const message = `สร้างตั๋วสำเร็จ!\n` +
-                   `เลขที่ตั๋ว: ${ticketInfo.ticket_no}\n` +
-                   `ไฟล์แนบ: ${attachments.length} ไฟล์`;
+    let message = 'สร้างตั๋วสำเร็จ!';
+    
+    if (ticketNo && ticketNo !== 'ไม่ระบุ') {
+      message += `\nเลขที่ตั๋ว: ${ticketNo}`;
+    }
+    
+    if (attachments && attachments.length > 0) {
+      message += `\nไฟล์แนบ: ${attachments.length} ไฟล์`;
+    }
     
     alert(message);
     this.router.navigate(['/dashboard']);
@@ -215,42 +281,21 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.router.navigate(['/dashboard']);
   }
 
-  private uploadFiles(ticketId: number): void {
-    // ใช้สำหรับกรณีที่สร้างตั๋วแล้วค่อยอัปโหลดไฟล์ทีหลัง
-    if (this.selectedFiles.length === 0) {
-      this.onTicketCreated();
-      return;
-    }
-
-    const validation = this.ticketService.validateFiles(this.selectedFiles);
-    
-    if (!validation.isValid) {
-      console.warn('Invalid files detected during upload:', validation.errors);
-      this.onTicketCreated(); // ยังคงแสดงว่าตั๋วสร้างสำเร็จ
-      return;
-    }
-
-    this.ticketService.updateTicketAttachments(
-      ticketId,
-      validation.validFiles,
-      'reporter'
-    ).subscribe({
-      next: (response) => {
-        console.log('Files uploaded successfully:', response);
-        this.onTicketCreatedWithAttachments(response.data);
-      },
-      error: (error) => {
-        console.error('Error uploading files:', error);
-        // แม้อัปโหลดไฟล์ไม่สำเร็จ ก็ยังคงแสดงว่าตั๋วสร้างสำเร็จ
-        alert('ตั๋วถูกสร้างเรียบร้อยแล้ว แต่เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
-        this.onTicketCreated();
-      }
-    });
-  }
-
-  private onSubmitError(message: string): void {
+  private onSubmitError(error: any): void {
     this.isSubmitting = false;
-    console.error('Submit error:', message);
+    
+    let message = 'เกิดข้อผิดพลาดในการสร้างตั๋ว';
+    
+    // จัดการ error ในรูปแบบต่างๆ
+    if (typeof error === 'string') {
+      message = error;
+    } else if (error && error.message) {
+      message = error.message;
+    } else if (error && error.error && error.error.message) {
+      message = error.error.message;
+    }
+    
+    console.error('Submit error details:', error);
     alert(message);
   }
 

@@ -20,50 +20,23 @@
   <div class="content-card">
     <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
       
-      <!-- First Dropdown - Project Name -->
-      <div class="form-group">
-        <label class="form-label">
-          <span>Project Name</span>
-          <span class="required">*</span>
-        </label>
-        <div class="dropdown-container">
-          <select 
-            class="form-select"
-            [class.invalid]="isFieldInvalid('projectId')"
-            formControlName="projectId">
-            <option value="" disabled>-- Select Project --</option>
-            <option value="1">Human Resource Management System</option>
-            <option value="2">Inventory Management System</option>
-            <option value="3">Customer Relationship Management</option>
-          </select>
-        </div>
-        <div class="error-message" *ngIf="isFieldInvalid('projectId')">
-          {{ getFieldError('projectId') }}
-        </div>
-      </div>
+      <!-- Project Dropdown - ใช้ Component -->
+      <app-project-dropdown
+        label="Project Name"
+        placeholder="-- Select Project --"
+        [required]="true"
+        [selectedProjectId]="ticketForm.get('projectId')?.value || ''"
+        (selectionChange)="onProjectChange($event)">
+      </app-project-dropdown>
 
-      <!-- Second Dropdown - Categories -->
-      <div class="form-group">
-        <label class="form-label">
-          <span>Categories</span>
-          <span class="required">*</span>
-        </label>
-        <div class="dropdown-container">
-          <select 
-            class="form-select"
-            [class.invalid]="isFieldInvalid('categoryId')"
-            formControlName="categoryId">
-            <option value="" disabled>-- Select Category --</option>
-            <option value="1">ระบบล่ม/ใช้งานไม่ได้</option>
-            <option value="2">บันทึกข้อมูลไม่ได้</option>
-            <option value="3">ปัญหาเจอบัค</option>
-            <option value="4">อื่นๆ</option>
-          </select>
-        </div>
-        <div class="error-message" *ngIf="isFieldInvalid('categoryId')">
-          {{ getFieldError('categoryId') }}
-        </div>
-      </div>
+      <!-- Category Dropdown - ใช้ Component -->
+      <app-category-dropdown
+        label="Categories"
+        placeholder="-- Select Category --"
+        [required]="true"
+        [selectedCategoryId]="ticketForm.get('categoryId')?.value || ''"
+        (selectionChange)="onCategoryChange($event)">
+      </app-category-dropdown>
 
       <!-- Issue Description -->
       <div class="form-group">
