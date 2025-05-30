@@ -1,1 +1,173 @@
-<p>ticket-list works!</p>
+<div class="ticket-list-page">
+  <!-- Breadcrumb -->
+  <div class="breadcrumb-container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+          <a routerLink="/tickets">All Ticket</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Ticket</li>
+      </ol>
+    </nav>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="filter-section">
+    <!-- Search Bar -->
+    <div class="search-container">
+      <label class="search-label">Search</label>
+      <div class="search-input-wrapper">
+        <i class="bi bi-search search-icon"></i>
+        <div class="search-divider"></div>
+        <input 
+          type="text" 
+          class="search-input" 
+          placeholder="Search for ticket"
+          [(ngModel)]="searchText"
+          (input)="onSearchChange()">
+      </div>
+    </div>
+
+    <!-- Filter Dropdowns -->
+    <div class="filter-dropdowns">
+      <!-- Priority Filter -->
+      <div class="filter-dropdown">
+        <label class="filter-label">Priority</label>
+        <select 
+          class="filter-select"
+          [value]="selectedPriority"
+          (change)="onPriorityChange($event)">
+          <option *ngFor="let option of priorityOptions" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Status Filter -->
+      <div class="filter-dropdown">
+        <label class="filter-label">Status</label>
+        <select 
+          class="filter-select"
+          [value]="selectedStatus"
+          (change)="onStatusChange($event)">
+          <option *ngFor="let option of statusOptions" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Category Filter -->
+      <app-category-dropdown
+        label="Categories"
+        placeholder="All Categories"
+        [selectedCategoryId]="selectedCategory"
+        (selectionChange)="onCategoryChange($event)">
+      </app-category-dropdown>
+
+      <!-- Project Filter -->
+      <app-project-dropdown
+        label="Project"
+        placeholder="All Projects"
+        [selectedProjectId]="selectedProject"
+        (selectionChange)="onProjectChange($event)">
+      </app-project-dropdown>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner">
+      <span class="spinner-border spinner-border-lg"></span>
+      <p>Loading tickets...</p>
+    </div>
+  </div>
+
+  <!-- Tickets List -->
+  <div *ngIf="!isLoading" class="tickets-container">
+    <!-- No Results -->
+    <div *ngIf="filteredTickets.length === 0" class="no-results">
+      <div class="no-results-content">
+        <i class="bi bi-inbox no-results-icon"></i>
+        <h3>No tickets found</h3>
+        <p>Try adjusting your search or filter criteria</p>
+        <button class="btn btn-primary" (click)="clearFilters()">
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <!-- Tickets Grid -->
+    <div *ngIf="filteredTickets.length > 0" class="tickets-grid">
+      <div 
+        *ngFor="let ticket of filteredTickets" 
+        class="ticket-card"
+        (click)="viewTicket(ticket.id)">
+        
+        <!-- Ticket Header -->
+        <div class="ticket-header">
+          <div class="ticket-header-left">
+            <div class="ticket-info">
+              <span class="ticket-id">{{ ticket.ticket_no }}</span>
+              <div class="ticket-divider"></div>
+              <span class="ticket-category">{{ ticket.category_name }}</span>
+              <div class="ticket-divider" *ngIf="ticket.priority === 'high'"></div>
+              <div class="priority-warning" *ngIf="ticket.priority === 'high'">
+                <i class="bi bi-exclamation-triangle-fill priority-icon"></i>
+                <div class="priority-tooltip">
+                  <span class="priority-tooltip-text">Priority : High</span>
+                  <div class="priority-tooltip-arrow"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ticket-header-right">
+            <div class="ticket-date-status">
+              <span class="ticket-date">{{ formatDate(ticket.create_date) }}</span>
+              <div class="ticket-divider"></div>
+              <div class="status-badge" [ngClass]="getStatusBadgeClass(ticket.status_id)">
+                <i class="status-icon" [ngClass]="getStatusIcon(ticket.status_id)"></i>
+                <span class="status-text">{{ getStatusText(ticket.status_id) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticket Divider -->
+        <div class="ticket-content-divider"></div>
+
+        <!-- Ticket Content -->
+        <div class="ticket-content">
+          <div class="ticket-avatar">
+            <div class="avatar-circle">
+              <i class="bi bi-person-fill"></i>
+            </div>
+          </div>
+
+          <div class="ticket-details">
+            <div class="ticket-project-user">
+              <h3 class="project-title">{{ ticket.project_name }}</h3>
+              <div class="user-info">
+                <i class="bi bi-person user-icon"></i>
+                <span class="user-name">{{ ticket.user_name }}</span>
+              </div>
+            </div>
+            <p class="ticket-description">{{ ticket.issue_description }}</p>
+          </div>
+        </div>
+
+        <!-- Priority Badge (Floating) - Remove this section -->
+        <!-- Removed floating priority badge -->
+      </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div *ngIf="filteredTickets.length > 0" class="results-summary">
+      <p>Showing {{ filteredTickets.length }} of {{ tickets.length }} tickets</p>
+    </div>
+  </div>
+
+  <!-- Floating Action Button -->
+  <button class="fab-button" (click)="createNewTicket()" title="Create New Ticket">
+    <i class="bi bi-plus"></i>
+  </button>
+</div>

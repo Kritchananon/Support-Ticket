@@ -2,11 +2,11 @@
   height: 70px;
   position: fixed;
   top: 0;
-  left: 290px; /* เปลี่ยนจาก 250px เป็น 267px เพื่อให้มีระยะห่าง 17px */
+  left: 290px; /* เปลี่ยนกลับเป็น 250px เหมือนเดิม */
   right: 0;
   background-color: #ffffff;
   border-bottom: 1px solid #e9ecef;
-  box-shadow: 0 2px 4px rgba(134, 134, 134, 0.25); /* เปลี่ยน shadow ให้เหมือนในรูป */
+  box-shadow: 0 2px 4px rgba(134, 134, 134, 0.25);
   z-index: 999;
   transition: left 0.3s ease;
   border-top-left-radius: 0px;
@@ -47,86 +47,92 @@
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem; /* เพิ่ม gap ให้สม่ำเสมอ */
 }
 
-/* Language Button Styles */
+/* Language Button Styles - ปรับให้เหมือนกันทุกหน้า */
 .language-btn {
-  border-color: #e9ecef;
-  color: #6c757d;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  border-radius: 6px;
-  background-color: #ffffff;
-  transition: all 0.2s ease;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  min-width: 80px;
-  justify-content: center;
+  border: 1px solid #e9ecef !important;
+  color: #6c757d !important;
+  padding: 0.625rem 1rem !important; /* เพิ่ม padding ให้เท่ากัน */
+  font-size: 0.875rem !important;
+  border-radius: 6px !important;
+  background-color: #ffffff !important;
+  transition: all 0.2s ease !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  min-width: 80px !important;
+  justify-content: center !important;
+  height: 38px !important; /* กำหนดความสูงให้แน่นอน */
+  min-height: 38px !important;
 }
 
 .language-btn:hover {
-  border-color: #6c5ce7;
-  color: #6c5ce7;
-  background-color: #f8f9fa;
+  border-color: #6c5ce7 !important;
+  color: #6c5ce7 !important;
+  background-color: #f8f9fa !important;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(108, 92, 231, 0.2);
 }
 
 .language-btn:focus {
-  border-color: #6c5ce7;
-  box-shadow: 0 0 0 0.2rem rgba(108, 92, 231, 0.25);
+  border-color: #6c5ce7 !important;
+  box-shadow: 0 0 0 0.2rem rgba(108, 92, 231, 0.25) !important;
 }
 
 .flag-emoji {
-  font-size: 1rem;
-  display: inline-block;
+  font-size: 1rem !important;
+  display: inline-block !important;
+  margin-right: 0.5rem !important;
 }
 
-/* User Dropdown Styles */
+/* User Dropdown Styles - ปรับให้เหมือนกันทุกหน้า */
 .user-dropdown {
-  color: #2d3436;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border: none;
-  background: none;
-  display: flex;
-  align-items: center;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  font-weight: 500;
+  color: #2d3436 !important;
+  text-decoration: none !important;
+  padding: 0.625rem 1rem !important; /* เพิ่ม padding ให้เท่ากัน */
+  border: none !important;
+  background: none !important;
+  display: flex !important;
+  align-items: center !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+  font-weight: 500 !important;
+  height: 38px !important; /* กำหนดความสูงให้แน่นอน */
+  min-height: 38px !important;
 }
 
 .user-dropdown:hover {
-  background-color: #f8f9fa;
-  color: #6c5ce7;
+  background-color: #f8f9fa !important;
+  color: #6c5ce7 !important;
   transform: translateY(-1px);
 }
 
 .user-dropdown:focus {
-  outline: 2px solid #6c5ce7;
-  outline-offset: 2px;
-  background-color: #f8f9fa;
+  outline: 2px solid #6c5ce7 !important;
+  outline-offset: 2px !important;
+  background-color: #f8f9fa !important;
 }
 
 .user-avatar i {
-  font-size: 2rem;
-  color: #6c757d;
-  transition: color 0.2s ease;
+  font-size: 2rem !important;
+  color: #6c757d !important;
+  transition: color 0.2s ease !important;
 }
 
 .user-dropdown:hover .user-avatar i {
-  color: #6c5ce7;
+  color: #6c5ce7 !important;
 }
 
 .user-name {
-  font-weight: 500;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
+  font-weight: 500 !important;
+  font-size: 0.9rem !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important;
+  margin-left: 0.5rem !important;
 }
 
 /* Dropdown Menu Styles */
@@ -241,28 +247,39 @@
   border-color: #e9ecef;
 }
 
-/* ปรับ main content ให้สอดคล้องกับ header ใหม่ */
-.main-content {
-  margin-left: 250px; /* เปลี่ยนจาก 250px เป็น 267px */
-  margin-top: 70px;
-  min-height: calc(100vh - 70px);
-  background-color: #F5F5F9;
-  transition: margin-left 0.3s ease;
-  position: relative;
+/* Force consistent styling across all pages */
+app-ticket-create .header,
+app-dashboard .header,
+app-ticket-list .header {
+  height: 70px !important;
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e9ecef !important;
 }
 
-/* เพิ่มการปรับแต่งสำหรับ sidebar */
-.sidebar {
-  width: 249px; /* คงขนาดเดิม */
-  height: 100vh;
-  position: fixed;
-  top: 0;
-  left: 0;
-  background-color: #ffffff;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.08);
-  z-index: 1000;
-  overflow-y: auto;
-  border-right: 1px solid #e9ecef;
+app-ticket-create .header-nav,
+app-dashboard .header-nav,
+app-ticket-list .header-nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+}
+
+/* Ensure buttons maintain consistent size on all pages */
+app-ticket-create .language-btn,
+app-dashboard .language-btn,
+app-ticket-list .language-btn {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0.625rem 1rem !important;
+  font-size: 0.875rem !important;
+}
+
+app-ticket-create .user-dropdown,
+app-dashboard .user-dropdown,
+app-ticket-list .user-dropdown {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0.625rem 1rem !important;
 }
 
 /* Responsive Design */
@@ -290,8 +307,8 @@
     background-color: #ffffff;
   }
   
-  .main-content {
-    margin-left: 0;
+  .header-nav {
+    gap: 0.5rem !important;
   }
 }
 
@@ -301,8 +318,8 @@
   }
   
   .language-btn {
-    padding: 0.5rem 0.75rem;
-    min-width: 50px;
+    padding: 0.625rem 0.75rem !important;
+    min-width: 50px !important;
   }
   
   .header-content {
