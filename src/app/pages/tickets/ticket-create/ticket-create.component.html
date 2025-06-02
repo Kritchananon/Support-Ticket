@@ -26,6 +26,7 @@
         placeholder="-- Select Project --"
         [required]="true"
         [selectedProjectId]="ticketForm.get('projectId')?.value || ''"
+        [class.is-invalid]="isFieldInvalid('projectId')"
         (selectionChange)="onProjectChange($event)">
       </app-project-dropdown>
 
@@ -35,6 +36,7 @@
         placeholder="-- Select Category --"
         [required]="true"
         [selectedCategoryId]="ticketForm.get('categoryId')?.value || ''"
+        [class.is-invalid]="isFieldInvalid('categoryId')"
         (selectionChange)="onCategoryChange($event)">
       </app-category-dropdown>
 
@@ -46,7 +48,7 @@
         </label>
         
         <!-- Rich Text Editor Container -->
-        <div class="rich-text-editor-container">
+        <div class="rich-text-editor-container" [class.invalid]="isFieldInvalid('issueDescription')">
           <!-- Rich Text Editor Toolbar -->
           <div class="editor-toolbar">
             <div class="toolbar-section">
@@ -208,10 +210,6 @@
             placeholder="Typing for description">
           </div>
         </div>
-        
-        <div class="error-message" *ngIf="isFieldInvalid('issueDescription')">
-          {{ getFieldError('issueDescription') }}
-        </div>
       </div>
 
       <!-- File Attachment -->
@@ -310,10 +308,11 @@
 
       <!-- Submit Button -->
       <div class="form-actions">
+        <!-- ปุ่มไม่ disable แล้ว สามารถกดได้ตลอด -->
         <button 
           type="submit" 
           class="btn btn-primary"
-          [disabled]="isSubmitting || ticketForm.invalid">
+          [disabled]="isSubmitting">
           <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
           <span *ngIf="!isSubmitting">New Ticket</span>
           <span *ngIf="isSubmitting">Creating...</span>
@@ -328,5 +327,26 @@
         </div>
       </div>
     </form>
+  </div>
+
+  <!-- Custom Alert - รวมอยู่ใน component เดียวกัน -->
+  <div class="custom-alert-overlay" *ngIf="showCustomAlert" (click)="onAlertClosed()">
+    <div class="custom-alert-modal" (click)="$event.stopPropagation()">
+      <div class="alert-content">
+        <div class="alert-icon">
+          <!-- Error Icon -->
+          <div class="error-icon" *ngIf="alertType === 'error'">
+            <i class="bi bi-exclamation"></i>
+          </div>
+          <!-- Success Icon -->
+          <div class="success-icon" *ngIf="alertType === 'success'">
+            <i class="bi bi-check"></i>
+          </div>
+        </div>
+        
+        <div class="alert-message" [innerHTML]="alertMessage.replace('\n', '<br>')">
+        </div>
+      </div>
+    </div>
   </div>
 </div>

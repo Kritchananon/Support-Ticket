@@ -102,7 +102,7 @@ export class TicketService {
    * @returns Observable ข้อมูลผลลัพธ์
    */
   createTicketWithAttachments(
-    files: File[],
+    files: File[] = [], // ค่าเริ่มต้นเป็น empty array
     projectId: number,
     categoryId: number,
     issueDescription: string,
@@ -110,9 +110,11 @@ export class TicketService {
   ): Observable<ApiResponse<TicketAttachmentResponse>> {
     const formData = new FormData();
     
-    // เพิ่มไฟล์ลงใน FormData
-    for (const file of files) {
-      formData.append('files', file);
+    // เฉพาะกรณีที่มีไฟล์
+    if (files && files.length > 0) {
+      for (const file of files) {
+        formData.append('files', file);
+      }
     }
     
     // เพิ่มข้อมูลอื่นๆ

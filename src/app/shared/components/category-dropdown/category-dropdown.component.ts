@@ -123,4 +123,9 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
       categoryId: ''
     });
   }
+
+  // Method สำหรับตรวจสอบว่ามี validation error จาก parent component หรือไม่
+  get isInvalid(): boolean {
+    return this.hasError;
+  }
 }

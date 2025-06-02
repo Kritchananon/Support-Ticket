@@ -1,4 +1,3 @@
-// ticket-create.component.ts
 import { Component, OnInit, OnDestroy, inject, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -9,7 +8,7 @@ import { TicketService } from '../../../shared/services/ticket.service';
 // เพิ่ม imports สำหรับ dropdown components
 import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
 import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
-import { timeout } from 'rxjs';
+import { debounceTime, timeout } from 'rxjs';
 
 @Component({
   selector: 'app-ticket-create',
@@ -46,6 +45,15 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   selectedProject: any = null;
   selectedCategory: any = null;
 
+  // เพิ่ม properties สำหรับจัดการ validation errors
+  showValidationErrors = false;
+  validationErrors: { [key: string]: boolean } = {};
+  
+  // เพิ่ม properties สำหรับ custom alert
+  showCustomAlert = false;
+  alertMessage = '';
+  alertType: 'error' | 'success' = 'error'; // เพิ่ม alertType
+
   constructor() {
     this.ticketForm = this.fb.group({
       projectId: ['', Validators.required],
@@ -58,6 +66,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
+    this.ticketForm.get('issueDescription')?.valueChanges
+    .pipe(debounceTime(3000)) // รอ 3 วินาทีหลังหยุดพิมพ์
+    .subscribe(value => {
+      console.log('Issue Description changed:', value);
+      this.onSubmitsectiontext();
+    });
   }
 
   ngOnDestroy(): void {
@@ -73,12 +87,24 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   onProjectChange(event: { project: any, projectId: string | number }): void {
     this.selectedProject = event.project;
     this.ticketForm.patchValue({ projectId: event.projectId });
+    
+    // ล้าง validation error เมื่อมีการเลือก project
+    if (event.projectId && this.validationErrors['projectId']) {
+      this.validationErrors['projectId'] = false;
+    }
+    
     console.log('Project selected:', event);
   }
 
   onCategoryChange(event: { category: any, categoryId: string | number }): void {
     this.selectedCategory = event.category;
     this.ticketForm.patchValue({ categoryId: event.categoryId });
+    
+    // ล้าง validation error เมื่อมีการเลือก category
+    if (event.categoryId && this.validationErrors['categoryId']) {
+      this.validationErrors['categoryId'] = false;
+    }
+    
     console.log('Category selected:', event);
   }
 
@@ -95,7 +121,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       const validation = this.ticketService.validateFiles(allFiles);
       
       if (!validation.isValid) {
-        this.fileErrors = validation.errors;
+        // แสดง custom alert สำหรับไฟล์
+        this.alertMessage = 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 10 MB';
+        this.showCustomAlert = true;
         input.value = ''; // Clear input
         return;
       }
@@ -148,7 +176,32 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
-    if (this.ticketForm.valid && !this.isSubmitting) {
+    // ตรวจสอบ validation แบบใหม่
+    const validationResultsectiontext = this.validateFormsectiontext();
+    console.log("validateFormsectiontext1");
+
+    if (!validationResultsectiontext.isValid) {
+      console.log("validateFormsectiontext");
+      
+      this.alertMessage = validationResultsectiontext.errors?.join(', ') || 'กรุณากรอกข้อมูลให้ครบก่อน';
+      this.alertType = 'error';
+      this.showCustomAlert = true;
+      return;
+    }
+
+    const validationResult = this.validateForm();
+    
+    if (!validationResult.isValid) {
+      // แสดง custom alert แทน alert ธรรมดา
+      this.alertMessage = 'กรุณากรอกข้อมูลให้ครบก่อน';
+      this.alertType = 'error';
+      this.showCustomAlert = true;
+      
+      return;
+    }
+
+    // ถ้า validation ผ่านแล้วจึงดำเนินการสร้าง ticket
+    if (!this.isSubmitting) {
       this.isSubmitting = true;
       
       const formData = this.ticketForm.value;
@@ -162,7 +215,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         const validation = this.ticketService.validateFiles(this.selectedFiles);
         
         if (!validation.isValid) {
-          this.onSubmitError(validation.errors.join('\n'));
+          // แสดง custom alert สำหรับไฟล์
+          this.alertMessage = 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 10 MB';
+          this.alertType = 'error';
+          this.showCustomAlert = true;
           return;
         }
 
@@ -220,9 +276,79 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           }
         });
       }
-    } else {
-      this.markFormGroupTouched();
     }
+  }
+
+  onSubmitsectiontext(): void {
+    const validationResultsectiontext = this.validateFormsectiontext(); // ✅ เพิ่มตรงนี้
+    console.log("onSubmitsectiontext");
+    
+
+    if (!validationResultsectiontext.isValid) {
+      console.log("validateFormsectiontext ไม่ผ่าน");
+      this.alertMessage = validationResultsectiontext.errors?.join(', ') || 'กรุณากรอกข้อมูลให้ครบก่อน';
+      this.alertType = 'error';
+      this.showCustomAlert = true;
+      return;
+    }
+
+    if (!this.isSubmitting) {
+      this.isSubmitting = true;
+
+      const formData = this.ticketForm.value;
+      const hasFiles = this.selectedFiles && this.selectedFiles.length > 0;
+
+      this.ticketService.createTicketWithAttachments(
+        hasFiles ? this.selectedFiles : [],
+        parseInt(formData.projectId),
+        parseInt(formData.categoryId),
+        formData.issueDescription,
+        'reporter'
+      ).pipe(timeout(5000)).subscribe({
+        next: (response) => {
+          console.log('Full API response:', response);
+
+          if (response.code === '2' || response.code === 2 || response.status === true || response.status === 1) {
+            this.onTicketCreatedWithAttachments(response.data || response);
+          } else {
+            this.onSubmitError('Failed to create ticket: ' + (response.message || 'Unknown error'));
+          }
+        },
+        error: (error) => {
+          console.error('Error creating ticket with attachments:', error);
+          this.onSubmitError(typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการสร้างตั๋ว');
+        }
+      });
+    }
+  }
+
+
+
+  // เพิ่ม method สำหรับ validate form
+  private validateForm(): { isValid: boolean, errors: { [key: string]: boolean } } {
+    const errors: { [key: string]: boolean } = {};
+    let isValid = true;
+
+    // ตรวจสอบ Project
+    if (!this.ticketForm.get('projectId')?.value) {
+      errors['projectId'] = true;
+      isValid = false;
+    }
+
+    // ตรวจสอบ Category
+    if (!this.ticketForm.get('categoryId')?.value) {
+      errors['categoryId'] = true;
+      isValid = false;
+    }
+
+    // ตรวจสอบ Issue Description
+    const issueDescription = this.ticketForm.get('issueDescription')?.value;
+    if (!issueDescription || issueDescription.trim().length < 10) {
+      errors['issueDescription'] = true;
+      isValid = false;
+    }
+
+    return { isValid, errors };
   }
 
   private onTicketCreatedWithAttachments(data: any): void {
@@ -254,31 +380,25 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
                 ticketInfo.ticketNo || 
                 ticketInfo.ticket_number || 
                 ticketInfo.id || 
-                'ไม่ระบุ';
+                '68050001'; // fallback ticket number
     }
     
     console.log('Ticket created successfully:', ticketInfo);
     console.log('Attachments uploaded:', attachments);
     
-    // แสดงข้อความสำเร็จพร้อมรายละเอียด
-    let message = 'สร้างตั๋วสำเร็จ!';
-    
-    if (ticketNo && ticketNo !== 'ไม่ระบุ') {
-      message += `\nเลขที่ตั๋ว: ${ticketNo}`;
-    }
-    
-    if (attachments && attachments.length > 0) {
-      message += `\nไฟล์แนบ: ${attachments.length} ไฟล์`;
-    }
-    
-    alert(message);
-    this.router.navigate(['/dashboard']);
+    // แสดง success alert
+    this.alertMessage = `Ticket created sucessfully\nTicket ID : ${ticketNo}`;
+    this.alertType = 'success';
+    this.showCustomAlert = true;
   }
 
   private onTicketCreated(): void {
     this.isSubmitting = false;
-    alert('สร้างตั๋วเรียบร้อยแล้ว');
-    this.router.navigate(['/dashboard']);
+    
+    // แสดง success alert
+    this.alertMessage = 'Ticket created sucessfully\nTicket ID : 68050001';
+    this.alertType = 'success';
+    this.showCustomAlert = true;
   }
 
   private onSubmitError(error: any): void {
@@ -296,14 +416,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
     
     console.error('Submit error details:', error);
-    alert(message);
-  }
-
-  private markFormGroupTouched(): void {
-    Object.keys(this.ticketForm.controls).forEach(key => {
-      const control = this.ticketForm.get(key);
-      control?.markAsTouched();
-    });
+    
+    // แสดง custom alert แทน alert ธรรมดา
+    this.alertMessage = message;
+    this.alertType = 'error';
+    this.showCustomAlert = true;
   }
 
   // Helper methods for file handling
@@ -369,24 +486,70 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement;
     const content = target.innerHTML;
     this.ticketForm.patchValue({ issueDescription: content });
+    
+    // ล้าง validation error เมื่อมีการพิมพ์
+    if (content && content.trim().length >= 10 && this.validationErrors['issueDescription']) {
+      this.validationErrors['issueDescription'] = false;
+    }
   }
 
-  // Form validation helper methods
+  // Form validation helper methods - ปรับปรุงให้ทำงานกับระบบใหม่
   isFieldInvalid(fieldName: string): boolean {
-    const field = this.ticketForm.get(fieldName);
-    return field ? field.invalid && field.touched : false;
+    return this.showValidationErrors && this.validationErrors[fieldName];
   }
 
   getFieldError(fieldName: string): string {
-    const field = this.ticketForm.get(fieldName);
-    if (field?.errors && field.touched) {
-      if (field.errors['required']) {
-        return 'กรุณากรอกข้อมูลนี้';
-      }
-      if (field.errors['minlength']) {
-        return 'ต้องมีอย่างน้อย 10 ตัวอักษร';
+    if (this.showValidationErrors && this.validationErrors[fieldName]) {
+      switch (fieldName) {
+        case 'projectId':
+          return 'กรุณาเลือกโปรเจค';
+        case 'categoryId':
+          return 'กรุณาเลือกหมวดหมู่';
+        case 'issueDescription':
+          return 'กรุณากรอกรายละเอียดอย่างน้อย 10 ตัวอักษร';
+        default:
+          return 'กรุณากรอกข้อมูลนี้';
       }
     }
     return '';
   }
+  
+  // เพิ่ม method สำหรับจัดการ custom alert
+  onAlertClosed(): void {
+    this.showCustomAlert = false;
+    
+    // ถ้าเป็น alert สำหรับ validation errors ให้แสดงขอบสีแดง
+    if (this.alertMessage === 'กรุณากรอกข้อมูลให้ครบก่อน') {
+      this.showValidationErrors = true;
+      this.validationErrors = this.validateForm().errors;
+    }
+    
+    // ถ้าเป็น success message ให้ redirect ไป dashboard
+    if (this.alertType === 'success') {
+      this.router.navigate(['/dashboard']);
+    }
+  }
+  validateFormsectiontext(): { isValid: boolean; errors?: string[] } {
+    const projectId = this.ticketForm.get('projectId')?.value;
+    const categoryId = this.ticketForm.get('categoryId')?.value;
+    const issueDescription = this.ticketForm.get('issueDescription')?.value;
+
+    const errors: string[] = [];
+
+    if (!projectId || projectId === '') {
+      errors.push('กรุณาเลือก Project');
+    }
+
+    if (!categoryId || categoryId === '') {
+      errors.push('กรุณาเลือก Category');
+    }
+
+    if (!issueDescription || issueDescription.trim() === '') {
+      errors.push('กรุณากรอกรายละเอียด Issue');
+    }
+
+    const isValid = errors.length === 0;
+    return { isValid, errors };
+  }
+
 }

@@ -1,3 +1,144 @@
+/* Error border สำหรับ dropdown components */
+app-project-dropdown.is-invalid .form-select,
+app-category-dropdown.is-invalid .form-select {
+  border-color: #DC3545 !important;
+  /* box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important; */
+}
+
+/* Error border สำหรับ rich text editor */
+.rich-text-editor-container.invalid {
+  border-color: #DC3545 !important;
+  /* box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important; */
+}
+
+.rich-editor.invalid {
+  border-color: #DC3545 !important;
+}
+
+/* เพิ่มการปรับปรุง validation state */
+.form-select.is-invalid {
+  border-color: #DC3545;
+  /* box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25); */
+}
+
+.form-select.is-invalid:focus {
+  border-color: #DC3545;
+  /* box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25); */
+}
+
+/* ปรับปรุงการแสดง error ใน dropdown components */
+app-project-dropdown .form-select.is-invalid,
+app-category-dropdown .form-select.is-invalid {
+  border-color: #DC3545 !important;
+  /* box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important; */
+}
+
+/* Custom Alert Styles - รวมอยู่ใน component เดียวกัน */
+.custom-alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(217, 217, 217, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.custom-alert-modal {
+  width: 357px;
+  height: 310px;
+  background: #FFFFFF;
+  box-shadow: 0px 0px 8px rgba(134, 134, 134, 0.25);
+  border-radius: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: alertSlideIn 0.3s ease-out;
+}
+
+@keyframes alertSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.alert-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  width: 245.2px;
+  height: 126px;
+}
+
+.alert-icon {
+  width: 83px;
+  height: 83px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.error-icon {
+  width: 83px;
+  height: 83px;
+  background: #EC0000;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.error-icon i {
+  font-size: 48px;
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+.success-icon {
+  width: 83px;
+  height: 83px;
+  background: #28a745;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.success-icon i {
+  font-size: 48px;
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+.alert-message {
+  width: 245.2px;
+  height: 19px;
+  font-family: 'Noto Sans Thai', sans-serif;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 120%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #212121;
+}
+
+/* CSS เดิมทั้งหมดยังคงอยู่ */
 .new-ticket-page {
   padding: 0 !important;
   background-color: #F5F5F9 !important;
@@ -74,7 +215,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 24px;
 }
 
 /* Page Header */
@@ -543,14 +684,6 @@
   opacity: 0.6;
 }
 
-/* Error Messages */
-.error-message {
-  font-family: 'Noto Sans Thai', sans-serif;
-  font-size: 12px;
-  color: #DC3545;
-  margin-top: 4px;
-}
-
 /* Loading States */
 .spinner-border-sm {
   width: 1rem;
@@ -672,5 +805,23 @@
   
   .file-size {
     font-size: 7px;
+  }
+}
+
+/* Custom Alert Responsive */
+@media (max-width: 768px) {
+  .custom-alert-modal {
+    width: 90vw;
+    max-width: 357px;
+    margin: 20px;
+  }
+  
+  .alert-content {
+    width: 80%;
+  }
+  
+  .alert-message {
+    width: 100%;
+    font-size: 14px;
   }
 }

@@ -123,4 +123,9 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
       projectId: ''
     });
   }
+
+  // Method สำหรับตรวจสอบว่ามี validation error จาก parent component หรือไม่
+  get isInvalid(): boolean {
+    return this.hasError;
+  }
 }
