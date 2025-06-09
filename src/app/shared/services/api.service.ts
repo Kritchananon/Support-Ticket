@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { ProjectDDLRequest, ProjectDDLResponse } from '../models/project.model';
 import { CategoryDDLRequest, CategoryDDLResponse } from '../models/category.model';
@@ -31,6 +31,43 @@ export interface TicketData {
   update_date?: string;
   update_by?: number;
   isenabled?: boolean;
+}
+
+// ✅ เพิ่ม interfaces สำหรับ saveTicket API
+export interface SaveTicketRequest {
+  ticket_id?: number;           // ไม่ส่งหรือส่งเป็น undefined = สร้างใหม่
+  project_id: number;
+  categories_id: number;
+  issue_description: string;
+}
+
+export interface SaveTicketResponse {
+  code: number;                 // 1 = success, 2 = error
+  message: string;
+  ticket_id: number;           // ✅ มี ticket_id ใน response
+  ticket_no: string;           // ✅ มี ticket_no ใน response
+}
+
+// ✅ เพิ่ม interfaces สำหรับ updateAttachment API
+export interface UpdateAttachmentRequest {
+  ticket_id?: number | null;    // NULL = สร้าง ticket ใหม่, มีค่า = เพิ่มไฟล์เข้า ticket ที่มีอยู่
+  project_id?: number;          // สำหรับกรณีสร้าง ticket ใหม่
+  categories_id?: number;       // สำหรับกรณีสร้าง ticket ใหม่
+  issue_description?: string;   // สำหรับกรณีสร้าง ticket ใหม่
+  files?: File[];               // ไฟล์ที่ต้องการอัปโหลด
+}
+
+export interface UpdateAttachmentResponse {
+  code: number;                 // 1 = success, 2 = error
+  message: string;
+  ticket_id: number;
+  attachment_id?: number;
+  data: AttachmentData[];
+}
+
+export interface AttachmentData {
+  attachment_id: number;
+  attachment_path: string;
 }
 
 export interface ProjectData {
@@ -82,14 +119,166 @@ export class ApiService {
     const token = localStorage.getItem('access_token');
     return new HttpHeaders({
       'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
+      'Authorization': token ? `Bearer ${token}` : '',
+      'language': 'th'
+    });
+  }
+
+  // ✅ Helper method สำหรับสร้าง headers สำหรับ multipart
+  private getMultipartHeaders(): HttpHeaders {
+    const token = localStorage.getItem('access_token');
+    return new HttpHeaders({
+      'Authorization': token ? `Bearer ${token}` : '',
+      'language': 'th'
+      // ไม่ใส่ Content-Type ให้ browser จัดการเอง
     });
   }
 
   // Helper method สำหรับจัดการ errors
   private handleError(error: HttpErrorResponse) {
     console.error('API Error:', error);
-    return throwError(() => error);
+    let errorMessage = 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+    
+    if (error.error instanceof ErrorEvent) {
+      // Client-side error
+      errorMessage = `Client Error: ${error.error.message}`;
+    } else {
+      // Server-side error
+      switch (error.status) {
+        case 401:
+          errorMessage = 'ไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบใหม่';
+          break;
+        case 403:
+          errorMessage = 'ไม่มีสิทธิ์ในการดำเนินการนี้';
+          break;
+        case 404:
+          errorMessage = 'ไม่พบข้อมูลที่ต้องการ';
+          break;
+        case 413:
+          errorMessage = 'ไฟล์มีขนาดใหญ่เกินไป';
+          break;
+        case 422:
+          errorMessage = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+          break;
+        case 500:
+          errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์';
+          break;
+        default:
+          errorMessage = error.error?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+      }
+    }
+    
+    return throwError(() => errorMessage);
+  }
+
+  // ===== Save Ticket API ===== ✅
+  /**
+   * บันทึก ticket ใหม่หรืออัปเดต ticket ที่มีอยู่
+   * @param data ข้อมูล ticket
+   * @returns Observable ผลลัพธ์
+   */
+  saveTicket(data: SaveTicketRequest): Observable<SaveTicketResponse> {
+    console.log('Calling saveTicket API with data:', data);
+    
+    return this.http.post<SaveTicketResponse>(`${this.apiUrl}/saveTicket`, data, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('saveTicket API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * สร้าง ticket ใหม่ (wrapper สำหรับ saveTicket โดยไม่ส่ง ticket_id)
+   * @param data ข้อมูล ticket ใหม่
+   * @returns Observable ผลลัพธ์
+   */
+  createTicketNew(data: {
+    project_id: number;
+    categories_id: number;
+    issue_description: string;
+  }): Observable<SaveTicketResponse> {
+    const requestData: SaveTicketRequest = {
+      project_id: data.project_id,
+      categories_id: data.categories_id,
+      issue_description: data.issue_description
+      // ไม่ส่ง ticket_id เพื่อให้ API สร้างใหม่
+    };
+
+    return this.saveTicket(requestData);
+  }
+
+  /**
+   * อัปเดต ticket ที่มีอยู่แล้ว
+   * @param ticketId ID ของ ticket ที่ต้องการอัปเดต
+   * @param data ข้อมูลที่ต้องการอัปเดต
+   * @returns Observable ผลลัพธ์
+   */
+  updateTicketData(ticketId: number, data: {
+    project_id: number;
+    categories_id: number;
+    issue_description: string;
+  }): Observable<SaveTicketResponse> {
+    const requestData: SaveTicketRequest = {
+      ticket_id: ticketId,
+      project_id: data.project_id,
+      categories_id: data.categories_id,
+      issue_description: data.issue_description
+    };
+
+    return this.saveTicket(requestData);
+  }
+
+  // ===== Update Attachment API ===== ✅
+  /**
+   * อัปโหลดไฟล์แนบสำหรับ ticket
+   * @param data ข้อมูลและไฟล์ที่ต้องการอัปโหลด
+   * @returns Observable ผลลัพธ์
+   */
+  updateAttachment(data: UpdateAttachmentRequest): Observable<UpdateAttachmentResponse> {
+    console.log('Calling updateAttachment API with data:', {
+      ticket_id: data.ticket_id,
+      files_count: data.files?.length || 0,
+      project_id: data.project_id,
+      categories_id: data.categories_id
+    });
+
+    const formData = new FormData();
+
+    // ✅ แก้ไข: เพิ่ม ticket_id (ถ้ามี)
+    if (data.ticket_id !== null && data.ticket_id !== undefined) {
+      formData.append('ticket_id', data.ticket_id.toString());
+    }
+
+    // ✅ แก้ไข: เพิ่มข้อมูล ticket (สำหรับกรณีสร้างใหม่)
+    if (data.project_id) {
+      formData.append('project_id', data.project_id.toString());
+    }
+    if (data.categories_id) {
+      formData.append('categories_id', data.categories_id.toString());
+    }
+    if (data.issue_description) {
+      formData.append('issue_description', data.issue_description);
+    }
+
+    // ✅ แก้ไขสำคัญ: เปลี่ยนจาก 'attachment[]' เป็น 'files' เพื่อให้ตรงกับ Backend
+    if (data.files && data.files.length > 0) {
+      data.files.forEach(file => {
+        formData.append('files', file);  // ใช้ 'files' ตรงกับ FilesInterceptor ใน Backend
+      });
+    }
+
+    // ✅ แก้ไข: เพิ่ม type parameter
+    formData.append('type', 'reporter');  // default type
+
+    return this.http.post<UpdateAttachmentResponse>(
+      `${this.apiUrl}/updateAttachment`, 
+      formData, 
+      { headers: this.getMultipartHeaders() }
+    ).pipe(
+      tap(response => console.log('updateAttachment API response:', response)),
+      catchError(this.handleError)
+    );
   }
 
   // ===== Project DDL Methods =====
@@ -118,7 +307,7 @@ export class ApiService {
     return this.getProjectDDL({ status: 'inactive' });
   }
 
-  // ===== Categories DDL Methods (ใหม่) =====
+  // ===== Categories DDL Methods =====
   
   getCategoriesDDL(request: CategoryDDLRequest = { status: 'active' }): Observable<CategoryDDLResponse> {
     return this.http.post<CategoryDDLResponse>(`${this.apiUrl}/getCategoriesDDL`, request, {
@@ -281,14 +470,14 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Ticket Categories APIs (เดิม) =====
+  // ===== Ticket Categories APIs =====
   getTicketCategories(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/ticket-categories`, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Ticket Status APIs (เดิม) =====
+  // ===== Ticket Status APIs =====
   getTicketStatuses(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/ticket-status`, {
       headers: this.getAuthHeaders()

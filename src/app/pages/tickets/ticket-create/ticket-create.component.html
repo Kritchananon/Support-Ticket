@@ -17,10 +17,17 @@
   </div>
 
   <!-- Main Content -->
-  <div class="content-card">
-    <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form">
+  <div class="content-card" [class.ticket-created]="isTicketCreated">
+    <!-- Progress Bar -->
+    <div class="form-progress" [style.width.%]="isTicketCreated ? 100 : 0"></div>
+    
+    <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" class="ticket-form" [class.success]="isTicketCreated">
       
-      <!-- Project Dropdown - ใช้ Component -->
+      <!-- ✅ Hidden Fields สำหรับเก็บ ticket_id และ ticket_no -->
+      <input type="hidden" id="ticket_id" [value]="ticketId || ''" />
+      <input type="hidden" id="ticket_no" [value]="ticketNo" />
+      
+      <!-- Project Dropdown -->
       <app-project-dropdown
         label="Project Name"
         placeholder="-- Select Project --"
@@ -30,7 +37,7 @@
         (selectionChange)="onProjectChange($event)">
       </app-project-dropdown>
 
-      <!-- Category Dropdown - ใช้ Component -->
+      <!-- Category Dropdown -->
       <app-category-dropdown
         label="Categories"
         placeholder="-- Select Category --"
@@ -48,7 +55,9 @@
         </label>
         
         <!-- Rich Text Editor Container -->
-        <div class="rich-text-editor-container" [class.invalid]="isFieldInvalid('issueDescription')">
+        <div class="rich-text-editor-container" 
+             [class.invalid]="isFieldInvalid('issueDescription')"
+             [class.success]="isTicketCreated">
           <!-- Rich Text Editor Toolbar -->
           <div class="editor-toolbar">
             <div class="toolbar-section">
@@ -205,6 +214,7 @@
           <div 
             class="rich-editor"
             [class.invalid]="isFieldInvalid('issueDescription')"
+            [class.success]="isTicketCreated"
             contenteditable="true"
             (input)="onDescriptionInput($event)"
             placeholder="Typing for description">
@@ -212,11 +222,32 @@
         </div>
       </div>
 
+      <!-- ✅ Ticket Status Display -->
+      <div *ngIf="isTicketCreated" class="ticket-status-display">
+        <div class="alert alert-success" role="alert">
+          <i class="bi bi-check-circle me-2"></i>
+          <strong>✅ Ticket {{ ticketNo }} created successfully!</strong>
+          <br>
+          <small>You can now upload files or click Submit to finish.</small>
+        </div>
+      </div>
+
+      <!-- Auto-Save Indicator -->
+      <div *ngIf="isSubmitting && !isTicketCreated" class="auto-save-indicator saving">
+        <i class="bi bi-arrow-clockwise"></i>
+        <span>Creating ticket...</span>
+      </div>
+
+      <div *ngIf="isTicketCreated && !isSubmitting" class="auto-save-indicator">
+        <i class="bi bi-check-circle-fill"></i>
+        <span>Ticket saved</span>
+      </div>
+
       <!-- File Attachment -->
       <div class="form-group">
         <label class="form-label">
           <span>Attachment</span>
-          <span class="required">*</span>
+          <!-- ✅ ไม่บังคับไฟล์แนบแล้ว -->
         </label>
         
         <!-- File Upload Instructions -->
@@ -227,11 +258,14 @@
           </small>
         </div>
         
-        <div class="file-upload-area">
+        <div class="file-upload-area" 
+             [class.has-files]="selectedFiles.length > 0"
+             [class.has-errors]="fileErrors.length > 0">
           <!-- Files Container -->
           <div class="files-container">
             <!-- File Upload Button -->
-            <div class="file-upload-button">
+            <div class="file-upload-button" 
+                 [class.disabled]="!canUploadFiles">
               <label for="fileInput" class="upload-label">
                 <div class="upload-icon">
                   <i class="bi bi-plus-circle"></i>
@@ -244,12 +278,20 @@
                 multiple 
                 (change)="onFileSelect($event)"
                 class="file-input"
+                [disabled]="!canUploadFiles"
                 accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt">
             </div>
 
             <!-- Selected Files -->
-            <div class="selected-files" *ngIf="selectedFiles.length > 0">
-              <div class="file-item" *ngFor="let file of selectedFiles; let i = index">
+            <div class="selected-files" 
+                 *ngIf="selectedFiles.length > 0"
+                 [class.has-uploads]="isTicketCreated">
+              <div class="file-item" 
+                   *ngFor="let file of selectedFiles; let i = index"
+                   [class.uploaded]="isFileUploaded(file.name)"
+                   [class.uploading]="isFileUploading(file.name)"
+                   [class.error]="isFileError(file.name)">
+                
                 <!-- File Preview -->
                 <div class="file-preview">
                   <img *ngIf="isImageFile(file)" [src]="getFilePreview(file)" alt="Preview">
@@ -274,10 +316,28 @@
                   <span class="file-size">{{ formatFileSize(file.size) }}</span>
                 </div>
 
+                <!-- File Status Icons -->
+                <div class="upload-success-icon" *ngIf="isFileUploaded(file.name)">
+                  <i class="bi bi-check-circle-fill"></i>
+                </div>
+
+                <div class="upload-progress-icon" *ngIf="isFileUploading(file.name)">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </div>
+
+                <div class="upload-error-icon" *ngIf="isFileError(file.name)">
+                  <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+
                 <!-- File Status Indicator -->
                 <div class="file-status" *ngIf="file.size > 10 * 1024 * 1024">
                   <i class="bi bi-exclamation-triangle text-warning" title="ไฟล์ใหญ่เกิน 10MB"></i>
                 </div>
+              </div>
+
+              <!-- File Count Badge -->
+              <div class="file-count-badge" *ngIf="selectedFiles.length > 0">
+                {{ selectedFiles.length }}
               </div>
             </div>
           </div>
@@ -304,27 +364,64 @@
             </ul>
           </div>
         </div>
+
+        <!-- File Upload Success Message -->
+        <div class="file-success" *ngIf="isTicketCreated && selectedFiles.length > 0 && fileErrors.length === 0">
+          <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>ไฟล์จะถูกอัปโหลดอัตโนมัติ</strong> เมื่อคุณเลือกไฟล์
+          </div>
+        </div>
       </div>
 
-      <!-- Submit Button -->
+      <!-- Form Validation Errors -->
+      <div *ngIf="showValidationErrors" class="validation-errors">
+        <div class="alert alert-danger" role="alert">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>กรุณาแก้ไขข้อผิดพลาดต่อไปนี้:</strong>
+          <ul class="mb-0 mt-2">
+            <li *ngIf="validationErrors['projectId']">กรุณาเลือก Project</li>
+            <li *ngIf="validationErrors['categoryId']">กรุณาเลือก Category</li>
+            <li *ngIf="validationErrors['issueDescription']">กรุณากรอก Issue Description อย่างน้อย 10 ตัวอักษร</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ✅ Submit Button - ปรับข้อความและ logic ใหม่ -->
       <div class="form-actions">
-        <!-- ปุ่มไม่ disable แล้ว สามารถกดได้ตลอด -->
         <button 
           type="submit" 
           class="btn btn-primary"
+          [class.loading]="isSubmitting"
           [disabled]="isSubmitting">
+          
           <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
-          <span *ngIf="!isSubmitting">New Ticket</span>
-          <span *ngIf="isSubmitting">Creating...</span>
+          
+          <!-- ✅ แสดงข้อความต่างกันตามสถานะ -->
+          <span *ngIf="!isSubmitting && !isTicketCreated">Create Ticket</span>
+          <span *ngIf="!isSubmitting && isTicketCreated">Submit</span>
+          <span *ngIf="isSubmitting && !isTicketCreated">Creating Ticket...</span>
+          <span *ngIf="isSubmitting && isTicketCreated">Processing...</span>
         </button>
         
         <!-- Submit Status -->
         <div class="submit-status mt-2" *ngIf="isSubmitting">
           <small class="text-muted">
             <i class="bi bi-clock me-1"></i>
-            กำลังสร้างตั๋วและอัปโหลดไฟล์แนบ กรุณารอสักครู่...
+            <span *ngIf="!isTicketCreated">กำลังสร้างตั๋ว กรุณารอสักครู่...</span>
+            <span *ngIf="isTicketCreated">กำลังดำเนินการ กรุณารอสักครู่...</span>
           </small>
         </div>
+
+        <!-- Reset Button (Optional) -->
+        <button 
+          type="button" 
+          class="btn btn-outline-secondary mt-2"
+          *ngIf="isTicketCreated && !isSubmitting"
+          (click)="resetForm()">
+          <i class="bi bi-arrow-clockwise me-2"></i>
+          New Ticket
+        </button>
       </div>
     </form>
   </div>
@@ -347,6 +444,16 @@
         <div class="alert-message" [innerHTML]="alertMessage.replace('\n', '<br>')">
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" *ngIf="isLoading">
+    <div class="loading-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-3">กำลังโหลด...</p>
     </div>
   </div>
 </div>
