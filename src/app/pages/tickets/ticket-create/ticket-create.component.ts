@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ViewEncapsulation, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewEncapsulation, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -29,6 +29,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private router = inject(Router);
   private ticketService = inject(TicketService);
+  private cdr = inject(ChangeDetectorRef); // ✅ เพิ่ม ChangeDetectorRef
 
   ticketForm: FormGroup;
   
@@ -58,10 +59,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   ticketNo: string = '';
   isTicketCreated = false;
 
-  // ✅ เพิ่ม properties สำหรับ file upload states
+  // ✅ เพิ่ม properties สำหรับ file upload states และ success messages
   uploadedFileNames: string[] = [];
   uploadingFileNames: string[] = [];
   errorFileNames: string[] = [];
+  fileSuccessMessages: string[] = []; // เพิ่มสำหรับ success messages
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -75,6 +77,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
+    
+    // ✅ เช็คและกู้คืนข้อมูล ticket ที่ยังไม่เสร็จ
+    this.restoreIncompleteTicket();
     
     // ✅ ติดตาม description changes สำหรับ auto-save
     this.ticketForm.get('issueDescription')?.valueChanges
@@ -94,7 +99,134 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ✅ event handlers สำหรับ dropdowns พร้อม auto-check
+  // ✅ METHOD ใหม่: กู้คืนข้อมูล ticket ที่ยังไม่เสร็จ
+  private restoreIncompleteTicket(): void {
+    try {
+      const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+      if (!currentUserId) {
+        console.log('No current user ID found');
+        return;
+      }
+
+      const savedTicketData = localStorage.getItem(`incompleteTicket_${currentUserId}`);
+      if (savedTicketData) {
+        const ticketData = JSON.parse(savedTicketData);
+        console.log('Found incomplete ticket for user:', currentUserId, ticketData);
+        
+        // ✅ เช็คว่า userId ตรงกันไหม (double check)
+        if (ticketData.userId !== currentUserId) {
+          console.log('User ID mismatch, clearing data');
+          localStorage.removeItem(`incompleteTicket_${currentUserId}`);
+          return;
+        }
+
+        // ✅ เช็ค timestamp ว่าข้อมูลเก่าเกินไปไหม (เช่น เก่ากว่า 24 ชั่วโมง)
+        const savedTime = ticketData.timestamp;
+        const currentTime = new Date().getTime();
+        const hoursDiff = (currentTime - savedTime) / (1000 * 60 * 60);
+        
+        if (hoursDiff > 24) {
+          console.log('Ticket data too old, clearing');
+          localStorage.removeItem(`incompleteTicket_${currentUserId}`);
+          return;
+        }
+        
+        // กู้คืนข้อมูล ticket
+        this.ticketId = ticketData.ticketId;
+        this.ticketNo = ticketData.ticketNo;
+        this.isTicketCreated = ticketData.isTicketCreated;
+        
+        // กู้คืนข้อมูล form
+        this.ticketForm.patchValue({
+          projectId: ticketData.formData.projectId,
+          categoryId: ticketData.formData.categoryId,
+          issueDescription: ticketData.formData.issueDescription
+        });
+        
+        // กู้คืน selected dropdown data
+        this.selectedProject = ticketData.selectedProject;
+        this.selectedCategory = ticketData.selectedCategory;
+        
+        // ✅ อัปเดต UI หลังจาก Angular ได้ render เสร็จ
+        setTimeout(() => {
+          this.updateUIFromRestoredData(ticketData);
+        }, 500); // เพิ่มเวลารอให้ dropdown components โหลดเสร็จ
+        
+        // อัปเดต UI
+        if (this.isTicketCreated) {
+          this.addSuccessState();
+          console.log('Restored incomplete ticket:', this.ticketNo);
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring incomplete ticket:', error);
+      // ล้างข้อมูลที่เสียหาย
+      const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+      if (currentUserId) {
+        localStorage.removeItem(`incompleteTicket_${currentUserId}`);
+      }
+    }
+  }
+
+  // ✅ METHOD ใหม่: อัปเดต UI จากข้อมูลที่กู้คืน
+  private updateUIFromRestoredData(ticketData: any): void {
+    // อัปเดต rich text editor
+    if (ticketData.formData.issueDescription) {
+      const richEditor = document.querySelector('.rich-editor') as HTMLElement;
+      if (richEditor) {
+        richEditor.innerHTML = ticketData.formData.issueDescription;
+      }
+    }
+    
+    // ✅ Force change detection สำหรับ dropdown components
+    // Angular จะ detect ว่า selectedProjectId/selectedCategoryId เปลี่ยนแล้ว
+    this.ticketForm.get('projectId')?.updateValueAndValidity();
+    this.ticketForm.get('categoryId')?.updateValueAndValidity();
+    
+    // ✅ Trigger change detection manually
+    this.cdr.detectChanges();
+    
+    console.log('UI updated from restored data');
+  }
+
+  // ✅ METHOD ใหม่: บันทึกข้อมูล ticket ที่ยังไม่เสร็จ
+  private saveIncompleteTicket(): void {
+    if (this.isTicketCreated && this.ticketId) {
+      const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+      if (!currentUserId) {
+        console.log('No current user ID, cannot save ticket');
+        return;
+      }
+
+      const ticketData = {
+        userId: currentUserId, // ✅ เพิ่ม userId
+        ticketId: this.ticketId,
+        ticketNo: this.ticketNo,
+        isTicketCreated: this.isTicketCreated,
+        formData: {
+          projectId: this.ticketForm.get('projectId')?.value,
+          categoryId: this.ticketForm.get('categoryId')?.value,
+          issueDescription: this.ticketForm.get('issueDescription')?.value
+        },
+        selectedProject: this.selectedProject,
+        selectedCategory: this.selectedCategory,
+        timestamp: new Date().getTime()
+      };
+      
+      // ✅ ใช้ userId ใน localStorage key
+      localStorage.setItem(`incompleteTicket_${currentUserId}`, JSON.stringify(ticketData));
+      console.log('Saved incomplete ticket to localStorage for user:', currentUserId);
+    }
+  }
+
+  // ✅ METHOD ใหม่: ล้างข้อมูล ticket ที่เสร็จแล้ว
+  private clearIncompleteTicket(): void {
+    const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+    if (currentUserId) {
+      localStorage.removeItem(`incompleteTicket_${currentUserId}`);
+      console.log('Cleared incomplete ticket from localStorage for user:', currentUserId);
+    }
+  }
   onProjectChange(event: { project: any, projectId: string | number }): void {
     this.selectedProject = event.project;
     this.ticketForm.patchValue({ projectId: event.projectId });
@@ -194,6 +326,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           this.showSuccessMessage(`✅ Ticket ${this.ticketNo} created successfully!`);
           this.addSuccessState();
           
+          // ✅ บันทึกข้อมูล ticket ที่ยังไม่เสร็จลง localStorage
+          this.saveIncompleteTicket();
+          
         } else {
           this.onAutoCreateError('Failed to create ticket: ' + response.message);
         }
@@ -255,8 +390,28 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
+  // ✅ ปรับปรุง onFileSelect method - ให้ทำงานเสมอ ไม่มี disabled
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
+    
+    // ✅ ตรวจสอบว่ากรอกข้อมูลครบหรือยัง
+    const validation = this.validateFormForAutoSave();
+    if (!validation.isValid) {
+      // รีเซ็ต input
+      input.value = '';
+      
+      // แสดง popup alert ตามรูปแรก
+      this.alertMessage = 'กรุณากรอกข้อมูลให้ครบก่อน';
+      this.alertType = 'error';
+      this.showCustomAlert = true;
+      
+      // แสดง validation errors และ border สีแดง
+      this.showValidationErrors = true;
+      this.markFieldsAsInvalid();
+      
+      return;
+    }
+
     if (input.files) {
       const newFiles = Array.from(input.files);
       
@@ -265,11 +420,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       
       // ตรวจสอบไฟล์ก่อนเพิ่ม
       const allFiles = [...this.selectedFiles, ...newFiles];
-      const validation = this.ticketService.validateFiles(allFiles);
+      const fileValidation = this.ticketService.validateFiles(allFiles);
       
-      if (!validation.isValid) {
+      if (!fileValidation.isValid) {
         // แสดง error สำหรับไฟล์
-        this.fileErrors = validation.errors;
+        this.fileErrors = fileValidation.errors;
         input.value = '';
         return;
       }
@@ -338,7 +493,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           });
           
           // ✅ แสดงข้อความสำเร็จ
-          this.showSuccessMessage(`อัปโหลดไฟล์ ${files.length} ไฟล์สำเร็จ`);
+          this.showFileUploadSuccess(`อัปโหลดไฟล์ ${files.length} ไฟล์สำเร็จ`);
           
         } else {
           console.error('File upload failed:', response.message);
@@ -390,6 +545,15 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ✅ METHOD ใหม่: แสดง success ของการอัปโหลดไฟล์
+  private showFileUploadSuccess(message: string): void {
+    this.fileSuccessMessages.push(message);
+    // ลบ success message หลัง 5 วินาที
+    setTimeout(() => {
+      this.fileSuccessMessages = this.fileSuccessMessages.filter(msg => msg !== message);
+    }, 5000);
+  }
+
   // ✅ METHOD ใหม่: แสดง error ของการอัปโหลดไฟล์
   private showFileUploadError(message: string): void {
     this.fileErrors.push(message);
@@ -429,17 +593,24 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   onSubmit(): void {
     console.log('Submit button clicked');
     
+    // ตรวจสอบความครบถ้วนของ form
+    const validation = this.validateFormForAutoSave();
+    
+    if (!validation.isValid) {
+      // แสดง popup alert
+      this.alertMessage = 'กรุณากรอกข้อมูลให้ครบก่อน';
+      this.alertType = 'error';
+      this.showCustomAlert = true;
+      
+      // แสดง validation errors และ border สีแดง
+      this.showValidationErrors = true;
+      this.markFieldsAsInvalid();
+      
+      return;
+    }
+    
     // ถ้ายังไม่ได้สร้าง ticket ให้สร้างก่อน
     if (!this.isTicketCreated) {
-      const validation = this.validateFormForAutoSave();
-      
-      if (!validation.isValid) {
-        this.alertMessage = validation.errors?.join(', ') || 'กรุณากรอกข้อมูลให้ครบก่อน';
-        this.alertType = 'error';
-        this.showCustomAlert = true;
-        return;
-      }
-      
       this.createTicketAutomatically();
       return;
     }
@@ -470,6 +641,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private completedTicketCreation(): void {
     console.log('Ticket creation completed');
     
+    // ✅ ล้างข้อมูล incomplete ticket เมื่อเสร็จแล้ว
+    this.clearIncompleteTicket();
+    
     // แสดง success alert
     this.alertMessage = `Ticket created successfully\nTicket ID: ${this.ticketNo}`;
     this.alertType = 'success';
@@ -478,6 +652,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
   // ✅ METHOD ใหม่: reset form เพื่อสร้าง ticket ใหม่
   resetForm(): void {
+    // ✅ ล้างข้อมูล incomplete ticket ก่อน reset
+    this.clearIncompleteTicket();
+    
     this.ticketForm.reset();
     this.selectedFiles = [];
     this.fileErrors = [];
@@ -492,6 +669,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.uploadedFileNames = [];
     this.uploadingFileNames = [];
     this.errorFileNames = [];
+    this.fileSuccessMessages = []; // ล้าง success messages
+    
+    // ล้าง dropdown selections
+    this.selectedProject = null;
+    this.selectedCategory = null;
     
     // ล้าง preview URLs
     Object.values(this.filePreviewUrls).forEach(url => {
@@ -518,11 +700,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     if (fileUploadArea) fileUploadArea.classList.remove('has-files');
   }
 
-  // ✅ เพิ่ม getter methods สำหรับ template
-  get canUploadFiles(): boolean {
-    return this.isTicketCreated && this.ticketId !== null;
-  }
-
+  // ✅ เอา getter methods ที่ไม่ต้องใช้แล้วออก เพราะไม่มี disabled แล้ว
   get isFormCompleted(): boolean {
     const validation = this.validateFormForAutoSave();
     return validation.isValid;
@@ -613,6 +791,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     if (content && content.trim().length >= 10 && this.validationErrors['issueDescription']) {
       this.validationErrors['issueDescription'] = false;
     }
+    
+    // ✅ บันทึกข้อมูลถ้ามี ticket แล้ว
+    if (this.isTicketCreated) {
+      this.saveIncompleteTicket();
+    }
   }
 
   // Form validation helper methods
@@ -644,12 +827,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     if (this.alertType === 'success') {
       this.router.navigate(['/dashboard']);
     }
-    
-    // ถ้าเป็น error message เกี่ยวกับ validation ให้แสดงขอบสีแดง
-    if (this.alertType === 'error' && this.alertMessage.includes('กรุณากรอกข้อมูล')) {
-      this.showValidationErrors = true;
-      this.markFieldsAsInvalid();
-    }
   }
 
   // ✅ METHOD ใหม่: mark fields ว่า invalid
@@ -672,6 +849,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   // ✅ เพิ่ม method สำหรับ handle browser refresh/close
   @HostListener('window:beforeunload', ['$event'])
   canDeactivate(event: BeforeUnloadEvent): boolean {
+    // ✅ บันทึกข้อมูลก่อนออกจากหน้า
+    if (this.isTicketCreated && this.ticketId) {
+      this.saveIncompleteTicket();
+    }
+    
     if (this.hasUnsavedChanges) {
       event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
       return false;

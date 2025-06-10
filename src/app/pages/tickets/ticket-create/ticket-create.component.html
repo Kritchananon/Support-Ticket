@@ -263,22 +263,21 @@
              [class.has-errors]="fileErrors.length > 0">
           <!-- Files Container -->
           <div class="files-container">
-            <!-- File Upload Button -->
-            <div class="file-upload-button" 
-                 [class.disabled]="!canUploadFiles">
+            <!-- ✅ File Upload Button - ลบ disabled แล้ว -->
+            <div class="file-upload-button">
               <label for="fileInput" class="upload-label">
                 <div class="upload-icon">
                   <i class="bi bi-plus-circle"></i>
                 </div>
                 <span class="upload-text">Choose file</span>
               </label>
+              <!-- ✅ File Input - ลบ disabled แล้ว -->
               <input 
                 id="fileInput" 
                 type="file" 
                 multiple 
                 (change)="onFileSelect($event)"
                 class="file-input"
-                [disabled]="!canUploadFiles"
                 accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt">
             </div>
 
@@ -387,7 +386,7 @@
         </div>
       </div>
 
-      <!-- ✅ Submit Button - ปรับข้อความและ logic ใหม่ -->
+      <!-- ✅ Submit Button - เป็นปุ่มเดียวสำหรับ New Ticket -->
       <div class="form-actions">
         <button 
           type="submit" 
@@ -397,31 +396,18 @@
           
           <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
           
-          <!-- ✅ แสดงข้อความต่างกันตามสถานะ -->
-          <span *ngIf="!isSubmitting && !isTicketCreated">Create Ticket</span>
-          <span *ngIf="!isSubmitting && isTicketCreated">Submit</span>
-          <span *ngIf="isSubmitting && !isTicketCreated">Creating Ticket...</span>
-          <span *ngIf="isSubmitting && isTicketCreated">Processing...</span>
+          <!-- ✅ ข้อความเดียว: New Ticket -->
+          <span *ngIf="!isSubmitting">New Ticket</span>
+          <span *ngIf="isSubmitting">Creating Ticket...</span>
         </button>
         
         <!-- Submit Status -->
         <div class="submit-status mt-2" *ngIf="isSubmitting">
           <small class="text-muted">
             <i class="bi bi-clock me-1"></i>
-            <span *ngIf="!isTicketCreated">กำลังสร้างตั๋ว กรุณารอสักครู่...</span>
-            <span *ngIf="isTicketCreated">กำลังดำเนินการ กรุณารอสักครู่...</span>
+            กำลังสร้างตั๋ว กรุณารอสักครู่...
           </small>
         </div>
-
-        <!-- Reset Button (Optional) -->
-        <button 
-          type="button" 
-          class="btn btn-outline-secondary mt-2"
-          *ngIf="isTicketCreated && !isSubmitting"
-          (click)="resetForm()">
-          <i class="bi bi-arrow-clockwise me-2"></i>
-          New Ticket
-        </button>
       </div>
     </form>
   </div>
