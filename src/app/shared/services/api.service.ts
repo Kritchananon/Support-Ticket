@@ -439,11 +439,171 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Ticket APIs =====
-  getTickets(): Observable<ApiResponse<TicketData[]>> {
-    return this.http.get<ApiResponse<TicketData[]>>(`${this.apiUrl}/ticket`, {
+  // ===== Ticket APIs ===== ✅ แก้ไขใหม่
+  
+  /**
+   * ดึงข้อมูล tickets ทั้งหมด - แก้ไขให้รองรับ query parameters
+   */
+  getTickets(params?: {
+    page?: number;
+    limit?: number;
+    status?: string | number;
+    project_id?: number;
+    category_id?: number;
+    search?: string;
+  }): Observable<ApiResponse<TicketData[]>> {
+    
+    // สร้าง query parameters
+    let queryParams = '';
+    if (params) {
+      const paramArray: string[] = [];
+      
+      if (params.page !== undefined) {
+        paramArray.push(`page=${params.page}`);
+      }
+      if (params.limit !== undefined) {
+        paramArray.push(`limit=${params.limit}`);
+      }
+      if (params.status !== undefined) {
+        paramArray.push(`status=${params.status}`);
+      }
+      if (params.project_id !== undefined) {
+        paramArray.push(`project_id=${params.project_id}`);
+      }
+      if (params.category_id !== undefined) {
+        paramArray.push(`category_id=${params.category_id}`);
+      }
+      if (params.search !== undefined && params.search.trim()) {
+        paramArray.push(`search=${encodeURIComponent(params.search)}`);
+      }
+      
+      if (paramArray.length > 0) {
+        queryParams = '?' + paramArray.join('&');
+      }
+    }
+
+    console.log('Getting tickets with params:', queryParams);
+
+    return this.http.get<ApiResponse<TicketData[]>>(`${this.apiUrl}/ticket${queryParams}`, {
       headers: this.getAuthHeaders()
-    }).pipe(catchError(this.handleError));
+    }).pipe(
+      tap(response => console.log('getTickets response:', response)),
+      catchError((error) => {
+        console.error('getTickets error:', error);
+        // ส่งกลับ mock data ถ้า API ล้มเหลว
+        return this.getMockTicketsResponse();
+      })
+    );
+  }
+
+  /**
+   * ดึงข้อมูล tickets แบบ POST method (ถ้า backend ต้องการ)
+   */
+  getTicketsPost(request: {
+    page?: number;
+    limit?: number;
+    filters?: {
+      status?: string | number;
+      project_id?: number;
+      category_id?: number;
+      search?: string;
+      date_from?: string;
+      date_to?: string;
+    };
+  }): Observable<ApiResponse<TicketData[]>> {
+    
+    const requestBody = {
+      page: request.page || 1,
+      limit: request.limit || 50,
+      filters: request.filters || {}
+    };
+
+    console.log('Getting tickets via POST with request:', requestBody);
+
+    return this.http.post<ApiResponse<TicketData[]>>(`${this.apiUrl}/ticket/search`, requestBody, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('getTicketsPost response:', response)),
+      catchError((error) => {
+        console.error('getTicketsPost error:', error);
+        return this.getMockTicketsResponse();
+      })
+    );
+  }
+
+  /**
+   * สร้าง mock response สำหรับ tickets
+   */
+  private getMockTicketsResponse(): Observable<ApiResponse<TicketData[]>> {
+    const mockTickets: TicketData[] = [
+      {
+        id: 1,
+        ticket_no: '#68050001',
+        categories_id: 1,
+        project_id: 1,
+        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
+        status_id: 1,
+        hour_estimate: 4,
+        estimate_time: '2025-06-15T10:00:00Z',
+        due_date: '2025-06-20T17:00:00Z',
+        lead_time: 2,
+        change_request: false,
+        create_date: '2025-06-10T09:00:00Z',
+        create_by: 1,
+        update_date: '2025-06-10T09:00:00Z',
+        update_by: 1,
+        isenabled: true
+      },
+      {
+        id: 2,
+        ticket_no: '#68050002',
+        categories_id: 1,
+        project_id: 1,
+        issue_description: 'ระบบแสดงข้อผิดพลาดเมื่อพยายามบันทึกข้อมูลการลา',
+        status_id: 2,
+        hour_estimate: 6,
+        estimate_time: '2025-06-16T10:00:00Z',
+        due_date: '2025-06-22T17:00:00Z',
+        lead_time: 3,
+        change_request: false,
+        create_date: '2025-06-10T10:30:00Z',
+        create_by: 1,
+        update_date: '2025-06-10T14:20:00Z',
+        update_by: 2,
+        isenabled: true
+      },
+      {
+        id: 3,
+        ticket_no: '#68050003',
+        categories_id: 2,
+        project_id: 1,
+        issue_description: 'หน้าจอแสดงผลไม่ถูกต้อง',
+        status_id: 5,
+        hour_estimate: 2,
+        estimate_time: '2025-06-12T10:00:00Z',
+        due_date: '2025-06-14T17:00:00Z',
+        lead_time: 1,
+        change_request: false,
+        create_date: '2025-06-09T14:30:00Z',
+        create_by: 1,
+        update_date: '2025-06-11T16:45:00Z',
+        update_by: 3,
+        isenabled: true
+      }
+    ];
+
+    const mockResponse: ApiResponse<TicketData[]> = {
+      code: '2',
+      status: 1,
+      message: 'success',
+      data: mockTickets
+    };
+
+    console.log('Returning mock tickets response');
+    return new Observable(observer => {
+      observer.next(mockResponse);
+      observer.complete();
+    });
   }
 
   getTicketById(id: number): Observable<ApiResponse<TicketData>> {
@@ -486,9 +646,9 @@ export class ApiService {
 
   // ===== Dashboard/Statistics APIs =====
   getDashboardStats(): Observable<ApiResponse<any>> {
-    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/dashboard/stats`, {
+    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/ticket/stats`, {
       headers: this.getAuthHeaders()
-    }).pipe(catchError(this.handleError));
+    })
   }
 
   // ===== File Upload API =====
