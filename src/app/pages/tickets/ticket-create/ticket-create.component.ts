@@ -49,10 +49,13 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   showValidationErrors = false;
   validationErrors: { [key: string]: boolean } = {};
   
-  // เพิ่ม properties สำหรับ custom alert
+  // ✅ เพิ่ม properties สำหรับ custom alert
   showCustomAlert = false;
   alertMessage = '';
   alertType: 'error' | 'success' = 'error';
+  
+  // ✅ เพิ่ม property สำหรับจัดการ auto navigation
+  autoNavigationTimer: any = null;
 
   // ✅ เพิ่ม properties สำหรับ hidden fields และ state management
   ticketId: number | null = null;
@@ -64,6 +67,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   uploadingFileNames: string[] = [];
   errorFileNames: string[] = [];
   fileSuccessMessages: string[] = []; // เพิ่มสำหรับ success messages
+  
+  // ✅ เพิ่ม property สำหรับป้องกัน double navigation
+  isNavigating = false;
 
   constructor() {
     this.ticketForm = this.fb.group({
@@ -97,6 +103,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         URL.revokeObjectURL(url);
       }
     });
+    
+    // ✅ ล้าง timer เมื่อ component ถูก destroy
+    if (this.autoNavigationTimer) {
+      clearTimeout(this.autoNavigationTimer);
+    }
   }
 
   // ✅ METHOD ใหม่: กู้คืนข้อมูล ticket ที่ยังไม่เสร็จ
@@ -648,10 +659,40 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.alertMessage = `Ticket created successfully\nTicket ID: ${this.ticketNo}`;
     this.alertType = 'success';
     this.showCustomAlert = true;
+
+    // ✅ ตั้ง timer สำหรับ auto navigation หลัง 3 วินาที
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticketId && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 3000);
+  }
+
+  // ✅ METHOD ใหม่: Navigate ไปหน้า ticket detail
+  private navigateToTicketDetail(): void {
+    if (this.ticketId) {
+      console.log('Navigating to ticket detail:', this.ticketId);
+      this.isNavigating = true;
+      this.showCustomAlert = false;
+      
+      // ล้าง timer ถ้ายังมี
+      if (this.autoNavigationTimer) {
+        clearTimeout(this.autoNavigationTimer);
+        this.autoNavigationTimer = null;
+      }
+      
+      this.router.navigate(['/tickets', this.ticketId]);
+    }
   }
 
   // ✅ METHOD ใหม่: reset form เพื่อสร้าง ticket ใหม่
   resetForm(): void {
+    // ✅ ล้าง timer ก่อน reset
+    if (this.autoNavigationTimer) {
+      clearTimeout(this.autoNavigationTimer);
+      this.autoNavigationTimer = null;
+    }
+    
     // ✅ ล้างข้อมูล incomplete ticket ก่อน reset
     this.clearIncompleteTicket();
     
@@ -664,6 +705,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.isSubmitting = false;
     this.showValidationErrors = false;
     this.validationErrors = {};
+    this.isNavigating = false; // ✅ reset navigation state
     
     // ล้าง file states
     this.uploadedFileNames = [];
@@ -821,11 +863,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   
   // ✅ ปรับปรุง method สำหรับจัดการ custom alert
   onAlertClosed(): void {
-    this.showCustomAlert = false;
-    
-    // ถ้าเป็น success message ให้ redirect ไป dashboard
-    if (this.alertType === 'success') {
-      this.router.navigate(['/dashboard']);
+    // ✅ ถ้าเป็น success message ให้ไปหน้า detail ทันที (กรณี user คลิกปิด alert ก่อน 3 วิ)
+    if (this.alertType === 'success' && this.ticketId && !this.isNavigating) {
+      this.navigateToTicketDetail();
+    } else {
+      this.showCustomAlert = false;
     }
   }
 
@@ -849,6 +891,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   // ✅ เพิ่ม method สำหรับ handle browser refresh/close
   @HostListener('window:beforeunload', ['$event'])
   canDeactivate(event: BeforeUnloadEvent): boolean {
+    // ✅ ล้าง timer ก่อนออกจากหน้า
+    if (this.autoNavigationTimer) {
+      clearTimeout(this.autoNavigationTimer);
+      this.autoNavigationTimer = null;
+    }
+    
     // ✅ บันทึกข้อมูลก่อนออกจากหน้า
     if (this.isTicketCreated && this.ticketId) {
       this.saveIncompleteTicket();

@@ -70,6 +70,54 @@ export interface AttachmentData {
   attachment_path: string;
 }
 
+// ✅ เพิ่ม interfaces สำหรับ getTicketData API
+export interface GetTicketDataRequest {
+  ticket_id: number;
+}
+
+export interface GetTicketDataResponse {
+  code: number;                 // 1 = success, 2 = error
+  message: string;
+  data: {
+    ticket: {
+      id: number;
+      ticket_no: string;
+      categories_id: number;
+      categories_name: string;
+      project_id: number;
+      project_name: string;
+      issue_description: string;
+      fix_issue_description: string;
+      status_id: number;
+      status_name: string;
+      close_estimate: string;
+      estimate_time: string;
+      due_date: string;
+      lead_time: string;
+      related_ticket_id: number | null;
+      change_request: string;
+      create_date: string;
+      create_by: string;
+      update_date: string;
+      update_by: string;
+      isenabled: boolean;
+    };
+    issue_attachment: Array<{
+      attachment_id: number;
+      path: string;
+    }>;
+    fix_attachment: Array<{
+      attachment_id: number;
+      path: string;
+    }>;
+    status_history: Array<{
+      status_id: number;
+      status_name: string;
+      create_date: string;
+    }>;
+  };
+}
+
 export interface ProjectData {
   id: number;
   name: string;
@@ -277,6 +325,23 @@ export class ApiService {
       { headers: this.getMultipartHeaders() }
     ).pipe(
       tap(response => console.log('updateAttachment API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  // ===== Get Ticket Data API ===== ✅
+  /**
+   * ดึงข้อมูลรายละเอียดของ ticket
+   * @param request ข้อมูล ticket_id
+   * @returns Observable ผลลัพธ์
+   */
+  getTicketData(request: GetTicketDataRequest): Observable<GetTicketDataResponse> {
+    console.log('Calling getTicketData API with:', request);
+    
+    return this.http.post<GetTicketDataResponse>(`${this.apiUrl}/getTicketData`, request, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('getTicketData API response:', response)),
       catchError(this.handleError)
     );
   }
