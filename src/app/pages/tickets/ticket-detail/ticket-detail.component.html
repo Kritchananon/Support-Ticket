@@ -32,224 +32,240 @@
     </nav>
   </div>
 
-  <!-- Main Ticket Information Card -->
-  <div class="ticket-card">
-    <!-- Ticket Header -->
-    <div class="ticket-header">
-      <div class="ticket-header-left">
-        <div class="ticket-title-container">
-          <h1 class="ticket-title">Ticket</h1>
-          <div class="status-badge" [ngClass]="getStatusBadgeClass(ticketData.ticket.status_id)">
-            <i class="status-icon" [ngClass]="getStatusIcon(ticketData.ticket.status_id)"></i>
-            <span class="status-text">{{ ticketData.ticket.status_name }}</span>
+  <!-- Layout Container -->
+  <div class="layout-container">
+    <!-- Main Content Area -->
+    <div class="main-content-area">
+      <!-- Main Ticket Information Card -->
+      <div class="ticket-card">
+        <!-- Ticket Header -->
+        <div class="ticket-header">
+          <div class="ticket-header-left">
+            <div class="ticket-title-container">
+              <h1 class="ticket-title">Ticket</h1>
+              <div class="status-badge" [ngClass]="getStatusBadgeClass(ticketData.ticket.status_id)">
+                <i class="status-icon" [ngClass]="getStatusIcon(ticketData.ticket.status_id)"></i>
+                <span class="status-text">{{ ticketData.ticket.status_name }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="ticket-header-right">
+            <div class="action-buttons">
+              <button class="btn-delete" (click)="onDeleteTicket()">
+                Delete
+              </button>
+              <button class="btn-edit" (click)="onEditTicket()">
+                <i class="bi bi-pencil"></i>
+                <span>Resolved</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+          <div class="progress-remaining"></div>
+        </div>
+
+        <!-- Ticket Details -->
+        <div class="ticket-details">
+          <div class="detail-item">
+            <div class="detail-label">Ticket no:</div>
+            <div class="detail-value">{{ ticketData.ticket.ticket_no }}</div>
+          </div>
+          
+          <div class="detail-divider"></div>
+          
+          <div class="detail-item">
+            <div class="detail-label">Priority:</div>
+            <div class="detail-value priority-high">{{ ticketData.ticket.priority || 'High' }}</div>
+          </div>
+          
+          <div class="detail-divider"></div>
+          
+          <div class="detail-item">
+            <div class="detail-label">Categories:</div>
+            <div class="detail-value">{{ ticketData.ticket.categories_name }}</div>
+          </div>
+          
+          <div class="detail-divider"></div>
+          
+          <div class="detail-item">
+            <div class="detail-label">Project:</div>
+            <div class="detail-value">{{ ticketData.ticket.project_name }}</div>
+          </div>
+        </div>
+
+        <!-- Issue Section -->
+        <div class="issue-section">
+          <div class="user-avatar">
+            <div class="avatar-circle">
+              <i class="bi bi-person-fill"></i>
+            </div>
+          </div>
+          
+          <div class="issue-content">
+            <div class="issue-label">Issue:</div>
+            <div class="issue-description">{{ ticketData.ticket.issue_description }}</div>
+          </div>
+        </div>
+
+        <!-- Attachments Section -->
+        <div class="attachments-section">
+          <div class="attachment-label">Attachment:</div>
+          <div class="attachment-grid">
+            <div *ngFor="let attachment of ticketData.issue_attachment" 
+                 class="attachment-item"
+                 (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
+              <div class="attachment-preview" *ngIf="isImageFile(attachment.path)">
+                <img [src]="attachment.path" [alt]="'Attachment ' + attachment.attachment_id">
+              </div>
+              <div class="attachment-file" *ngIf="!isImageFile(attachment.path)">
+                <i [class]="getFileIcon(attachment.path)"></i>
+              </div>
+            </div>
+            <!-- Show placeholder if no attachments -->
+            <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
+              <span class="text-muted">No attachments</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticket Information Footer -->
+        <div class="ticket-footer">
+          <div class="footer-section">
+            <div class="footer-item">
+              <div class="footer-label">Reporter:</div>
+              <div class="footer-value">{{ ticketData.ticket.create_by }}</div>
+            </div>
+            <div class="footer-item">
+              <div class="footer-label">Created:</div>
+              <div class="footer-value">{{ formatDate(ticketData.ticket.create_date) }}</div>
+            </div>
+            <div class="footer-item">
+              <div class="footer-label">Updated:</div>
+              <div class="footer-value">{{ formatDate(ticketData.ticket.update_date) }}</div>
+            </div>
+          </div>
+          
+          <div class="evaluation-section">
+            <div class="evaluation-label">Evaluation</div>
+            <div class="star-rating">
+              <div class="star" *ngFor="let i of [1,2,3,4,5]" 
+                   [class.filled]="i <= currentRating"
+                   (click)="setRating(i)"
+                   (mouseenter)="hoverRating = i"
+                   (mouseleave)="hoverRating = 0">
+                <i class="bi bi-star-fill" *ngIf="(hoverRating > 0 ? hoverRating : currentRating) >= i"></i>
+                <i class="bi bi-star" *ngIf="(hoverRating > 0 ? hoverRating : currentRating) < i"></i>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div class="ticket-header-right">
-        <div class="action-buttons">
-          <button class="btn btn-delete" (click)="onDeleteTicket()">
-            Delete
-          </button>
-          <button class="btn btn-edit" (click)="onEditTicket()">
-            <i class="bi bi-pencil"></i>
-            Resolved
-          </button>
+
+      <!-- Support Information Card -->
+      <div class="support-info-card">
+        <div class="support-header">
+          <h2 class="support-title">Support Information</h2>
         </div>
-      </div>
-    </div>
-
-    <!-- Progress Bar -->
-    <div class="progress-bar">
-      <div class="progress-fill"></div>
-      <div class="progress-remaining"></div>
-    </div>
-
-    <!-- Ticket Details -->
-    <div class="ticket-details">
-      <div class="detail-item">
-        <div class="detail-label">Ticket no:</div>
-        <div class="detail-value">{{ ticketData.ticket.ticket_no }}</div>
-      </div>
-      
-      <div class="detail-divider"></div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Priority:</div>
-        <div class="detail-value priority-high">{{ ticketData.ticket.priority || 'High' }}</div>
-      </div>
-      
-      <div class="detail-divider"></div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Categories:</div>
-        <div class="detail-value">{{ ticketData.ticket.categories_name }}</div>
-      </div>
-      
-      <div class="detail-divider"></div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Project:</div>
-        <div class="detail-value">{{ ticketData.ticket.project_name }}</div>
-      </div>
-    </div>
-
-    <!-- Issue Section -->
-    <div class="issue-section">
-      <div class="user-avatar">
-        <div class="avatar-circle">
-          <i class="bi bi-person-fill"></i>
+        
+        <!-- Progress Bar -->
+        <div class="support-progress-bar">
+          <div class="support-progress-fill"></div>
+          <div class="support-progress-remaining"></div>
         </div>
-      </div>
-      
-      <div class="issue-content">
-        <div class="issue-label">Issue:</div>
-        <div class="issue-description">{{ ticketData.ticket.issue_description }}</div>
-      </div>
-    </div>
 
-    <!-- Attachments Section -->
-    <div class="attachments-section">
-      <div class="attachment-label">Attachment:</div>
-      <div class="attachment-grid">
-        <div *ngFor="let attachment of ticketData.issue_attachment" 
-             class="attachment-item"
-             (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-          <div class="attachment-preview" *ngIf="isImageFile(attachment.path)">
-            <img [src]="attachment.path" [alt]="'Attachment ' + attachment.attachment_id">
+        <!-- Support Details Grid -->
+        <div class="support-details">
+          <div class="support-row">
+            <div class="support-item">
+              <div class="support-label">Close Estimate:</div>
+              <div class="support-value">{{ ticketData.ticket.close_estimate || '-' }}</div>
+            </div>
+            
+            <div class="support-divider"></div>
+            
+            <div class="support-item">
+              <div class="support-label">Estimate time:</div>
+              <div class="support-value">{{ ticketData.ticket.estimate_time }}</div>
+            </div>
+            
+            <div class="support-divider"></div>
+            
+            <div class="support-item">
+              <div class="support-label">Due date:</div>
+              <div class="support-value">{{ ticketData.ticket.due_date || '-' }}</div>
+            </div>
+            
+            <div class="support-divider"></div>
+            
+            <div class="support-item">
+              <div class="support-label">Lead Time:</div>
+              <div class="support-value">{{ ticketData.ticket.lead_time }}</div>
+            </div>
           </div>
-          <div class="attachment-file" *ngIf="!isImageFile(attachment.path)">
-            <i [class]="getFileIcon(attachment.path)"></i>
+          
+          <div class="support-row">
+            <div class="support-item">
+              <div class="support-label">Assignee / Support Team:</div>
+              <div class="support-value">{{ ticketData.ticket.update_by || '-' }}</div>
+            </div>
+            
+            <div class="support-divider"></div>
+            
+            <div class="support-item">
+              <div class="support-label">Related Tickets:</div>
+              <div class="support-value">{{ ticketData.ticket.related_ticket_id || '-' }}</div>
+            </div>
+          </div>
+          
+          <div class="support-row">
+            <div class="support-item">
+              <div class="support-label">Change Request:</div>
+              <div class="support-value">{{ ticketData.ticket.change_request }}</div>
+            </div>
+            
+            <div class="support-item">
+              <div class="support-label">Fix Description:</div>
+              <div class="support-value">{{ ticketData.ticket.fix_issue_description || '-' }}</div>
+            </div>
+            
+            <div class="support-item">
+              <div class="support-label">Attachment:</div>
+              <div class="support-value">{{ ticketData.fix_attachment.length > 0 ? ticketData.fix_attachment.length + ' files' : '-' }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Ticket Information Footer -->
-    <div class="ticket-footer">
-      <div class="footer-section">
-        <div class="footer-item">
-          <div class="footer-label">Reporter:</div>
-          <div class="footer-value">{{ ticketData.ticket.create_by }}</div>
-        </div>
-        <div class="footer-item">
-          <div class="footer-label">Created:</div>
-          <div class="footer-value">{{ formatDate(ticketData.ticket.create_date) }}</div>
-        </div>
-        <div class="footer-item">
-          <div class="footer-label">Updated:</div>
-          <div class="footer-value">{{ formatDate(ticketData.ticket.update_date) }}</div>
+    <!-- History Card (Sidebar) -->
+    <div class="history-card">
+      <div class="history-header">
+        <h2 class="history-title">History</h2>
+        <!-- Progress Bar -->
+        <div class="history-progress-bar">
+          <div class="history-progress-fill"></div>
+          <div class="history-progress-remaining"></div>
         </div>
       </div>
-      
-      <div class="evaluation-section">
-        <div class="evaluation-label">Evaluation</div>
-        <div class="star-rating">
-          <div class="star" *ngFor="let i of [1,2,3,4,5]"></div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Support Information Card -->
-  <div class="support-info-card">
-    <div class="support-header">
-      <h2 class="support-title">Support Information</h2>
-    </div>
-    
-    <!-- Progress Bar -->
-    <div class="support-progress-bar">
-      <div class="support-progress-fill"></div>
-      <div class="support-progress-remaining"></div>
-    </div>
-
-    <!-- Support Details Grid -->
-    <div class="support-details">
-      <div class="support-row">
-        <div class="support-item">
-          <div class="support-label">Close Estimate:</div>
-          <div class="support-value">{{ ticketData.ticket.close_estimate || '-' }}</div>
-        </div>
-        
-        <div class="support-divider"></div>
-        
-        <div class="support-item">
-          <div class="support-label">Estimate time:</div>
-          <div class="support-value">{{ ticketData.ticket.estimate_time }}</div>
-        </div>
-        
-        <div class="support-divider"></div>
-        
-        <div class="support-item">
-          <div class="support-label">Due date:</div>
-          <div class="support-value">{{ ticketData.ticket.due_date || '-' }}</div>
-        </div>
-        
-        <div class="support-divider"></div>
-        
-        <div class="support-item">
-          <div class="support-label">Lead Time:</div>
-          <div class="support-value">{{ ticketData.ticket.lead_time }}</div>
-        </div>
-      </div>
-      
-      <div class="support-row">
-        <div class="support-item">
-          <div class="support-label">Assignee / Support Team:</div>
-          <div class="support-value">{{ ticketData.ticket.update_by || '-' }}</div>
-        </div>
-        
-        <div class="support-divider"></div>
-        
-        <div class="support-item">
-          <div class="support-label">Related Tickets:</div>
-          <div class="support-value">{{ ticketData.ticket.related_ticket_id || '-' }}</div>
-        </div>
-      </div>
-      
-      <div class="support-row">
-        <div class="support-item">
-          <div class="support-label">Change Request:</div>
-          <div class="support-value">{{ ticketData.ticket.change_request }}</div>
-        </div>
-        
-        <div class="support-item">
-          <div class="support-label">Fix Description:</div>
-          <div class="support-value">{{ ticketData.ticket.fix_issue_description || '-' }}</div>
-        </div>
-        
-        <div class="support-item">
-          <div class="support-label">Attachment:</div>
-          <div class="support-value">{{ ticketData.fix_attachment.length > 0 ? ticketData.fix_attachment.length + ' files' : '-' }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- History Card -->
-  <div class="history-card">
-    <div class="history-header">
-      <h2 class="history-title">History</h2>
-    </div>
-    
-    <!-- Progress Bar -->
-    <div class="history-progress-bar">
-      <div class="history-progress-fill"></div>
-      <div class="history-progress-remaining"></div>
-    </div>
-
-    <!-- Status History Timeline -->
-    <div class="history-timeline">
-      <div *ngFor="let status of ticketData.status_history; let i = index" 
-           class="history-item"
-           [class.current-status]="i === 0">
-        <div class="history-badge" [ngClass]="getHistoryBadgeClass(status.status_id, i)">
-          <i [class]="getHistoryIcon(status.status_name)"></i>
-        </div>
-        
-        <div class="history-content">
-          <div class="history-status">{{ status.status_name }}</div>
-          <div class="history-date">{{ formatHistoryDate(status.create_date) }}</div>
+      <!-- Status History Timeline -->
+      <div class="history-timeline">
+        <div *ngFor="let status of ticketData.status_history; let i = index" 
+             class="history-item"
+             [class.current-status]="i === 0 && status.create_date">
+          <div class="history-badge" [ngClass]="getHistoryBadgeClass(status.status_id, i)">
+            <i [class]="getHistoryIcon(status.status_name)"></i>
+          </div>
+          
+          <div class="history-content">
+            <div class="history-status">{{ status.status_name }}</div>
+            <div class="history-date">{{ formatHistoryDate(status.create_date) }}</div>
+          </div>
         </div>
       </div>
     </div>

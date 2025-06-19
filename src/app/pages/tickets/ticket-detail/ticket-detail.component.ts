@@ -61,6 +61,10 @@ export class TicketDetailComponent implements OnInit {
   isLoading = false;
   error = '';
   ticketId: number = 0;
+  
+  // Rating properties
+  currentRating = 0;
+  hoverRating = 0;
 
   ngOnInit(): void {
     this.ticketId = Number(this.route.snapshot.params['id']);
@@ -117,12 +121,12 @@ export class TicketDetailComponent implements OnInit {
           this.ticketData = {
             ticket: {
               id: ticketData.ticketId || this.ticketId,
-              ticket_no: ticketData.ticketNo || `#T${this.ticketId.toString().padStart(8, '0')}`,
+              ticket_no: ticketData.ticketNo || `#68050001`,
               categories_id: ticketData.formData?.categoryId || 1,
               categories_name: ticketData.selectedCategory?.categoryName || 'ระบบล่ม/ใช้งานไม่ได้',
               project_id: ticketData.formData?.projectId || 1,
               project_name: ticketData.selectedProject?.projectName || 'Human Resource Management System ( HRMS )',
-              issue_description: ticketData.formData?.issueDescription || 'ไม่มีข้อมูล',
+              issue_description: ticketData.formData?.issueDescription || 'บันทึกข้อมูลใบลาไม่ได้',
               fix_issue_description: '',
               status_id: 1,
               status_name: 'Pending',
@@ -133,19 +137,53 @@ export class TicketDetailComponent implements OnInit {
               related_ticket_id: null,
               change_request: '0 Mandays',
               create_date: new Date().toISOString(),
-              create_by: currentUser?.firstname + ' ' + currentUser?.lastname || 'Unknown User',
+              create_by: 'Wasan Rungsavang',
               update_date: new Date().toISOString(),
-              update_by: currentUser?.firstname + ' ' + currentUser?.lastname || 'Unknown User',
+              update_by: 'Wasan Rungsavang',
               isenabled: true,
               priority: 'High'
             },
-            issue_attachment: [], // จะมีข้อมูลจริงถ้ามีการอัปโหลดไฟล์
+            issue_attachment: [
+              {
+                attachment_id: 1,
+                path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+              },
+              {
+                attachment_id: 2,
+                path: 'sample-document.pdf'
+              }
+            ],
             fix_attachment: [],
             status_history: [
               {
                 status_id: 1,
                 status_name: 'Created',
                 create_date: new Date().toISOString()
+              },
+              {
+                status_id: 2,
+                status_name: 'Open Ticket',
+                create_date: ''
+              },
+              {
+                status_id: 3,
+                status_name: 'In Progress',
+                create_date: ''
+              },
+              {
+                status_id: 4,
+                status_name: 'Resolved',
+                create_date: ''
+              },
+              {
+                status_id: 5,
+                status_name: 'Completed',
+                create_date: ''
+              },
+              {
+                status_id: 6,
+                status_name: 'Cancel',
+                create_date: ''
               }
             ]
           };
@@ -167,7 +205,7 @@ export class TicketDetailComponent implements OnInit {
     this.ticketData = {
       ticket: {
         id: this.ticketId,
-        ticket_no: `#T${this.ticketId.toString().padStart(8, '0')}`,
+        ticket_no: '#68050001',
         categories_id: 1,
         categories_name: 'ระบบล่ม/ใช้งานไม่ได้',
         project_id: 1,
@@ -192,11 +230,11 @@ export class TicketDetailComponent implements OnInit {
       issue_attachment: [
         {
           attachment_id: 1,
-          path: 'http://localhost:3000/images/issue_attachment/1.jpg'
+          path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
         },
         {
           attachment_id: 2,
-          path: 'http://localhost:3000/images/issue_attachment/2.pdf'
+          path: 'sample-document.pdf'
         }
       ],
       fix_attachment: [],
@@ -312,6 +350,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   isImageFile(path: string): boolean {
+    if (path.startsWith('data:image/')) return true;
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
   }
@@ -319,33 +358,51 @@ export class TicketDetailComponent implements OnInit {
   getFileIcon(path: string): string {
     const extension = path.split('.').pop()?.toLowerCase();
     switch (extension) {
-      case 'pdf': return 'bi-file-earmark-pdf';
+      case 'pdf': return 'bi-file-earmark-pdf-fill';
       case 'doc':
-      case 'docx': return 'bi-file-earmark-word';
+      case 'docx': return 'bi-file-earmark-word-fill';
       case 'xls':
-      case 'xlsx': return 'bi-file-earmark-excel';
-      default: return 'bi-file-earmark';
+      case 'xlsx': return 'bi-file-earmark-excel-fill';
+      default: return 'bi-file-earmark-fill';
     }
   }
 
   // Action methods
   onEditTicket(): void {
-    // Navigate to edit page or open modal
-    console.log('Edit ticket:', this.ticketId);
+    if (confirm('คุณต้องการแก้ไข status เป็น Resolved หรือไม่?')) {
+      console.log('Edit ticket status to Resolved:', this.ticketId);
+      // TODO: เรียก API เพื่อเปลี่ยน status
+    }
   }
 
   onDeleteTicket(): void {
-    if (confirm('Are you sure you want to delete this ticket?')) {
+    if (confirm('คุณแน่ใจหรือไม่ที่ต้องการลบ ticket นี้?')) {
       console.log('Delete ticket:', this.ticketId);
+      // TODO: เรียก API เพื่อลบ ticket
     }
   }
 
   onDownloadAttachment(attachmentId: number, path: string): void {
-    // Download attachment
-    window.open(path, '_blank');
+    if (path.startsWith('data:')) {
+      // Handle base64 data
+      const link = document.createElement('a');
+      link.href = path;
+      link.download = `attachment_${attachmentId}`;
+      link.click();
+    } else {
+      // Handle file path
+      window.open(path, '_blank');
+    }
   }
 
   backToList(): void {
     this.router.navigate(['/tickets']);
+  }
+
+  // Rating methods
+  setRating(rating: number): void {
+    this.currentRating = rating;
+    console.log('Rating set to:', rating);
+    // TODO: Save rating to API
   }
 }
