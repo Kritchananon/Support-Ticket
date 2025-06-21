@@ -112,20 +112,33 @@
           </div>
         </div>
 
-        <!-- Attachments Section -->
+        <!-- ✅ Attachments Section - อัปเดตแล้ว -->
         <div class="attachments-section">
           <div class="attachment-label">Attachment:</div>
           <div class="attachment-grid">
             <div *ngFor="let attachment of ticketData.issue_attachment" 
                  class="attachment-item"
                  (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-              <div class="attachment-preview" *ngIf="isImageFile(attachment.path)">
-                <img [src]="attachment.path" [alt]="'Attachment ' + attachment.attachment_id">
+              
+              <!-- ✅ แสดงรูปภาพ preview โดยใช้ข้อมูลที่เช็คไว้แล้ว -->
+              <div class="attachment-preview" 
+                   *ngIf="isImageFile(attachment.path, attachment.attachment_id)">
+                <img [src]="attachment.path" 
+                     [alt]="'Attachment ' + attachment.attachment_id"
+                     (error)="onImageError(attachment.attachment_id)"
+                     (load)="onImageLoad(attachment.attachment_id)"
+                     loading="lazy"
+                     style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
               </div>
-              <div class="attachment-file" *ngIf="!isImageFile(attachment.path)">
+              
+              <!-- ✅ แสดง file icon สำหรับไฟล์ที่ไม่ใช่รูปภาพ -->
+              <div class="attachment-file" 
+                   *ngIf="!isImageFile(attachment.path, attachment.attachment_id)">
                 <i [class]="getFileIcon(attachment.path)"></i>
+                <div class="file-name">{{ getFileName(attachment.path) }}</div>
               </div>
             </div>
+            
             <!-- Show placeholder if no attachments -->
             <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
               <span class="text-muted">No attachments</span>

@@ -66,6 +66,9 @@ export class TicketDetailComponent implements OnInit {
   currentRating = 0;
   hoverRating = 0;
 
+  // ✅ เพิ่ม property สำหรับเก็บข้อมูลว่า attachment ไหนเป็นรูปภาพ
+  attachmentTypes: { [key: number]: 'image' | 'file' } = {};
+
   ngOnInit(): void {
     this.ticketId = Number(this.route.snapshot.params['id']);
     if (this.ticketId) {
@@ -86,6 +89,8 @@ export class TicketDetailComponent implements OnInit {
         
         if (response.code === 1) {
           this.ticketData = response.data;
+          // ✅ เช็คประเภทของ attachment หลังจากได้ข้อมูล
+          this.checkAttachmentTypes();
           console.log('Ticket data loaded:', this.ticketData);
         } else {
           this.error = 'ไม่พบข้อมูล ticket ที่ต้องการ';
@@ -100,9 +105,64 @@ export class TicketDetailComponent implements OnInit {
         // ✅ ถ้า API ยังไม่พร้อม ใช้ mock data แทน
         console.warn('API not available, using mock data');
         this.loadMockDataFromCreatedTicket();
+        // ✅ เช็คประเภทของ attachment สำหรับ mock data ด้วย
+        this.checkAttachmentTypes();
         this.isLoading = false;
       }
     });
+  }
+
+  // ✅ Method ใหม่สำหรับเช็คประเภทของ attachment
+  private checkAttachmentTypes(): void {
+    if (!this.ticketData?.issue_attachment) return;
+
+    this.ticketData.issue_attachment.forEach(attachment => {
+      this.checkIfImage(attachment.path, attachment.attachment_id);
+    });
+
+    // เช็ค fix_attachment ด้วยถ้ามี
+    if (this.ticketData?.fix_attachment) {
+      this.ticketData.fix_attachment.forEach(attachment => {
+        this.checkIfImage(attachment.path, attachment.attachment_id);
+      });
+    }
+  }
+
+  // ✅ Method สำหรับเช็คว่า URL เป็นรูปภาพหรือไม่
+  private checkIfImage(url: string, attachmentId: number): void {
+    // ถ้าเป็น base64 data URL
+    if (url.startsWith('data:image/')) {
+      this.attachmentTypes[attachmentId] = 'image';
+      return;
+    }
+
+    // ถ้าเป็น URL ที่มี file extension
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    const hasImageExtension = imageExtensions.some(ext => 
+      url.toLowerCase().includes(ext)
+    );
+    
+    if (hasImageExtension) {
+      this.attachmentTypes[attachmentId] = 'image';
+      return;
+    }
+
+    // ✅ สำหรับ URL ที่ไม่มี extension (เช่น /images/issue_attachment/69)
+    // ให้ลองโหลดเป็นรูปภาพ
+    const img = new Image();
+    img.onload = () => {
+      // ถ้าโหลดได้แสดงว่าเป็นรูปภาพ
+      this.attachmentTypes[attachmentId] = 'image';
+      // Angular จะ detect changes อัตโนมัติ
+    };
+    img.onerror = () => {
+      // ถ้าโหลดไม่ได้แสดงว่าไม่ใช่รูปภาพ
+      this.attachmentTypes[attachmentId] = 'file';
+    };
+    
+    // เพิ่ม CORS headers ถ้าจำเป็น
+    img.crossOrigin = 'anonymous';
+    img.src = url;
   }
 
   // ✅ แก้ไข method สำหรับใช้ข้อมูลจาก ticket ที่สร้างจริง
@@ -349,9 +409,17 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  isImageFile(path: string): boolean {
+  // ✅ แก้ไข method isImageFile ให้ใช้ข้อมูลที่เช็คไว้แล้ว
+  isImageFile(path: string, attachmentId?: number): boolean {
+    // ใช้ข้อมูลที่เช็คไว้แล้วก่อน
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId] === 'image';
+    }
+
+    // Fallback: เช็คแบบเดิม
     if (path.startsWith('data:image/')) return true;
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
     return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
   }
 
@@ -365,6 +433,27 @@ export class TicketDetailComponent implements OnInit {
       case 'xlsx': return 'bi-file-earmark-excel-fill';
       default: return 'bi-file-earmark-fill';
     }
+  }
+
+  // ✅ Method สำหรับดึงชื่อไฟล์จาก path
+  getFileName(path: string): string {
+    if (path.includes('/')) {
+      const parts = path.split('/');
+      return parts[parts.length - 1] || 'Unknown file';
+    }
+    return path || 'Unknown file';
+  }
+
+  // ✅ Method สำหรับจัดการ error ของรูปภาพ
+  onImageError(attachmentId: number): void {
+    console.log(`Image failed to load for attachment ${attachmentId}`);
+    this.attachmentTypes[attachmentId] = 'file';
+  }
+
+  // ✅ Method สำหรับจัดการเมื่อรูปภาพโหลดสำเร็จ
+  onImageLoad(attachmentId: number): void {
+    console.log(`Image loaded successfully for attachment ${attachmentId}`);
+    this.attachmentTypes[attachmentId] = 'image';
   }
 
   // Action methods
