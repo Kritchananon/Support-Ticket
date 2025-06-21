@@ -1,3 +1,13 @@
+<!-- ✅ Token Warning Bar -->
+<div *ngIf="showTokenWarning" class="token-warning-bar">
+  <span>⚠️ {{ getText('Your session will expire soon. Do you want to extend it?', 'เซสชันของคุณจะหมดอายุเร็วๆ นี้ ต้องการต่ออายุหรือไม่?') }}</span>
+  <button (click)="refreshSession()" class="btn-refresh" [disabled]="isRefreshing">
+    <span *ngIf="isRefreshing" class="spinner-border spinner-border-sm me-2"></span>
+    {{ isRefreshing ? getText('Refreshing...', 'กำลังต่ออายุ...') : getText('Extend Session', 'ต่ออายุเซสชัน') }}
+  </button>
+  <button (click)="dismissWarning()" class="btn-dismiss">×</button>
+</div>
+
 <header class="header">
   <div class="header-content">
     <!-- Mobile Menu Toggle -->

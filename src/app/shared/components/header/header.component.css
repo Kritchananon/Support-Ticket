@@ -1,16 +1,77 @@
+/* ✅ Token Warning Bar Styles */
+.token-warning-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #ff9800;
+  color: white;
+  padding: 10px;
+  text-align: center;
+  z-index: 1001; /* Above header */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  animation: slideDownWarning 0.3s ease-out;
+}
+
+@keyframes slideDownWarning {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-refresh, .btn-dismiss {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid white;
+  color: white;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-refresh:hover, .btn-dismiss:hover {
+  background: rgba(255,255,255,0.3);
+  transform: translateY(-1px);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Adjust header when warning is shown */
 .header {
   height: 70px;
   position: fixed;
-  top: 0;
-  left: 290px; /* เปลี่ยนกลับเป็น 250px เหมือนเดิม */
+  top: 0; /* Will be pushed down by warning bar when active */
+  left: 290px;
   right: 0;
   background-color: #ffffff;
   border-bottom: 1px solid #e9ecef;
   box-shadow: 0 2px 4px rgba(134, 134, 134, 0.25);
   z-index: 999;
-  transition: left 0.3s ease;
+  transition: left 0.3s ease, top 0.3s ease;
   border-top-left-radius: 0px;
   border-bottom-left-radius: 0px;
+}
+
+/* When token warning is shown, push header down */
+.token-warning-bar ~ .header {
+  top: 50px; /* Height of warning bar */
 }
 
 .header-content {
@@ -47,14 +108,14 @@
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 1rem; /* เพิ่ม gap ให้สม่ำเสมอ */
+  gap: 1rem;
 }
 
-/* Language Button Styles - ปรับให้เหมือนกันทุกหน้า */
+/* Language Button Styles */
 .language-btn {
   border: 1px solid #e9ecef !important;
   color: #6c757d !important;
-  padding: 0.625rem 1rem !important; /* เพิ่ม padding ให้เท่ากัน */
+  padding: 0.625rem 1rem !important;
   font-size: 0.875rem !important;
   border-radius: 6px !important;
   background-color: #ffffff !important;
@@ -64,7 +125,7 @@
   align-items: center !important;
   min-width: 80px !important;
   justify-content: center !important;
-  height: 38px !important; /* กำหนดความสูงให้แน่นอน */
+  height: 38px !important;
   min-height: 38px !important;
 }
 
@@ -87,11 +148,11 @@
   margin-right: 0.5rem !important;
 }
 
-/* User Dropdown Styles - ปรับให้เหมือนกันทุกหน้า */
+/* User Dropdown Styles */
 .user-dropdown {
   color: #2d3436 !important;
   text-decoration: none !important;
-  padding: 0.625rem 1rem !important; /* เพิ่ม padding ให้เท่ากัน */
+  padding: 0.625rem 1rem !important;
   border: none !important;
   background: none !important;
   display: flex !important;
@@ -99,7 +160,7 @@
   border-radius: 8px !important;
   transition: all 0.2s ease !important;
   font-weight: 500 !important;
-  height: 38px !important; /* กำหนดความสูงให้แน่นอน */
+  height: 38px !important;
   min-height: 38px !important;
 }
 
@@ -247,41 +308,6 @@
   border-color: #e9ecef;
 }
 
-/* Force consistent styling across all pages */
-app-ticket-create .header,
-app-dashboard .header,
-app-ticket-list .header {
-  height: 70px !important;
-  background-color: #ffffff !important;
-  border-bottom: 1px solid #e9ecef !important;
-}
-
-app-ticket-create .header-nav,
-app-dashboard .header-nav,
-app-ticket-list .header-nav {
-  display: flex !important;
-  align-items: center !important;
-  gap: 1rem !important;
-}
-
-/* Ensure buttons maintain consistent size on all pages */
-app-ticket-create .language-btn,
-app-dashboard .language-btn,
-app-ticket-list .language-btn {
-  height: 38px !important;
-  min-height: 38px !important;
-  padding: 0.625rem 1rem !important;
-  font-size: 0.875rem !important;
-}
-
-app-ticket-create .user-dropdown,
-app-dashboard .user-dropdown,
-app-ticket-list .user-dropdown {
-  height: 38px !important;
-  min-height: 38px !important;
-  padding: 0.625rem 1rem !important;
-}
-
 /* Responsive Design */
 @media (max-width: 768px) {
   .header {
@@ -310,6 +336,20 @@ app-ticket-list .user-dropdown {
   .header-nav {
     gap: 0.5rem !important;
   }
+  
+  /* Token warning responsive */
+  .token-warning-bar {
+    font-size: 14px;
+    padding: 8px;
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+  
+  .btn-refresh, .btn-dismiss {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -332,6 +372,11 @@ app-ticket-list .user-dropdown {
   
   .user-details {
     margin-left: 0.5rem;
+  }
+  
+  .token-warning-bar {
+    font-size: 12px;
+    padding: 6px;
   }
 }
 
@@ -376,6 +421,11 @@ app-ticket-list .user-dropdown {
     background-color: #000;
     color: #fff;
     border-color: #000;
+  }
+  
+  .token-warning-bar {
+    background: #000;
+    color: #fff;
   }
 }
 
@@ -446,7 +496,7 @@ app-ticket-list .user-dropdown {
 
 /* Print Styles */
 @media print {
-  .header {
+  .header, .token-warning-bar {
     display: none;
   }
 }

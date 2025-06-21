@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, throwError, firstValueFrom } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
+import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 
 export interface LoginRequest {
@@ -15,6 +16,7 @@ export interface LoginResponse {
   message: string;
   data?: {
     access_token: string;
+    refresh_token: string;
     user: {
       id: number;
       username: string;
@@ -26,7 +28,14 @@ export interface LoginResponse {
   };
   // รองรับ format อื่นๆ
   access_token?: string;
+  refresh_token?: string;
   user?: any;
+}
+
+export interface TokenData {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: string;
 }
 
 export interface ApiResponse<T> {
@@ -43,18 +52,23 @@ export class AuthService {
   private apiUrl = environment.apiUrl;
   private currentUserSubject = new BehaviorSubject<any>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
+  
+  // Token management properties
+  private tokenSubject = new BehaviorSubject<string | null>(null);
+  private warningSubject = new BehaviorSubject<boolean>(false);
+  private refreshInProgress = false;
 
-  constructor(private http: HttpClient) {
-    // ตรวจสอบ token ใน localStorage เมื่อเริ่มต้น
+  constructor(
+    private http: HttpClient,
+    private router: Router
+  ) {
     this.loadUserFromStorage();
+    this.initTokenCheck();
   }
 
   // Helper method สำหรับจัดการ errors
   private handleError(error: HttpErrorResponse) {
     console.error('Auth API Error:', error);
-    console.error('Error status:', error.status);
-    console.error('Error message:', error.message);
-    console.error('Error URL:', error.url);
     return throwError(() => error);
   }
 
@@ -65,18 +79,186 @@ export class AuthService {
     if (token && user) {
       try {
         this.currentUserSubject.next(JSON.parse(user));
+        this.tokenSubject.next(token);
       } catch (error) {
         this.logout();
       }
     }
   }
 
-  // เข้าสู่ระบบแบบ Promise (สำหรับ login component เดิม)
+  // ✅ Token Management Methods
+  setTokens(tokenData: TokenData): void {
+    localStorage.setItem('access_token', tokenData.access_token);
+    localStorage.setItem('refresh_token', tokenData.refresh_token);
+    
+    if (tokenData.expires_at) {
+      localStorage.setItem('token_expires_at', tokenData.expires_at);
+    } else {
+      try {
+        const payload = JSON.parse(atob(tokenData.access_token.split('.')[1]));
+        if (payload.exp) {
+          localStorage.setItem('token_expires_at', (payload.exp * 1000).toString());
+        }
+      } catch (error) {
+        console.warn('Cannot parse token expiration:', error);
+      }
+    }
+    
+    this.tokenSubject.next(tokenData.access_token);
+    console.log('Tokens saved successfully');
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem('access_token');
+  }
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refresh_token');
+  }
+
+  isTokenExpired(): boolean {
+    const token = this.getToken();
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      return payload.exp < currentTime;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  isTokenExpiring(): boolean {
+    const token = this.getToken();
+    if (!token) return false;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timeLeft = payload.exp - currentTime;
+      return timeLeft <= 300; // 5 minutes
+    } catch (error) {
+      return false;
+    }
+  }
+
+  hasValidToken(): boolean {
+    const token = this.getToken();
+    return token !== null && !this.isTokenExpired();
+  }
+
+  // ✅ Refresh Token Method
+  refreshAccessToken(): Observable<TokenData> {
+    const refreshToken = this.getRefreshToken();
+    
+    if (!refreshToken) {
+      return throwError(() => 'No refresh token available');
+    }
+
+    if (this.refreshInProgress) {
+      return new Observable(observer => {
+        const checkInterval = setInterval(() => {
+          if (!this.refreshInProgress) {
+            clearInterval(checkInterval);
+            const newToken = this.getToken();
+            if (newToken) {
+              observer.next({
+                access_token: newToken,
+                refresh_token: this.getRefreshToken()!
+              });
+              observer.complete();
+            } else {
+              observer.error('Token refresh failed');
+            }
+          }
+        }, 100);
+      });
+    }
+
+    this.refreshInProgress = true;
+    
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json'
+    });
+
+    const body = { refresh_token: refreshToken };
+
+    return this.http.post<any>(`${this.apiUrl}/auth/refresh`, body, { headers })
+      .pipe(
+        tap((response: any) => {
+          if (response.access_token) {
+            const tokenData: TokenData = {
+              access_token: response.access_token,
+              refresh_token: response.refresh_token || refreshToken,
+              expires_at: response.expires_at
+            };
+            
+            this.setTokens(tokenData);
+            this.warningSubject.next(false);
+            console.log('Token refreshed successfully');
+          } else {
+            throw new Error('Invalid refresh response');
+          }
+          
+          this.refreshInProgress = false;
+        }),
+        catchError((error) => {
+          console.error('Token refresh failed:', error);
+          this.refreshInProgress = false;
+          this.clearTokensAndRedirect();
+          return throwError(() => 'Token refresh failed');
+        })
+      );
+  }
+
+  // ✅ Auto Token Check
+  private initTokenCheck(): void {
+    setInterval(() => {
+      const token = this.getToken();
+      
+      if (!token) return;
+
+      if (this.isTokenExpired()) {
+        console.log('Token expired, attempting refresh...');
+        this.refreshAccessToken().subscribe({
+          next: () => console.log('Auto refresh successful'),
+          error: (error) => console.error('Auto refresh failed:', error)
+        });
+      } else if (this.isTokenExpiring() && !this.warningSubject.value) {
+        console.log('Token expiring soon, showing warning');
+        this.warningSubject.next(true);
+        
+        // Auto refresh เมื่อใกล้หมดอายุ
+        this.refreshAccessToken().subscribe({
+          next: () => console.log('Proactive refresh successful'),
+          error: (error) => console.error('Proactive refresh failed:', error)
+        });
+      }
+    }, 30000); // ตรวจสอบทุก 30 วินาที
+  }
+
+  clearTokensAndRedirect(): void {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires_at');
+    localStorage.removeItem('user');
+    localStorage.removeItem('remember_me');
+    this.currentUserSubject.next(null);
+    this.tokenSubject.next(null);
+    this.warningSubject.next(false);
+    this.refreshInProgress = false;
+    
+    console.log('Tokens cleared, redirecting to login');
+    this.router.navigate(['/login']);
+  }
+
+  // ✅ เข้าสู่ระบบแบบ Promise (สำหรับ login component เดิม)
   async login(username: string, password: string, language: string = 'th'): Promise<LoginResponse> {
     try {
       const headers = new HttpHeaders({
         'Content-Type': 'application/json',
-        'language': language  // ใส่ language header กลับมา
+        'language': language
       });
 
       const body: LoginRequest = {
@@ -85,7 +267,6 @@ export class AuthService {
       };
 
       console.log('Login attempt:', { username, apiUrl: this.apiUrl });
-      console.log('Request headers:', headers);
 
       const response = await firstValueFrom(
         this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, body, { headers })
@@ -103,23 +284,33 @@ export class AuthService {
 
       if (isSuccess) {
         // ดึง token และ user data จาก response อย่างปลอดภัย
-        let token = '';
+        let accessToken = '';
+        let refreshToken = '';
         let userData = null;
 
-        if (response.data?.access_token) {
-          token = response.data.access_token;
+        if (response.data) {
+          accessToken = response.data.access_token;
+          refreshToken = response.data.refresh_token;
           userData = response.data.user;
-        } else if (response.access_token) {
-          token = response.access_token;
+        } else {
+          accessToken = response.access_token || '';
+          refreshToken = response.refresh_token || '';
           userData = response.user;
         }
 
-        if (token) {
-          localStorage.setItem('access_token', token);
+        if (accessToken && refreshToken) {
+          // ✅ บันทึก tokens ใหม่
+          this.setTokens({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
           if (userData) {
             localStorage.setItem('user', JSON.stringify(userData));
             this.currentUserSubject.next(userData);
           }
+
+          console.log('Login successful, tokens saved');
         }
       }
 
@@ -133,41 +324,28 @@ export class AuthService {
     }
   }
 
-  // เข้าสู่ระบบแบบ Observable (สำหรับใช้กับ reactive forms)
-  loginObservable(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, credentials)
-      .pipe(
-        tap(response => {
-          const isSuccess = response.code === '2' || 
-                           response.code === 2 || 
-                           response.status === true || 
-                           response.status === 1 ||
-                           (response.message && response.message.toLowerCase().includes('success'));
+  // ✅ Logout method (updated)
+  logout(): void {
+    const refreshToken = this.getRefreshToken();
+    
+    if (refreshToken) {
+      const headers = new HttpHeaders({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.getToken()}`
+      });
 
-          if (isSuccess) {
-            // ดึง token และ user data จาก response อย่างปลอดภัย
-            let token = '';
-            let userData = null;
-
-            if (response.data?.access_token) {
-              token = response.data.access_token;
-              userData = response.data.user;
-            } else if (response.access_token) {
-              token = response.access_token;
-              userData = response.user;
-            }
-
-            if (token) {
-              localStorage.setItem('access_token', token);
-              if (userData) {
-                localStorage.setItem('user', JSON.stringify(userData));
-                this.currentUserSubject.next(userData);
-              }
-            }
-          }
-        }),
-        catchError(this.handleError)
-      );
+      // เรียก logout API
+      this.http.post(`${this.apiUrl}/auth/logout`, 
+        { refresh_token: refreshToken }, 
+        { headers }
+      ).subscribe({
+        next: () => console.log('Logout API successful'),
+        error: (error) => console.error('Logout API failed:', error),
+        complete: () => this.clearTokensAndRedirect()
+      });
+    } else {
+      this.clearTokensAndRedirect();
+    }
   }
 
   register(userData: any): Observable<any> {
@@ -175,23 +353,12 @@ export class AuthService {
       .pipe(catchError(this.handleError));
   }
 
-  logout(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('remember_me');
-    this.currentUserSubject.next(null);
-  }
-
   isLoggedIn(): boolean {
-    return !!localStorage.getItem('access_token');
+    return this.hasValidToken();
   }
 
   isAuthenticated(): boolean {
-    return this.isLoggedIn();
-  }
-
-  getToken(): string | null {
-    return localStorage.getItem('access_token');
+    return this.hasValidToken();
   }
 
   getCurrentUser(): any {
@@ -202,5 +369,44 @@ export class AuthService {
     localStorage.setItem('access_token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     this.currentUserSubject.next(userData);
+    this.tokenSubject.next(token);
+  }
+
+  // ✅ Observable Methods
+  getWarningStatus(): Observable<boolean> {
+    return this.warningSubject.asObservable();
+  }
+
+  getTokenChanges(): Observable<string | null> {
+    return this.tokenSubject.asObservable();
+  }
+
+  // ✅ Manual refresh สำหรับ UI
+  manualRefresh(): Observable<TokenData> {
+    return this.refreshAccessToken();
+  }
+
+  // ✅ Debug method
+  getTokenInfo(): any {
+    const token = this.getToken();
+    if (!token) return null;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timeLeft = payload.exp - currentTime;
+      
+      return {
+        user_id: payload.sub || payload.user_id,
+        username: payload.username,
+        expires_at: new Date(payload.exp * 1000).toISOString(),
+        time_left_seconds: timeLeft,
+        time_left_minutes: Math.floor(timeLeft / 60),
+        is_expired: timeLeft <= 0,
+        is_expiring: timeLeft <= 300
+      };
+    } catch (error) {
+      return null;
+    }
   }
 }

@@ -1,6 +1,7 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -10,13 +11,18 @@ import { AuthService } from '../../services/auth.service';
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css']
 })
-export class HeaderComponent implements OnInit {
+export class HeaderComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private router = inject(Router);
 
   currentUser: any = null;
   currentLanguage = 'th';
   pageTitle = 'Dashboard';
+
+  // ✅ Token Warning Properties
+  showTokenWarning = false;
+  isRefreshing = false;
+  private warningSubscription?: Subscription;
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
@@ -27,13 +33,25 @@ export class HeaderComponent implements OnInit {
     if (savedLanguage) {
       this.currentLanguage = savedLanguage;
     }
+
+    // ✅ Subscribe to token warning status
+    this.warningSubscription = this.authService.getWarningStatus().subscribe(
+      (warning) => {
+        this.showTokenWarning = warning;
+      }
+    );
+  }
+
+  ngOnDestroy(): void {
+    if (this.warningSubscription) {
+      this.warningSubscription.unsubscribe();
+    }
   }
 
   switchLanguage(lang: string): void {
     this.currentLanguage = lang;
     localStorage.setItem('language', lang);
-    this.updatePageTitle(); // Update page title when language changes
-    // TODO: Implement language service for global language switching
+    this.updatePageTitle();
   }
 
   getGreeting(): string {
@@ -66,7 +84,6 @@ export class HeaderComponent implements OnInit {
   logout(event: Event): void {
     event.preventDefault();
     
-    // Show confirmation dialog
     const confirmLogout = confirm(
       this.getText(
         'Are you sure you want to logout?', 
@@ -76,7 +93,6 @@ export class HeaderComponent implements OnInit {
     
     if (confirmLogout) {
       this.authService.logout();
-      this.router.navigate(['/login']);
     }
   }
 
@@ -93,8 +109,29 @@ export class HeaderComponent implements OnInit {
     }
   }
 
+  // ✅ Token Warning Methods
+  refreshSession(): void {
+    this.isRefreshing = true;
+    
+    this.authService.manualRefresh().subscribe({
+      next: () => {
+        console.log('Manual token refresh successful');
+        this.showTokenWarning = false;
+        this.isRefreshing = false;
+      },
+      error: (error) => {
+        console.error('Manual token refresh failed:', error);
+        this.isRefreshing = false;
+        // Auto logout จะถูกจัดการโดย AuthService
+      }
+    });
+  }
+
+  dismissWarning(): void {
+    this.showTokenWarning = false;
+  }
+
   private updatePageTitle(): void {
-    // Update page title based on current route
     const path = this.router.url;
     
     if (path.includes('dashboard')) {
@@ -103,22 +140,6 @@ export class HeaderComponent implements OnInit {
       this.pageTitle = this.getText('New Ticket', 'ตั๋วใหม่');
     } else if (path.includes('tickets')) {
       this.pageTitle = this.getText('All Tickets', 'ตั๋วทั้งหมด');
-    } else if (path.includes('reports/weekly')) {
-      this.pageTitle = this.getText('Weekly Report', 'รายงานรายสัปดาห์');
-    } else if (path.includes('reports/monthly')) {
-      this.pageTitle = this.getText('Monthly Report', 'รายงานรายเดือน');
-    } else if (path.includes('reports/export')) {
-      this.pageTitle = this.getText('Export Ticket', 'ส่งออกตั๋ว');
-    } else if (path.includes('settings/general')) {
-      this.pageTitle = this.getText('General Settings', 'การตั้งค่าทั่วไป');
-    } else if (path.includes('settings/account')) {
-      this.pageTitle = this.getText('User Account', 'บัญชีผู้ใช้');
-    } else if (path.includes('settings/projects')) {
-      this.pageTitle = this.getText('Project Settings', 'การตั้งค่าโปรเจกต์');
-    } else if (path.includes('settings/categories')) {
-      this.pageTitle = this.getText('Ticket Categories', 'หมวดหมู่ตั๋ว');
-    } else if (path.includes('profile')) {
-      this.pageTitle = this.getText('My Profile', 'โปรไฟล์ของฉัน');
     } else {
       this.pageTitle = this.getText('Support Ticket', 'ระบบตั๋วสนับสนุน');
     }
