@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse, HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/common/http';
-import { Observable, throwError, BehaviorSubject } from 'rxjs';
-import { catchError, tap, filter, take, switchMap } from 'rxjs/operators';
+import { Observable, throwError, BehaviorSubject, of } from 'rxjs';
+import { catchError, tap, filter, take, switchMap, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { AuthService, TokenData } from './auth.service';
 import { ProjectDDLRequest, ProjectDDLResponse } from '../models/project.model';
@@ -106,6 +106,32 @@ export interface TicketData {
   update_date?: string;
   update_by?: number;
   isenabled?: boolean;
+}
+
+// ✅ เพิ่ม interfaces สำหรับ getAllMasterFilter API
+export interface MasterFilterCategory {
+  id: number;
+  name: string;
+}
+
+export interface MasterFilterProject {
+  id: number;
+  name: string;
+}
+
+export interface MasterFilterData {
+  categories: MasterFilterCategory[];
+  projects: MasterFilterProject[];
+}
+
+export interface MasterFilterRequest {
+  // ไม่มีพารามิเตอร์เพิ่มเติม
+}
+
+export interface MasterFilterResponse {
+  code: number;
+  message: string;
+  data: MasterFilterData | null;
 }
 
 // ✅ เพิ่ม interfaces สำหรับ saveTicket API
@@ -241,19 +267,23 @@ export class ApiService {
   // ✅ Helper method สำหรับสร้าง headers พร้อม token (อัตโนมัติ)
   private getAuthHeaders(): HttpHeaders {
     const token = this.authService.getToken();
+    const language = localStorage.getItem('language') || 'th';
+    
     return new HttpHeaders({
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : '',
-      'language': 'th'
+      'language': language
     });
   }
 
   // ✅ Helper method สำหรับสร้าง headers สำหรับ multipart (อัตโนมัติ)
   private getMultipartHeaders(): HttpHeaders {
     const token = this.authService.getToken();
+    const language = localStorage.getItem('language') || 'th';
+    
     return new HttpHeaders({
       'Authorization': token ? `Bearer ${token}` : '',
-      'language': 'th'
+      'language': language
       // ไม่ใส่ Content-Type ให้ browser จัดการเอง
     });
   }
@@ -293,6 +323,59 @@ export class ApiService {
     }
     
     return throwError(() => errorMessage);
+  }
+
+  // ===== Get All Master Filter API ===== ✅
+  /**
+   * เรียก API getAllMasterFilter เพื่อดึงข้อมูล categories และ projects สำหรับ filter
+   */
+  getAllMasterFilter(): Observable<MasterFilterResponse> {
+    console.log('Calling getAllMasterFilter API');
+    
+    const requestBody: MasterFilterRequest = {};
+    
+    return this.http.post<MasterFilterResponse>(`${this.apiUrl}/getAllMasterFilter`, requestBody, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('getAllMasterFilter API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Helper method สำหรับดึงเฉพาะ categories จาก master filter
+   */
+  getMasterFilterCategories(): Observable<MasterFilterCategory[]> {
+    return this.getAllMasterFilter().pipe(
+      map(response => {
+        if (response.code === 1 && response.data) {
+          return response.data.categories || [];
+        }
+        return [];
+      }),
+      catchError((error) => {
+        console.error('Error getting master filter categories:', error);
+        return of([]); // ส่งกลับ empty array ถ้าเกิดข้อผิดพลาด
+      })
+    );
+  }
+
+  /**
+   * Helper method สำหรับดึงเฉพาะ projects จาก master filter
+   */
+  getMasterFilterProjects(): Observable<MasterFilterProject[]> {
+    return this.getAllMasterFilter().pipe(
+      map(response => {
+        if (response.code === 1 && response.data) {
+          return response.data.projects || [];
+        }
+        return [];
+      }),
+      catchError((error) => {
+        console.error('Error getting master filter projects:', error);
+        return of([]); // ส่งกลับ empty array ถ้าเกิดข้อผิดพลาด
+      })
+    );
   }
 
   // ===== Save Ticket API ===== ✅

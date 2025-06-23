@@ -14,11 +14,10 @@
   <!-- Filter Section -->
   <div class="filter-section">
     <!-- Search Bar -->
-    <div class="search-container">
-      <label class="search-label">Search</label>
+    <div class="filter-item search-item">
+      <label class="filter-label">Search</label>
       <div class="search-input-wrapper">
         <i class="bi bi-search search-icon"></i>
-        <div class="search-divider"></div>
         <input 
           type="text" 
           class="search-input" 
@@ -28,49 +27,80 @@
       </div>
     </div>
 
-    <!-- Filter Dropdowns -->
-    <div class="filter-dropdowns">
-      <!-- Priority Filter -->
-      <div class="filter-dropdown">
-        <label class="filter-label">Priority</label>
-        <select 
-          class="filter-select"
-          [value]="selectedPriority"
-          (change)="onPriorityChange($event)">
-          <option *ngFor="let option of priorityOptions" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
+    <!-- Priority Filter -->
+    <div class="filter-item priority-item">
+      <label class="filter-label">Priority</label>
+      <select 
+        class="filter-select"
+        [value]="selectedPriority"
+        (change)="onPriorityChange($event)">
+        <option *ngFor="let option of priorityOptions" [value]="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+    </div>
 
-      <!-- Status Filter -->
-      <div class="filter-dropdown">
-        <label class="filter-label">Status</label>
-        <select 
-          class="filter-select"
-          [value]="selectedStatus"
-          (change)="onStatusChange($event)">
-          <option *ngFor="let option of statusOptions" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
+    <!-- Status Filter -->
+    <div class="filter-item status-item">
+      <label class="filter-label">Status</label>
+      <select 
+        class="filter-select"
+        [value]="selectedStatus"
+        (change)="onStatusChange($event)">
+        <option *ngFor="let option of statusOptions" [value]="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+    </div>
 
-      <!-- Category Filter -->
-      <app-category-dropdown
-        label="Categories"
-        placeholder="All Categories"
-        [selectedCategoryId]="selectedCategory"
-        (selectionChange)="onCategoryChange($event)">
-      </app-category-dropdown>
+    <!-- Categories Filter -->
+    <div class="filter-item category-item">
+      <label class="filter-label">Categories</label>
+      <select 
+        class="filter-select"
+        [value]="selectedCategory"
+        (change)="onCategoryChange($event)"
+        [disabled]="loadingFilters">
+        <option value="">All Categories</option>
+        <option *ngFor="let category of categories" [value]="category.id">
+          {{ category.name }}
+        </option>
+      </select>
+    </div>
 
-      <!-- Project Filter -->
-      <app-project-dropdown
-        label="Project"
-        placeholder="All Projects"
-        [selectedProjectId]="selectedProject"
-        (selectionChange)="onProjectChange($event)">
-      </app-project-dropdown>
+    <!-- Project Filter -->
+    <div class="filter-item project-item">
+      <label class="filter-label">Project</label>
+      <select 
+        class="filter-select"
+        [value]="selectedProject"
+        (change)="onProjectChange($event)"
+        [disabled]="loadingFilters">
+        <option value="">All Projects</option>
+        <option *ngFor="let project of projects" [value]="project.id">
+          {{ project.name }}
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ✅ Filter Loading State -->
+  <div *ngIf="loadingFilters" class="filter-loading">
+    <div class="loading-message">
+      <span class="spinner-border spinner-border-sm me-2"></span>
+      กำลังโหลดข้อมูล filter...
+    </div>
+  </div>
+
+  <!-- ✅ Filter Error State -->
+  <div *ngIf="filterError && !loadingFilters" class="filter-error">
+    <div class="alert alert-warning" role="alert">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      {{ filterError }}
+      <button type="button" class="btn btn-sm btn-outline-warning ms-2" (click)="refreshFilters()">
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        ลองใหม่
+      </button>
     </div>
   </div>
 
@@ -154,9 +184,6 @@
             <p class="ticket-description">{{ ticket.issue_description }}</p>
           </div>
         </div>
-
-        <!-- Priority Badge (Floating) - Remove this section -->
-        <!-- Removed floating priority badge -->
       </div>
     </div>
 

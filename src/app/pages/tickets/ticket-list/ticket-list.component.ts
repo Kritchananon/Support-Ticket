@@ -2,19 +2,16 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ApiService } from '../../../shared/services/api.service';
+import { ApiService, MasterFilterCategory, MasterFilterProject } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
-import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
 
 @Component({
   selector: 'app-ticket-list',
   standalone: true,
   imports: [
     CommonModule, 
-    FormsModule,
-    ProjectDropdownComponent,
-    CategoryDropdownComponent
+    FormsModule
+    // ✅ ลบ ProjectDropdownComponent และ CategoryDropdownComponent ออก
   ],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css']
@@ -28,6 +25,12 @@ export class TicketListComponent implements OnInit {
   filteredTickets: any[] = [];
   isLoading = false;
   currentUser: any;
+
+  // ✅ เพิ่มข้อมูลสำหรับ filter dropdowns
+  categories: MasterFilterCategory[] = [];
+  projects: MasterFilterProject[] = [];
+  loadingFilters = false;
+  filterError = '';
 
   // Filter states
   searchText = '';
@@ -57,7 +60,54 @@ export class TicketListComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
+    this.loadMasterFilters(); // ✅ โหลด master filters ก่อน
     this.loadTickets();
+  }
+
+  // ✅ Method ใหม่สำหรับโหลด master filters จาก ApiService
+  loadMasterFilters(): void {
+    this.loadingFilters = true;
+    this.filterError = '';
+
+    this.apiService.getAllMasterFilter().subscribe({
+      next: (response) => {
+        console.log('Master filter response:', response);
+        
+        if (response.code === 1 && response.data) {
+          this.categories = response.data.categories || [];
+          this.projects = response.data.projects || [];
+          console.log('Categories loaded:', this.categories.length);
+          console.log('Projects loaded:', this.projects.length);
+        } else {
+          this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
+          this.loadMockFilterData(); // ใช้ mock data ถ้าเกิดข้อผิดพลาด
+        }
+        
+        this.loadingFilters = false;
+      },
+      error: (error) => {
+        console.error('Error loading master filters:', error);
+        this.filterError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
+        this.loadMockFilterData(); // ใช้ mock data ถ้าเกิดข้อผิดพลาด
+        this.loadingFilters = false;
+      }
+    });
+  }
+
+  // ✅ Mock data สำหรับกรณีที่ API ยังไม่พร้อม
+  private loadMockFilterData(): void {
+    this.categories = [
+      { id: 1, name: 'ระบบล่ม/ใช้งานไม่ได้' },
+      { id: 2, name: 'หน้าจอ Error' },
+      { id: 3, name: 'ต้องการพัฒนาเพิ่ม' }
+    ];
+    
+    this.projects = [
+      { id: 1, name: 'Human Resource Management System (HRMS)' },
+      { id: 2, name: 'ระบบจัดการงานขาย' }
+    ];
+    
+    console.log('Using mock filter data');
   }
 
   loadTickets(): void {
@@ -117,8 +167,8 @@ export class TicketListComponent implements OnInit {
       {
         id: 3,
         ticket_no: '#68050003',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
+        categories_id: 2,
+        category_name: 'หน้าจอ Error',
         project_id: 1,
         project_name: 'Human Resource Management System ( HRMS )',
         issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
@@ -132,10 +182,10 @@ export class TicketListComponent implements OnInit {
       {
         id: 4,
         ticket_no: '#68050004',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
+        categories_id: 3,
+        category_name: 'ต้องการพัฒนาเพิ่ม',
+        project_id: 2,
+        project_name: 'ระบบจัดการงานขาย',
         issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
         status_id: 4,
         priority: 'high',
@@ -149,8 +199,8 @@ export class TicketListComponent implements OnInit {
         ticket_no: '#68050005',
         categories_id: 1,
         category_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
+        project_id: 2,
+        project_name: 'ระบบจัดการงานขาย',
         issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
         status_id: 5,
         priority: 'medium',
@@ -162,8 +212,8 @@ export class TicketListComponent implements OnInit {
       {
         id: 6,
         ticket_no: '#68050006',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
+        categories_id: 2,
+        category_name: 'หน้าจอ Error',
         project_id: 1,
         project_name: 'Human Resource Management System ( HRMS )',
         issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
@@ -193,13 +243,19 @@ export class TicketListComponent implements OnInit {
     this.applyFilters();
   }
 
-  onProjectChange(event: { project: any, projectId: string | number }): void {
-    this.selectedProject = event.projectId.toString();
+  // ✅ แก้ไข method สำหรับ project change
+  onProjectChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    this.selectedProject = target.value;
+    console.log('Project changed to:', this.selectedProject);
     this.applyFilters();
   }
 
-  onCategoryChange(event: { category: any, categoryId: string | number }): void {
-    this.selectedCategory = event.categoryId.toString();
+  // ✅ แก้ไข method สำหรับ category change  
+  onCategoryChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    this.selectedCategory = target.value;
+    console.log('Category changed to:', this.selectedCategory);
     this.applyFilters();
   }
 
@@ -213,7 +269,8 @@ export class TicketListComponent implements OnInit {
         ticket.ticket_no.toLowerCase().includes(searchLower) ||
         ticket.issue_description.toLowerCase().includes(searchLower) ||
         ticket.project_name.toLowerCase().includes(searchLower) ||
-        ticket.user_name.toLowerCase().includes(searchLower)
+        ticket.user_name.toLowerCase().includes(searchLower) ||
+        ticket.category_name.toLowerCase().includes(searchLower)
       );
     }
 
@@ -238,6 +295,7 @@ export class TicketListComponent implements OnInit {
     }
 
     this.filteredTickets = filtered;
+    console.log('Filtered tickets:', this.filteredTickets.length, 'of', this.tickets.length);
   }
 
   clearFilters(): void {
@@ -247,6 +305,11 @@ export class TicketListComponent implements OnInit {
     this.selectedProject = '';
     this.selectedCategory = '';
     this.filteredTickets = [...this.tickets];
+  }
+
+  // ✅ เพิ่ม method สำหรับ refresh filters
+  refreshFilters(): void {
+    this.loadMasterFilters();
   }
 
   getStatusBadgeClass(statusId: number): string {
