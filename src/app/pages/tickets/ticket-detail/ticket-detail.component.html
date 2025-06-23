@@ -120,27 +120,62 @@
                  class="attachment-item"
                  (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
               
-              <!-- ✅ แสดงรูปภาพ preview โดยใช้ข้อมูลที่เช็คไว้แล้ว -->
+              <!-- ✅ Loading State -->
+              <div class="attachment-loading" 
+                   *ngIf="getFileInfo(attachment.attachment_id).isLoading">
+                <i class="bi bi-hourglass-split"></i>
+                <div class="loading-text">Analyzing...</div>
+              </div>
+              
+              <!-- ✅ แสดงรูปภาพ preview โดยใช้ข้อมูลที่วิเคราะห์แล้ว -->
               <div class="attachment-preview" 
-                   *ngIf="isImageFile(attachment.path, attachment.attachment_id)">
+                   *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
                 <img [src]="attachment.path" 
-                     [alt]="'Attachment ' + attachment.attachment_id"
+                     [alt]="getDisplayFileName(attachment.path, attachment.attachment_id)"
                      (error)="onImageError(attachment.attachment_id)"
                      (load)="onImageLoad(attachment.attachment_id)"
                      loading="lazy"
                      style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
+                
+                <!-- File info overlay -->
+                <div class="file-info-overlay">
+                  <div class="file-name-small">{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</div>
+                  <div class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</div>
+                </div>
               </div>
               
               <!-- ✅ แสดง file icon สำหรับไฟล์ที่ไม่ใช่รูปภาพ -->
               <div class="attachment-file" 
-                   *ngIf="!isImageFile(attachment.path, attachment.attachment_id)">
-                <i [class]="getFileIcon(attachment.path)"></i>
-                <div class="file-name">{{ getFileName(attachment.path) }}</div>
+                   *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
+                
+                <!-- File Icon -->
+                <div class="file-icon-container">
+                  <i [class]="getFileIcon(attachment.path, attachment.attachment_id)" 
+                     [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
+                </div>
+                
+                <!-- File Details -->
+                <div class="file-details">
+                  <div class="file-name" [title]="getDisplayFileName(attachment.path, attachment.attachment_id)">
+                    {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
+                  </div>
+                  
+                  <div class="file-meta">
+                    <span class="file-type">{{ getFileInfo(attachment.attachment_id).type.toUpperCase() }}</span>
+                    <span class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</span>
+                  </div>
+                </div>
+                
+                <!-- Download Indicator -->
+                <div class="download-indicator">
+                  <i class="bi bi-download"></i>
+                </div>
               </div>
             </div>
             
             <!-- Show placeholder if no attachments -->
             <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
+              <i class="bi bi-paperclip"></i>
               <span class="text-muted">No attachments</span>
             </div>
           </div>
@@ -248,7 +283,20 @@
             
             <div class="support-item">
               <div class="support-label">Attachment:</div>
-              <div class="support-value">{{ ticketData.fix_attachment.length > 0 ? ticketData.fix_attachment.length + ' files' : '-' }}</div>
+              <div class="support-value">
+                <div *ngIf="ticketData.fix_attachment.length > 0; else noFixAttachments">
+                  <div *ngFor="let attachment of ticketData.fix_attachment" 
+                       class="fix-attachment-item"
+                       (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
+                    <i [class]="getFileIcon(attachment.path, attachment.attachment_id)" 
+                       [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
+                    <span>{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</span>
+                  </div>
+                </div>
+                <ng-template #noFixAttachments>
+                  <span>-</span>
+                </ng-template>
+              </div>
             </div>
           </div>
         </div>

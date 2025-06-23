@@ -32,10 +32,16 @@ interface TicketData {
   issue_attachment: Array<{
     attachment_id: number;
     path: string;
+    filename?: string;  // เพิ่ม optional filename จาก API
+    file_type?: string; // เพิ่ม optional file_type จาก API
+    file_size?: number; // เพิ่ม optional file_size จาก API
   }>;
   fix_attachment: Array<{
     attachment_id: number;
     path: string;
+    filename?: string;
+    file_type?: string;
+    file_size?: number;
   }>;
   status_history: Array<{
     status_id: number;
@@ -66,8 +72,13 @@ export class TicketDetailComponent implements OnInit {
   currentRating = 0;
   hoverRating = 0;
 
-  // ✅ เพิ่ม property สำหรับเก็บข้อมูลว่า attachment ไหนเป็นรูปภาพ
-  attachmentTypes: { [key: number]: 'image' | 'file' } = {};
+  // ✅ เพิ่ม property สำหรับเก็บข้อมูลประเภทไฟล์ที่ตรวจสอบแล้ว
+  attachmentTypes: { [key: number]: {
+    type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
+    extension: string;
+    filename: string;
+    isLoading?: boolean;
+  } } = {};
 
   ngOnInit(): void {
     this.ticketId = Number(this.route.snapshot.params['id']);
@@ -90,7 +101,7 @@ export class TicketDetailComponent implements OnInit {
         if (response.code === 1) {
           this.ticketData = response.data;
           // ✅ เช็คประเภทของ attachment หลังจากได้ข้อมูล
-          this.checkAttachmentTypes();
+          this.analyzeAllAttachments();
           console.log('Ticket data loaded:', this.ticketData);
         } else {
           this.error = 'ไม่พบข้อมูล ticket ที่ต้องการ';
@@ -106,61 +117,332 @@ export class TicketDetailComponent implements OnInit {
         console.warn('API not available, using mock data');
         this.loadMockDataFromCreatedTicket();
         // ✅ เช็คประเภทของ attachment สำหรับ mock data ด้วย
-        this.checkAttachmentTypes();
+        this.analyzeAllAttachments();
         this.isLoading = false;
       }
     });
   }
 
-  // ✅ Method ใหม่สำหรับเช็คประเภทของ attachment
-  private checkAttachmentTypes(): void {
-    if (!this.ticketData?.issue_attachment) return;
+  // ✅ Method ใหม่สำหรับวิเคราะห์ไฟล์ทั้งหมด
+  private analyzeAllAttachments(): void {
+    if (!this.ticketData) return;
 
-    this.ticketData.issue_attachment.forEach(attachment => {
-      this.checkIfImage(attachment.path, attachment.attachment_id);
-    });
+    // วิเคราะห์ issue attachments
+    if (this.ticketData.issue_attachment?.length > 0) {
+      this.ticketData.issue_attachment.forEach(attachment => {
+        this.analyzeAttachment(attachment);
+      });
+    }
 
-    // เช็ค fix_attachment ด้วยถ้ามี
-    if (this.ticketData?.fix_attachment) {
+    // วิเคราะห์ fix attachments
+    if (this.ticketData.fix_attachment?.length > 0) {
       this.ticketData.fix_attachment.forEach(attachment => {
-        this.checkIfImage(attachment.path, attachment.attachment_id);
+        this.analyzeAttachment(attachment);
       });
     }
   }
 
-  // ✅ Method สำหรับเช็คว่า URL เป็นรูปภาพหรือไม่
-  private checkIfImage(url: string, attachmentId: number): void {
-    // ถ้าเป็น base64 data URL
-    if (url.startsWith('data:image/')) {
-      this.attachmentTypes[attachmentId] = 'image';
-      return;
-    }
-
-    // ถ้าเป็น URL ที่มี file extension
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
-    const hasImageExtension = imageExtensions.some(ext => 
-      url.toLowerCase().includes(ext)
-    );
+  // ✅ Method สำหรับวิเคราะห์ไฟล์แต่ละไฟล์
+  private analyzeAttachment(attachment: any): void {
+    const attachmentId = attachment.attachment_id;
     
-    if (hasImageExtension) {
-      this.attachmentTypes[attachmentId] = 'image';
+    // ใส่ loading state
+    this.attachmentTypes[attachmentId] = {
+      type: 'file',
+      extension: '',
+      filename: 'Loading...',
+      isLoading: true
+    };
+
+    // ✅ ขั้นตอนที่ 1: เช็คจากข้อมูล API ก่อน
+    if (attachment.filename || attachment.file_type) {
+      const filename = attachment.filename || this.extractFilenameFromPath(attachment.path);
+      const fileType = attachment.file_type || this.getFileTypeFromFilename(filename);
+      
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategory(fileType, filename),
+        extension: this.getFileExtension(filename),
+        filename: filename,
+        isLoading: false
+      };
+      
+      console.log(`File analyzed from API data:`, {
+        id: attachmentId,
+        filename,
+        fileType,
+        category: this.attachmentTypes[attachmentId].type
+      });
       return;
     }
 
-    // ✅ สำหรับ URL ที่ไม่มี extension (เช่น /images/issue_attachment/69)
-    // ให้ลองโหลดเป็นรูปภาพ
+    // ✅ ขั้นตอนที่ 2: เช็คจาก path/URL
+    const filename = this.extractFilenameFromPath(attachment.path);
+    const extension = this.getFileExtension(filename);
+    
+    if (extension) {
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategoryByExtension(extension),
+        extension: extension,
+        filename: filename,
+        isLoading: false
+      };
+      
+      console.log(`File analyzed from path:`, {
+        id: attachmentId,
+        filename,
+        extension,
+        category: this.attachmentTypes[attachmentId].type
+      });
+      return;
+    }
+
+    // ✅ ขั้นตอนที่ 3: ถ้าเป็น base64 data URL
+    if (attachment.path.startsWith('data:')) {
+      const mimeType = this.extractMimeTypeFromDataUrl(attachment.path);
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategoryByMimeType(mimeType),
+        extension: this.getExtensionFromMimeType(mimeType),
+        filename: `attachment_${attachmentId}.${this.getExtensionFromMimeType(mimeType)}`,
+        isLoading: false
+      };
+      
+      console.log(`File analyzed from data URL:`, {
+        id: attachmentId,
+        mimeType,
+        category: this.attachmentTypes[attachmentId].type
+      });
+      return;
+    }
+
+    // ✅ ขั้นตอนที่ 4: ลองตรวจสอบจาก HTTP Headers (สำหรับ URL ที่ไม่มี extension)
+    this.checkFileTypeFromHeaders(attachment.path, attachmentId);
+  }
+
+  // ✅ Helper methods สำหรับวิเคราะห์ไฟล์
+
+  private extractFilenameFromPath(path: string): string {
+    if (!path) return 'unknown';
+    
+    // ถ้าเป็น data URL
+    if (path.startsWith('data:')) {
+      return 'data_file';
+    }
+    
+    // ดึงชื่อไฟล์จาก path
+    const parts = path.split('/');
+    const lastPart = parts[parts.length - 1];
+    
+    // ถ้ามี query parameters ให้ตัดออก
+    return lastPart.split('?')[0] || 'unknown';
+  }
+
+  private getFileExtension(filename: string): string {
+    if (!filename || filename === 'unknown') return '';
+    
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  }
+
+  private getFileTypeFromFilename(filename: string): string {
+    const extension = this.getFileExtension(filename);
+    return extension || 'unknown';
+  }
+
+  private determineFileCategory(fileType: string, filename: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const type = fileType.toLowerCase();
+    const ext = this.getFileExtension(filename).toLowerCase();
+    
+    // ตรวจสอบจาก MIME type หรือ extension
+    if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+      return 'image';
+    }
+    
+    if (type.includes('pdf') || ext === 'pdf') {
+      return 'pdf';
+    }
+    
+    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+      return 'excel';
+    }
+    
+    if (type.includes('word') || type.includes('document') || ['doc', 'docx', 'rtf'].includes(ext)) {
+      return 'word';
+    }
+    
+    if (type.includes('text') || ['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+      return 'text';
+    }
+    
+    if (type.includes('archive') || type.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return 'archive';
+    }
+    
+    if (type.includes('video') || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+      return 'video';
+    }
+    
+    if (type.includes('audio') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+      return 'audio';
+    }
+    
+    return 'file';
+  }
+
+  private determineFileCategoryByExtension(extension: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const ext = extension.toLowerCase();
+    
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+      return 'image';
+    }
+    
+    if (ext === 'pdf') {
+      return 'pdf';
+    }
+    
+    if (['xls', 'xlsx', 'csv'].includes(ext)) {
+      return 'excel';
+    }
+    
+    if (['doc', 'docx', 'rtf'].includes(ext)) {
+      return 'word';
+    }
+    
+    if (['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+      return 'text';
+    }
+    
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return 'archive';
+    }
+    
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+      return 'video';
+    }
+    
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+      return 'audio';
+    }
+    
+    return 'file';
+  }
+
+  private extractMimeTypeFromDataUrl(dataUrl: string): string {
+    const match = dataUrl.match(/^data:([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  private determineFileCategoryByMimeType(mimeType: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'word';
+    if (mimeType.startsWith('text/')) return 'text';
+    if (mimeType.includes('zip') || mimeType.includes('archive')) return 'archive';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    
+    return 'file';
+  }
+
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeToExt: { [key: string]: string } = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+      'application/pdf': 'pdf',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'text/plain': 'txt',
+      'application/json': 'json',
+      'text/html': 'html',
+      'application/zip': 'zip',
+      'video/mp4': 'mp4',
+      'audio/mpeg': 'mp3'
+    };
+    
+    return mimeToExt[mimeType] || 'bin';
+  }
+
+  // ✅ ตรวจสอบไฟล์จาก HTTP Headers
+  private checkFileTypeFromHeaders(url: string, attachmentId: number): void {
+    // สร้าง HEAD request เพื่อดู content-type
+    fetch(url, { 
+      method: 'HEAD',
+      mode: 'cors' // อาจจะต้องจัดการ CORS
+    })
+    .then(response => {
+      const contentType = response.headers.get('content-type');
+      const contentDisposition = response.headers.get('content-disposition');
+      
+      let filename = `attachment_${attachmentId}`;
+      
+      // ดึงชื่อไฟล์จาก content-disposition หากมี
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      if (contentType) {
+        this.attachmentTypes[attachmentId] = {
+          type: this.determineFileCategoryByMimeType(contentType),
+          extension: this.getExtensionFromMimeType(contentType),
+          filename: filename,
+          isLoading: false
+        };
+        
+        console.log(`File analyzed from HTTP headers:`, {
+          id: attachmentId,
+          contentType,
+          filename,
+          category: this.attachmentTypes[attachmentId].type
+        });
+      } else {
+        // ถ้าไม่สามารถตรวจสอบได้ ให้เป็นไฟล์ทั่วไป
+        this.attachmentTypes[attachmentId] = {
+          type: 'file',
+          extension: '',
+          filename: filename,
+          isLoading: false
+        };
+      }
+    })
+    .catch(error => {
+      console.log(`Could not fetch headers for ${url}:`, error);
+      // ถ้า HEAD request ไม่สำเร็จ ลองเป็นรูปภาพ
+      this.tryImageLoad(url, attachmentId);
+    });
+  }
+
+  // ✅ ลองโหลดเป็นรูปภาพ
+  private tryImageLoad(url: string, attachmentId: number): void {
     const img = new Image();
+    
     img.onload = () => {
-      // ถ้าโหลดได้แสดงว่าเป็นรูปภาพ
-      this.attachmentTypes[attachmentId] = 'image';
-      // Angular จะ detect changes อัตโนมัติ
-    };
-    img.onerror = () => {
-      // ถ้าโหลดไม่ได้แสดงว่าไม่ใช่รูปภาพ
-      this.attachmentTypes[attachmentId] = 'file';
+      this.attachmentTypes[attachmentId] = {
+        type: 'image',
+        extension: 'jpg',
+        filename: this.extractFilenameFromPath(url) || `image_${attachmentId}.jpg`,
+        isLoading: false
+      };
+      console.log(`File detected as image through loading test:`, attachmentId);
     };
     
-    // เพิ่ม CORS headers ถ้าจำเป็น
+    img.onerror = () => {
+      this.attachmentTypes[attachmentId] = {
+        type: 'file',
+        extension: '',
+        filename: this.extractFilenameFromPath(url) || `file_${attachmentId}`,
+        isLoading: false
+      };
+      console.log(`File defaulted to generic file type:`, attachmentId);
+    };
+    
     img.crossOrigin = 'anonymous';
     img.src = url;
   }
@@ -206,11 +488,15 @@ export class TicketDetailComponent implements OnInit {
             issue_attachment: [
               {
                 attachment_id: 1,
-                path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+                path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+                filename: 'screenshot.png',
+                file_type: 'image/png'
               },
               {
                 attachment_id: 2,
-                path: 'sample-document.pdf'
+                path: '/api/attachments/download/72',
+                filename: 'error_report.pdf',
+                file_type: 'application/pdf'
               }
             ],
             fix_attachment: [],
@@ -290,11 +576,15 @@ export class TicketDetailComponent implements OnInit {
       issue_attachment: [
         {
           attachment_id: 1,
-          path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+          path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+          filename: 'screenshot.png',
+          file_type: 'image/png'
         },
         {
           attachment_id: 2,
-          path: 'sample-document.pdf'
+          path: '/api/attachments/download/72',
+          filename: 'document.pdf',
+          file_type: 'application/pdf'
         }
       ],
       fix_attachment: [],
@@ -409,51 +699,140 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ แก้ไข method isImageFile ให้ใช้ข้อมูลที่เช็คไว้แล้ว
+  // ✅ แก้ไข method isImageFile ให้ใช้ข้อมูลที่วิเคราะห์ไว้แล้ว
   isImageFile(path: string, attachmentId?: number): boolean {
-    // ใช้ข้อมูลที่เช็คไว้แล้วก่อน
     if (attachmentId && this.attachmentTypes[attachmentId]) {
-      return this.attachmentTypes[attachmentId] === 'image';
+      return this.attachmentTypes[attachmentId].type === 'image';
     }
-
-    // Fallback: เช็คแบบเดิม
+    
+    // Fallback สำหรับกรณีที่ยังไม่ได้วิเคราะห์
     if (path.startsWith('data:image/')) return true;
     
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
     return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
   }
 
-  getFileIcon(path: string): string {
+  // ✅ แก้ไข method getFileIcon ให้ใช้ข้อมูลที่วิเคราะห์ไว้แล้ว
+  getFileIcon(path: string, attachmentId?: number): string {
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      const fileInfo = this.attachmentTypes[attachmentId];
+      
+      switch (fileInfo.type) {
+        case 'image': return 'bi-image-fill';
+        case 'pdf': return 'bi-file-earmark-pdf-fill';
+        case 'excel': return 'bi-file-earmark-excel-fill';
+        case 'word': return 'bi-file-earmark-word-fill';
+        case 'text': return 'bi-file-earmark-text-fill';
+        case 'archive': return 'bi-file-earmark-zip-fill';
+        case 'video': return 'bi-file-earmark-play-fill';
+        case 'audio': return 'bi-file-earmark-music-fill';
+        default: return 'bi-file-earmark-fill';
+      }
+    }
+    
+    // Fallback สำหรับกรณีที่ยังไม่ได้วิเคราะห์
     const extension = path.split('.').pop()?.toLowerCase();
     switch (extension) {
       case 'pdf': return 'bi-file-earmark-pdf-fill';
       case 'doc':
       case 'docx': return 'bi-file-earmark-word-fill';
       case 'xls':
-      case 'xlsx': return 'bi-file-earmark-excel-fill';
+      case 'xlsx': 
+      case 'csv': return 'bi-file-earmark-excel-fill';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'svg': return 'bi-image-fill';
+      case 'txt':
+      case 'log':
+      case 'md':
+      case 'json':
+      case 'xml': return 'bi-file-earmark-text-fill';
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz': return 'bi-file-earmark-zip-fill';
+      case 'mp4':
+      case 'avi':
+      case 'mkv':
+      case 'mov':
+      case 'wmv': return 'bi-file-earmark-play-fill';
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+      case 'flac': return 'bi-file-earmark-music-fill';
       default: return 'bi-file-earmark-fill';
     }
   }
 
-  // ✅ Method สำหรับดึงชื่อไฟล์จาก path
-  getFileName(path: string): string {
-    if (path.includes('/')) {
-      const parts = path.split('/');
-      return parts[parts.length - 1] || 'Unknown file';
+  // ✅ Method สำหรับดึงชื่อไฟล์ที่แสดงผล
+  getDisplayFileName(path: string, attachmentId?: number): string {
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].filename;
     }
-    return path || 'Unknown file';
+    
+    // Fallback
+    return this.extractFilenameFromPath(path);
+  }
+
+  // ✅ Method สำหรับดึงข้อมูลไฟล์ที่สมบูรณ์
+  getFileInfo(attachmentId: number): {
+    type: string;
+    extension: string;
+    filename: string;
+    isLoading: boolean;
+    icon: string;
+  } {
+    const fileInfo = this.attachmentTypes[attachmentId];
+    
+    if (fileInfo) {
+      return {
+        type: fileInfo.type,
+        extension: fileInfo.extension,
+        filename: fileInfo.filename,
+        isLoading: fileInfo.isLoading || false,
+        icon: this.getFileIcon('', attachmentId)
+      };
+    }
+    
+    return {
+      type: 'unknown',
+      extension: '',
+      filename: 'Unknown file',
+      isLoading: false,
+      icon: 'bi-file-earmark-fill'
+    };
   }
 
   // ✅ Method สำหรับจัดการ error ของรูปภาพ
   onImageError(attachmentId: number): void {
     console.log(`Image failed to load for attachment ${attachmentId}`);
-    this.attachmentTypes[attachmentId] = 'file';
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'file';
+    }
   }
 
   // ✅ Method สำหรับจัดการเมื่อรูปภาพโหลดสำเร็จ
   onImageLoad(attachmentId: number): void {
     console.log(`Image loaded successfully for attachment ${attachmentId}`);
-    this.attachmentTypes[attachmentId] = 'image';
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'image';
+    }
+  }
+
+  // ✅ Method สำหรับแสดงข้อมูลขนาดไฟล์ (ถ้ามีจาก API)
+  getFileSize(attachment: any): string {
+    if (attachment.file_size) {
+      const size = attachment.file_size;
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+      if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    }
+    return '';
   }
 
   // Action methods
@@ -472,16 +851,26 @@ export class TicketDetailComponent implements OnInit {
   }
 
   onDownloadAttachment(attachmentId: number, path: string): void {
+    const fileInfo = this.getFileInfo(attachmentId);
+    
     if (path.startsWith('data:')) {
       // Handle base64 data
       const link = document.createElement('a');
       link.href = path;
-      link.download = `attachment_${attachmentId}`;
+      link.download = fileInfo.filename || `attachment_${attachmentId}`;
       link.click();
     } else {
-      // Handle file path
+      // Handle file path - อาจจะต้องเรียก API download endpoint
+      // หรือเปิดในหน้าต่างใหม่
       window.open(path, '_blank');
     }
+    
+    console.log(`Downloading attachment:`, {
+      id: attachmentId,
+      filename: fileInfo.filename,
+      type: fileInfo.type,
+      path: path
+    });
   }
 
   backToList(): void {
