@@ -25,7 +25,7 @@
       
       <!-- ✅ Hidden Fields สำหรับเก็บ ticket_id และ ticket_no -->
       <input type="hidden" id="ticket_id" [value]="ticketId || ''" />
-      <input type="hidden" id="ticket_no" [value]="ticketNo" />
+      <input type="hidden" id="ticket_no" [value]="ticket_no" />
       
       <!-- Project Dropdown -->
       <app-project-dropdown
@@ -226,7 +226,7 @@
       <div *ngIf="isTicketCreated" class="ticket-status-display">
         <div class="alert alert-success" role="alert">
           <i class="bi bi-check-circle me-2"></i>
-          <strong>✅ Ticket {{ ticketNo }} created successfully!</strong>
+          <strong>✅ Ticket {{ ticket_no }} created successfully!</strong>
           <br>
           <small>You can now upload files or click Submit to finish.</small>
         </div>

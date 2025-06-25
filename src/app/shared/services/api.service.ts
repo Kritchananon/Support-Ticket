@@ -173,7 +173,7 @@ export interface AttachmentData {
 
 // ✅ เพิ่ม interfaces สำหรับ getTicketData API
 export interface GetTicketDataRequest {
-  ticket_id: number;
+  ticket_no: string;
 }
 
 export interface GetTicketDataResponse {
@@ -758,8 +758,8 @@ export class ApiService {
     });
   }
 
-  getTicketById(id: number): Observable<ApiResponse<TicketData>> {
-    return this.http.get<ApiResponse<TicketData>>(`${this.apiUrl}/ticket/${id}`, {
+  getTicketByTicketNo(ticket_no: string): Observable<ApiResponse<TicketData>> {
+    return this.http.get<ApiResponse<TicketData>>(`${this.apiUrl}/ticket/${ticket_no}`, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }

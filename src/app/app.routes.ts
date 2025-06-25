@@ -41,19 +41,19 @@ export const routes: Routes = [
         children: [
           {
             path: '',
-            component: TicketListComponent // เปลี่ยนจาก ticket-list เป็น all tickets
+            component: TicketListComponent
           },
           {
             path: 'new',
             component: TicketCreateComponent
           },
           {
-            path: ':id',
+            // ✅ แก้ไข: เปลี่ยนจาก :id เป็น :ticketNo เพื่อรับ ticket_no แทน ticket_id
+            path: ':ticket_no',
             component: TicketDetailComponent
           }
         ]
       }
-      // เพิ่ม routes อื่นๆ ทีหลัง สำหรับ Reports และ Settings
     ]
   },
   // Fallback route

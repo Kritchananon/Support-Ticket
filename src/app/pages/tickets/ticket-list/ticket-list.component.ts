@@ -11,7 +11,6 @@ import { AuthService } from '../../../shared/services/auth.service';
   imports: [
     CommonModule, 
     FormsModule
-    // ✅ ลบ ProjectDropdownComponent และ CategoryDropdownComponent ออก
   ],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css']
@@ -26,7 +25,6 @@ export class TicketListComponent implements OnInit {
   isLoading = false;
   currentUser: any;
 
-  // ✅ เพิ่มข้อมูลสำหรับ filter dropdowns
   categories: MasterFilterCategory[] = [];
   projects: MasterFilterProject[] = [];
   loadingFilters = false;
@@ -60,11 +58,10 @@ export class TicketListComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
-    this.loadMasterFilters(); // ✅ โหลด master filters ก่อน
+    this.loadMasterFilters();
     this.loadTickets();
   }
 
-  // ✅ Method ใหม่สำหรับโหลด master filters จาก ApiService
   loadMasterFilters(): void {
     this.loadingFilters = true;
     this.filterError = '';
@@ -80,7 +77,7 @@ export class TicketListComponent implements OnInit {
           console.log('Projects loaded:', this.projects.length);
         } else {
           this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
-          this.loadMockFilterData(); // ใช้ mock data ถ้าเกิดข้อผิดพลาด
+          this.loadMockFilterData();
         }
         
         this.loadingFilters = false;
@@ -88,13 +85,12 @@ export class TicketListComponent implements OnInit {
       error: (error) => {
         console.error('Error loading master filters:', error);
         this.filterError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
-        this.loadMockFilterData(); // ใช้ mock data ถ้าเกิดข้อผิดพลาด
+        this.loadMockFilterData();
         this.loadingFilters = false;
       }
     });
   }
 
-  // ✅ Mock data สำหรับกรณีที่ API ยังไม่พร้อม
   private loadMockFilterData(): void {
     this.categories = [
       { id: 1, name: 'ระบบล่ม/ใช้งานไม่ได้' },
@@ -125,7 +121,6 @@ export class TicketListComponent implements OnInit {
       error: (error) => {
         console.error('Error loading tickets:', error);
         this.isLoading = false;
-        // Mock data for development
         this.tickets = this.generateMockTickets();
         this.filteredTickets = [...this.tickets];
       }
@@ -243,7 +238,6 @@ export class TicketListComponent implements OnInit {
     this.applyFilters();
   }
 
-  // ✅ แก้ไข method สำหรับ project change
   onProjectChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.selectedProject = target.value;
@@ -251,7 +245,6 @@ export class TicketListComponent implements OnInit {
     this.applyFilters();
   }
 
-  // ✅ แก้ไข method สำหรับ category change  
   onCategoryChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.selectedCategory = target.value;
@@ -262,7 +255,6 @@ export class TicketListComponent implements OnInit {
   applyFilters(): void {
     let filtered = [...this.tickets];
 
-    // Apply search filter
     if (this.searchText.trim()) {
       const searchLower = this.searchText.toLowerCase();
       filtered = filtered.filter(ticket => 
@@ -274,22 +266,18 @@ export class TicketListComponent implements OnInit {
       );
     }
 
-    // Apply priority filter
     if (this.selectedPriority) {
       filtered = filtered.filter(ticket => ticket.priority === this.selectedPriority);
     }
 
-    // Apply status filter
     if (this.selectedStatus) {
       filtered = filtered.filter(ticket => ticket.status_id.toString() === this.selectedStatus);
     }
 
-    // Apply project filter
     if (this.selectedProject) {
       filtered = filtered.filter(ticket => ticket.project_id.toString() === this.selectedProject);
     }
 
-    // Apply category filter
     if (this.selectedCategory) {
       filtered = filtered.filter(ticket => ticket.categories_id.toString() === this.selectedCategory);
     }
@@ -307,19 +295,18 @@ export class TicketListComponent implements OnInit {
     this.filteredTickets = [...this.tickets];
   }
 
-  // ✅ เพิ่ม method สำหรับ refresh filters
   refreshFilters(): void {
     this.loadMasterFilters();
   }
 
   getStatusBadgeClass(statusId: number): string {
     switch (statusId) {
-      case 1: return 'badge-pending';     // Pending
-      case 2: return 'badge-in-progress'; // In Progress
-      case 3: return 'badge-hold';        // Hold
-      case 4: return 'badge-resolved';    // Resolved
-      case 5: return 'badge-complete';    // Complete
-      case 6: return 'badge-cancel';      // Cancel
+      case 1: return 'badge-pending';
+      case 2: return 'badge-in-progress';
+      case 3: return 'badge-hold';
+      case 4: return 'badge-resolved';
+      case 5: return 'badge-complete';
+      case 6: return 'badge-cancel';
       default: return 'badge-pending';
     }
   }
@@ -338,12 +325,12 @@ export class TicketListComponent implements OnInit {
 
   getStatusIcon(statusId: number): string {
     switch (statusId) {
-      case 1: return 'bi-clock';                    // Pending
-      case 2: return 'bi-chat';                     // In Progress
-      case 3: return 'bi-pause-circle';             // Hold
-      case 4: return 'bi-check-circle';             // Resolved
-      case 5: return 'bi-check-circle-fill';        // Complete
-      case 6: return 'bi-x-circle';                 // Cancel
+      case 1: return 'bi-clock';
+      case 2: return 'bi-chat';
+      case 3: return 'bi-pause-circle';
+      case 4: return 'bi-check-circle';
+      case 5: return 'bi-check-circle-fill';
+      case 6: return 'bi-x-circle';
       default: return 'bi-clock';
     }
   }
@@ -372,8 +359,10 @@ export class TicketListComponent implements OnInit {
     }
   }
 
-  viewTicket(ticketId: number): void {
-    this.router.navigate(['/tickets', ticketId]);
+  // ✅ แก้ไข: ใช้ ticket_no แทน ticket id สำหรับการ navigate
+  viewTicket(ticket: any): void {
+    console.log('Viewing ticket:', ticket.ticket_no);
+    this.router.navigate(['/tickets', ticket.ticket_no]);
   }
 
   createNewTicket(): void {

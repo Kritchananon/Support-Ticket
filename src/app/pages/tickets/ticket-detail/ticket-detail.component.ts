@@ -32,9 +32,9 @@ interface TicketData {
   issue_attachment: Array<{
     attachment_id: number;
     path: string;
-    filename?: string;  // เพิ่ม optional filename จาก API
-    file_type?: string; // เพิ่ม optional file_type จาก API
-    file_size?: number; // เพิ่ม optional file_size จาก API
+    filename?: string;
+    file_type?: string;
+    file_size?: number;
   }>;
   fix_attachment: Array<{
     attachment_id: number;
@@ -66,13 +66,13 @@ export class TicketDetailComponent implements OnInit {
   ticketData: TicketData | null = null;
   isLoading = false;
   error = '';
-  ticketId: number = 0;
+  // ✅ แก้ไข: เปลี่ยนจาก ticketId เป็น ticketNo
+  ticket_no: string = '';
   
   // Rating properties
   currentRating = 0;
   hoverRating = 0;
 
-  // ✅ เพิ่ม property สำหรับเก็บข้อมูลประเภทไฟล์ที่ตรวจสอบแล้ว
   attachmentTypes: { [key: number]: {
     type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
     extension: string;
@@ -81,60 +81,123 @@ export class TicketDetailComponent implements OnInit {
   } } = {};
 
   ngOnInit(): void {
-    this.ticketId = Number(this.route.snapshot.params['id']);
-    if (this.ticketId) {
+    // ✅ แก้ไข: ดึง ticketNo จาก route parameter แทน id
+    this.ticket_no = this.route.snapshot.params['ticket_no'];
+    if (this.ticket_no) {
       this.loadTicketDetail();
     } else {
       this.router.navigate(['/tickets']);
     }
   }
 
-  loadTicketDetail(): void {
-    this.isLoading = true;
-    this.error = '';
-
-    // ✅ เรียก API getTicketData จริง
-    this.apiService.getTicketData({ ticket_id: this.ticketId }).subscribe({
-      next: (response) => {
-        console.log('getTicketData response:', response);
+  // ✅ แก้ไข: ใช้ getTicketData method ที่มีอยู่แล้ว
+  private callGetTicketDataAPI(ticket_no: string): void {
+    console.log('=== callGetTicketDataAPI ===');
+    console.log('ticket_no:', ticket_no);
+    
+    // ✅ ส่ง ticket_no ไปยัง method เดิม
+    const requestData = { ticket_no: ticket_no };
+    
+    // ✅ ใช้ method getTicketData ที่มีอยู่แล้ว
+    // แต่ส่ง ticket_no แทน ticket_id
+    this.apiService.getTicketData(requestData).subscribe({
+      next: (response: any) => {
+        console.log('=== API Response ===');
+        console.log('Response:', response);
         
-        if (response.code === 1) {
-          this.ticketData = response.data;
-          // ✅ เช็คประเภทของ attachment หลังจากได้ข้อมูล
-          this.analyzeAllAttachments();
-          console.log('Ticket data loaded:', this.ticketData);
+        if (response && response.code === 1) {
+          if (response.data && this.isValidTicketData(response.data)) {
+            this.ticketData = response.data as TicketData;
+            this.analyzeAllAttachments();
+            console.log('✅ Ticket data loaded successfully');
+          } else {
+            console.error('❌ Invalid ticket data structure');
+            this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
+            this.loadMockDataFromCreatedTicket();
+            this.analyzeAllAttachments();
+          }
         } else {
-          this.error = 'ไม่พบข้อมูล ticket ที่ต้องการ';
-          console.error('Ticket not found:', response.message);
+          console.error('❌ API returned error:', response?.message);
+          this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
+          this.loadMockDataFromCreatedTicket();
+          this.analyzeAllAttachments();
         }
         this.isLoading = false;
       },
-      error: (error) => {
-        console.error('Error loading ticket detail:', error);
+      error: (error: any) => {
+        console.error('=== API Error ===');
+        console.error('Error:', error);
         this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
         
-        // ✅ ถ้า API ยังไม่พร้อม ใช้ mock data แทน
-        console.warn('API not available, using mock data');
+        console.warn('🔄 Using mock data');
         this.loadMockDataFromCreatedTicket();
-        // ✅ เช็คประเภทของ attachment สำหรับ mock data ด้วย
         this.analyzeAllAttachments();
         this.isLoading = false;
       }
     });
   }
 
-  // ✅ Method ใหม่สำหรับวิเคราะห์ไฟล์ทั้งหมด
+  // ✅ แก้ไข getTicketByTicketNo method
+  private getTicketByTicketNo(ticket_no: string): void {
+    console.log('=== getTicketByTicketNo ===');
+    console.log('Input ticket_no:', ticket_no);
+    
+    if (!ticket_no || ticket_no.trim() === '') {
+      console.error('❌ Empty ticket_no');
+      this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
+      this.isLoading = false;
+      return;
+    }
+
+    // ✅ เรียก method ที่แก้ไขแล้ว
+    this.callGetTicketDataAPI(ticket_no);
+  }
+
+  // ✅ ลบ method extractTicketIdFromTicketNo เพราะไม่ต้องใช้แล้ว
+  // Backend ต้องการ ticket_no โดยตรง
+
+  // ✅ แก้ไข loadTicketDetail method
+  loadTicketDetail(): void {
+    console.log('=== loadTicketDetail ===');
+    console.log('ticket_no:', this.ticket_no);
+    
+    this.isLoading = true;
+    this.error = '';
+
+    // ✅ เรียกใช้ method ที่แก้ไขแล้ว
+    this.getTicketByTicketNo(this.ticket_no);
+  }
+
+  // ✅ เก็บ method validation และ helper methods
+  private isValidTicketData(data: any): boolean {
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+
+    const hasTicket = data.ticket && typeof data.ticket === 'object';
+    const hasIssueAttachment = Array.isArray(data.issue_attachment);
+    const hasFixAttachment = Array.isArray(data.fix_attachment);
+    const hasStatusHistory = Array.isArray(data.status_history);
+
+    console.log('Data validation:', {
+      hasTicket,
+      hasIssueAttachment,
+      hasFixAttachment,
+      hasStatusHistory
+    });
+
+    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
+  }
+
   private analyzeAllAttachments(): void {
     if (!this.ticketData) return;
 
-    // วิเคราะห์ issue attachments
     if (this.ticketData.issue_attachment?.length > 0) {
       this.ticketData.issue_attachment.forEach(attachment => {
         this.analyzeAttachment(attachment);
       });
     }
 
-    // วิเคราะห์ fix attachments
     if (this.ticketData.fix_attachment?.length > 0) {
       this.ticketData.fix_attachment.forEach(attachment => {
         this.analyzeAttachment(attachment);
@@ -142,11 +205,9 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ Method สำหรับวิเคราะห์ไฟล์แต่ละไฟล์
   private analyzeAttachment(attachment: any): void {
     const attachmentId = attachment.attachment_id;
     
-    // ใส่ loading state
     this.attachmentTypes[attachmentId] = {
       type: 'file',
       extension: '',
@@ -154,7 +215,6 @@ export class TicketDetailComponent implements OnInit {
       isLoading: true
     };
 
-    // ✅ ขั้นตอนที่ 1: เช็คจากข้อมูล API ก่อน
     if (attachment.filename || attachment.file_type) {
       const filename = attachment.filename || this.extractFilenameFromPath(attachment.path);
       const fileType = attachment.file_type || this.getFileTypeFromFilename(filename);
@@ -175,7 +235,6 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ ขั้นตอนที่ 2: เช็คจาก path/URL
     const filename = this.extractFilenameFromPath(attachment.path);
     const extension = this.getFileExtension(filename);
     
@@ -196,7 +255,6 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ ขั้นตอนที่ 3: ถ้าเป็น base64 data URL
     if (attachment.path.startsWith('data:')) {
       const mimeType = this.extractMimeTypeFromDataUrl(attachment.path);
       this.attachmentTypes[attachmentId] = {
@@ -214,25 +272,19 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ ขั้นตอนที่ 4: ลองตรวจสอบจาก HTTP Headers (สำหรับ URL ที่ไม่มี extension)
     this.checkFileTypeFromHeaders(attachment.path, attachmentId);
   }
-
-  // ✅ Helper methods สำหรับวิเคราะห์ไฟล์
 
   private extractFilenameFromPath(path: string): string {
     if (!path) return 'unknown';
     
-    // ถ้าเป็น data URL
     if (path.startsWith('data:')) {
       return 'data_file';
     }
     
-    // ดึงชื่อไฟล์จาก path
     const parts = path.split('/');
     const lastPart = parts[parts.length - 1];
     
-    // ถ้ามี query parameters ให้ตัดออก
     return lastPart.split('?')[0] || 'unknown';
   }
 
@@ -252,7 +304,6 @@ export class TicketDetailComponent implements OnInit {
     const type = fileType.toLowerCase();
     const ext = this.getFileExtension(filename).toLowerCase();
     
-    // ตรวจสอบจาก MIME type หรือ extension
     if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
       return 'image';
     }
@@ -367,12 +418,10 @@ export class TicketDetailComponent implements OnInit {
     return mimeToExt[mimeType] || 'bin';
   }
 
-  // ✅ ตรวจสอบไฟล์จาก HTTP Headers
   private checkFileTypeFromHeaders(url: string, attachmentId: number): void {
-    // สร้าง HEAD request เพื่อดู content-type
     fetch(url, { 
       method: 'HEAD',
-      mode: 'cors' // อาจจะต้องจัดการ CORS
+      mode: 'cors'
     })
     .then(response => {
       const contentType = response.headers.get('content-type');
@@ -380,7 +429,6 @@ export class TicketDetailComponent implements OnInit {
       
       let filename = `attachment_${attachmentId}`;
       
-      // ดึงชื่อไฟล์จาก content-disposition หากมี
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch) {
@@ -403,7 +451,6 @@ export class TicketDetailComponent implements OnInit {
           category: this.attachmentTypes[attachmentId].type
         });
       } else {
-        // ถ้าไม่สามารถตรวจสอบได้ ให้เป็นไฟล์ทั่วไป
         this.attachmentTypes[attachmentId] = {
           type: 'file',
           extension: '',
@@ -414,12 +461,10 @@ export class TicketDetailComponent implements OnInit {
     })
     .catch(error => {
       console.log(`Could not fetch headers for ${url}:`, error);
-      // ถ้า HEAD request ไม่สำเร็จ ลองเป็นรูปภาพ
       this.tryImageLoad(url, attachmentId);
     });
   }
 
-  // ✅ ลองโหลดเป็นรูปภาพ
   private tryImageLoad(url: string, attachmentId: number): void {
     const img = new Image();
     
@@ -447,9 +492,7 @@ export class TicketDetailComponent implements OnInit {
     img.src = url;
   }
 
-  // ✅ แก้ไข method สำหรับใช้ข้อมูลจาก ticket ที่สร้างจริง
   private loadMockDataFromCreatedTicket(): void {
-    // ดึงข้อมูลจาก localStorage ถ้ามี (จากหน้า create)
     const currentUser = this.authService.getCurrentUser();
     const currentUserId = currentUser?.id || currentUser?.user_id;
     
@@ -459,11 +502,10 @@ export class TicketDetailComponent implements OnInit {
         try {
           const ticketData = JSON.parse(savedTicketData);
           
-          // ใช้ข้อมูลจาก ticket ที่สร้างจริง
           this.ticketData = {
             ticket: {
-              id: ticketData.ticketId || this.ticketId,
-              ticket_no: ticketData.ticketNo || `#68050001`,
+              id: ticketData.ticketId || 1,
+              ticket_no: ticketData.ticket_no || this.ticket_no,
               categories_id: ticketData.formData?.categoryId || 1,
               categories_name: ticketData.selectedCategory?.categoryName || 'ระบบล่ม/ใช้งานไม่ได้',
               project_id: ticketData.formData?.projectId || 1,
@@ -542,16 +584,14 @@ export class TicketDetailComponent implements OnInit {
       }
     }
     
-    // ถ้าไม่มีข้อมูลใน localStorage ใช้ mock data แบบเดิม
     this.loadMockData();
   }
 
   private loadMockData(): void {
-    // Mock data เก่าสำหรับ fallback
     this.ticketData = {
       ticket: {
-        id: this.ticketId,
-        ticket_no: '#68050001',
+        id: 1,
+        ticket_no: this.ticket_no,
         categories_id: 1,
         categories_name: 'ระบบล่ม/ใช้งานไม่ได้',
         project_id: 1,
@@ -624,34 +664,32 @@ export class TicketDetailComponent implements OnInit {
     this.isLoading = false;
   }
 
-  // Status badge methods
   getStatusBadgeClass(statusId: number): string {
     switch (statusId) {
-      case 1: return 'badge-pending';     // Pending
-      case 2: return 'badge-in-progress'; // In Progress  
-      case 3: return 'badge-hold';        // Hold
-      case 4: return 'badge-resolved';    // Resolved
-      case 5: return 'badge-complete';    // Complete
-      case 6: return 'badge-cancel';      // Cancel
+      case 1: return 'badge-pending';
+      case 2: return 'badge-in-progress';
+      case 3: return 'badge-hold';
+      case 4: return 'badge-resolved';
+      case 5: return 'badge-complete';
+      case 6: return 'badge-cancel';
       default: return 'badge-pending';
     }
   }
 
   getStatusIcon(statusId: number): string {
     switch (statusId) {
-      case 1: return 'bi-clock';                    // Pending
-      case 2: return 'bi-chat';                     // In Progress
-      case 3: return 'bi-pause-circle';             // Hold
-      case 4: return 'bi-check-circle';             // Resolved
-      case 5: return 'bi-check-circle-fill';        // Complete
-      case 6: return 'bi-x-circle';                 // Cancel
+      case 1: return 'bi-clock';
+      case 2: return 'bi-chat';
+      case 3: return 'bi-pause-circle';
+      case 4: return 'bi-check-circle';
+      case 5: return 'bi-check-circle-fill';
+      case 6: return 'bi-x-circle';
       default: return 'bi-clock';
     }
   }
 
-  // History badge methods
   getHistoryBadgeClass(statusId: number, index: number): string {
-    if (index === 0) return 'badge-current'; // Current status
+    if (index === 0) return 'badge-current';
     return 'badge-history';
   }
 
@@ -667,7 +705,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // Utility methods
   formatDate(dateString: string): string {
     if (!dateString) return '-';
     try {
@@ -699,20 +736,17 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ แก้ไข method isImageFile ให้ใช้ข้อมูลที่วิเคราะห์ไว้แล้ว
   isImageFile(path: string, attachmentId?: number): boolean {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       return this.attachmentTypes[attachmentId].type === 'image';
     }
     
-    // Fallback สำหรับกรณีที่ยังไม่ได้วิเคราะห์
     if (path.startsWith('data:image/')) return true;
     
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
     return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
   }
 
-  // ✅ แก้ไข method getFileIcon ให้ใช้ข้อมูลที่วิเคราะห์ไว้แล้ว
   getFileIcon(path: string, attachmentId?: number): string {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       const fileInfo = this.attachmentTypes[attachmentId];
@@ -730,7 +764,6 @@ export class TicketDetailComponent implements OnInit {
       }
     }
     
-    // Fallback สำหรับกรณีที่ยังไม่ได้วิเคราะห์
     const extension = path.split('.').pop()?.toLowerCase();
     switch (extension) {
       case 'pdf': return 'bi-file-earmark-pdf-fill';
@@ -768,17 +801,14 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ Method สำหรับดึงชื่อไฟล์ที่แสดงผล
   getDisplayFileName(path: string, attachmentId?: number): string {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       return this.attachmentTypes[attachmentId].filename;
     }
     
-    // Fallback
     return this.extractFilenameFromPath(path);
   }
 
-  // ✅ Method สำหรับดึงข้อมูลไฟล์ที่สมบูรณ์
   getFileInfo(attachmentId: number): {
     type: string;
     extension: string;
@@ -807,7 +837,6 @@ export class TicketDetailComponent implements OnInit {
     };
   }
 
-  // ✅ Method สำหรับจัดการ error ของรูปภาพ
   onImageError(attachmentId: number): void {
     console.log(`Image failed to load for attachment ${attachmentId}`);
     if (this.attachmentTypes[attachmentId]) {
@@ -815,7 +844,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ Method สำหรับจัดการเมื่อรูปภาพโหลดสำเร็จ
   onImageLoad(attachmentId: number): void {
     console.log(`Image loaded successfully for attachment ${attachmentId}`);
     if (this.attachmentTypes[attachmentId]) {
@@ -823,7 +851,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ Method สำหรับแสดงข้อมูลขนาดไฟล์ (ถ้ามีจาก API)
   getFileSize(attachment: any): string {
     if (attachment.file_size) {
       const size = attachment.file_size;
@@ -835,18 +862,15 @@ export class TicketDetailComponent implements OnInit {
     return '';
   }
 
-  // Action methods
   onEditTicket(): void {
     if (confirm('คุณต้องการแก้ไข status เป็น Resolved หรือไม่?')) {
-      console.log('Edit ticket status to Resolved:', this.ticketId);
-      // TODO: เรียก API เพื่อเปลี่ยน status
+      console.log('Edit ticket status to Resolved:', this.ticket_no);
     }
   }
 
   onDeleteTicket(): void {
     if (confirm('คุณแน่ใจหรือไม่ที่ต้องการลบ ticket นี้?')) {
-      console.log('Delete ticket:', this.ticketId);
-      // TODO: เรียก API เพื่อลบ ticket
+      console.log('Delete ticket:', this.ticket_no);
     }
   }
 
@@ -854,14 +878,11 @@ export class TicketDetailComponent implements OnInit {
     const fileInfo = this.getFileInfo(attachmentId);
     
     if (path.startsWith('data:')) {
-      // Handle base64 data
       const link = document.createElement('a');
       link.href = path;
       link.download = fileInfo.filename || `attachment_${attachmentId}`;
       link.click();
     } else {
-      // Handle file path - อาจจะต้องเรียก API download endpoint
-      // หรือเปิดในหน้าต่างใหม่
       window.open(path, '_blank');
     }
     
@@ -877,10 +898,8 @@ export class TicketDetailComponent implements OnInit {
     this.router.navigate(['/tickets']);
   }
 
-  // Rating methods
   setRating(rating: number): void {
     this.currentRating = rating;
     console.log('Rating set to:', rating);
-    // TODO: Save rating to API
   }
 }
