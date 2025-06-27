@@ -4,20 +4,24 @@
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
         <li class="breadcrumb-item">
-          <a routerLink="/tickets">New Ticket</a>
+          <a routerLink="/tickets">{{ isEditMode ? 'All Ticket' : 'New Ticket' }}</a>
         </li>
-        <li class="breadcrumb-item active" aria-current="page">New Ticket</li>
+        <li class="breadcrumb-item active" aria-current="page">{{ getPageTitle() }}</li>
       </ol>
     </nav>
   </div>
 
   <!-- Page Title -->
   <div class="page-header">
-    <h1 class="page-title">New Ticket</h1>
+    <h1 class="page-title">{{ getPageTitle() }}</h1>
+    <!-- ✅ NEW: แสดง ticket number ในโหมดแก้ไข -->
+    <div *ngIf="isEditMode && ticket_no" class="edit-ticket-info">
+      <span class="ticket-number-badge">{{ ticket_no }}</span>
+    </div>
   </div>
 
   <!-- Main Content -->
-  <div class="content-card" [class.ticket-created]="isTicketCreated">
+  <div class="content-card" [class.ticket-created]="isTicketCreated" [class.edit-mode]="isEditMode">
     <!-- Progress Bar -->
     <div class="form-progress" [style.width.%]="isTicketCreated ? 100 : 0"></div>
     
@@ -26,6 +30,7 @@
       <!-- ✅ Hidden Fields สำหรับเก็บ ticket_id และ ticket_no -->
       <input type="hidden" id="ticket_id" [value]="ticketId || ''" />
       <input type="hidden" id="ticket_no" [value]="ticket_no" />
+      <input type="hidden" id="is_edit_mode" [value]="isEditMode" />
       
       <!-- Project Dropdown -->
       <app-project-dropdown
@@ -226,28 +231,80 @@
       <div *ngIf="isTicketCreated" class="ticket-status-display">
         <div class="alert alert-success" role="alert">
           <i class="bi bi-check-circle me-2"></i>
-          <strong>✅ Ticket {{ ticket_no }} created successfully!</strong>
+          <strong *ngIf="!isEditMode">✅ Ticket {{ ticket_no }} created successfully!</strong>
+          <strong *ngIf="isEditMode">📝 Editing ticket {{ ticket_no }}</strong>
           <br>
-          <small>You can now upload files or click Submit to finish.</small>
+          <small *ngIf="!isEditMode">You can now upload files or click Submit to finish.</small>
+          <small *ngIf="isEditMode">Make changes and click Update to save.</small>
         </div>
       </div>
 
       <!-- Auto-Save Indicator -->
-      <div *ngIf="isSubmitting && !isTicketCreated" class="auto-save-indicator saving">
+      <div *ngIf="isSubmitting && !isTicketCreated && !isEditMode" class="auto-save-indicator saving">
         <i class="bi bi-arrow-clockwise"></i>
         <span>Creating ticket...</span>
       </div>
 
       <div *ngIf="isTicketCreated && !isSubmitting" class="auto-save-indicator">
         <i class="bi bi-check-circle-fill"></i>
-        <span>Ticket saved</span>
+        <span *ngIf="!isEditMode">Ticket saved</span>
+        <span *ngIf="isEditMode">Ready to update</span>
+      </div>
+
+      <!-- ✅ NEW: Existing Attachments Section (Edit Mode Only) -->
+      <div *ngIf="isEditMode && hasExistingAttachments()" class="form-group existing-attachments-section">
+        <label class="form-label">
+          <span>Current Attachments</span>
+        </label>
+        
+        <div class="existing-attachments-grid">
+          <div *ngFor="let attachment of existingAttachments; let i = index" 
+               class="existing-attachment-item">
+            
+            <!-- Image Preview -->
+            <div class="attachment-preview" *ngIf="isExistingAttachmentImage(attachment)">
+              <img [src]="attachment.path" 
+                   [alt]="attachment.filename || 'Attachment'"
+                   loading="lazy"
+                   style="max-width: 100%; max-height: 150px; object-fit: cover; border-radius: 4px;">
+            </div>
+            
+            <!-- File Icon -->
+            <div class="attachment-file" *ngIf="!isExistingAttachmentImage(attachment)">
+              <div class="file-icon-container">
+                <i [class]="getExistingAttachmentIcon(attachment)"></i>
+              </div>
+              <div class="file-details">
+                <div class="file-name">{{ attachment.filename || 'Unknown file' }}</div>
+              </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="attachment-actions">
+              <button 
+                type="button" 
+                class="btn-download" 
+                (click)="downloadExistingAttachment(attachment)"
+                title="Download">
+                <i class="bi bi-download"></i>
+              </button>
+              <button 
+                type="button" 
+                class="btn-remove" 
+                (click)="removeExistingAttachment(i)"
+                title="Remove">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- File Attachment -->
       <div class="form-group">
         <label class="form-label">
-          <span>Attachment</span>
-          <!-- ✅ ไม่บังคับไฟล์แนบแล้ว -->
+          <span *ngIf="!isEditMode">Attachment</span>
+          <span *ngIf="isEditMode">Add New Attachments</span>
         </label>
         
         <!-- File Upload Instructions -->
@@ -263,7 +320,7 @@
              [class.has-errors]="fileErrors.length > 0">
           <!-- Files Container -->
           <div class="files-container">
-            <!-- ✅ File Upload Button - ลบ disabled แล้ว -->
+            <!-- File Upload Button -->
             <div class="file-upload-button">
               <label for="fileInput" class="upload-label">
                 <div class="upload-icon">
@@ -271,7 +328,7 @@
                 </div>
                 <span class="upload-text">Choose file</span>
               </label>
-              <!-- ✅ File Input - ลบ disabled แล้ว -->
+              <!-- File Input -->
               <input 
                 id="fileInput" 
                 type="file" 
@@ -368,7 +425,8 @@
         <div class="file-success" *ngIf="isTicketCreated && selectedFiles.length > 0 && fileErrors.length === 0">
           <div class="alert alert-info" role="alert">
             <i class="bi bi-info-circle me-2"></i>
-            <strong>ไฟล์จะถูกอัปโหลดอัตโนมัติ</strong> เมื่อคุณเลือกไฟล์
+            <strong *ngIf="!isEditMode">ไฟล์จะถูกอัปโหลดอัตโนมัติ</strong> เมื่อคุณเลือกไฟล์
+            <strong *ngIf="isEditMode">ไฟล์ใหม่จะถูกเพิ่มเมื่อคุณกด Update</strong>
           </div>
         </div>
       </div>
@@ -386,7 +444,7 @@
         </div>
       </div>
 
-      <!-- ✅ Submit Button - เป็นปุ่มเดียวสำหรับ New Ticket -->
+      <!-- ✅ UPDATED: Submit Button - แยกระหว่าง New และ Edit -->
       <div class="form-actions">
         <button 
           type="submit" 
@@ -396,16 +454,28 @@
           
           <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
           
-          <!-- ✅ ข้อความเดียว: New Ticket -->
-          <span *ngIf="!isSubmitting">New Ticket</span>
-          <span *ngIf="isSubmitting">Creating Ticket...</span>
+          <!-- ✅ UPDATED: ข้อความแยกระหว่าง New และ Edit -->
+          <span *ngIf="!isSubmitting">{{ getSubmitButtonText() }}</span>
+          <span *ngIf="isSubmitting && !isEditMode">Creating Ticket...</span>
+          <span *ngIf="isSubmitting && isEditMode">Updating Ticket...</span>
+        </button>
+        
+        <!-- ✅ NEW: Cancel Button สำหรับ Edit Mode -->
+        <button 
+          *ngIf="isEditMode"
+          type="button" 
+          class="btn btn-secondary ms-2"
+          (click)="resetForm()"
+          [disabled]="isSubmitting">
+          Cancel
         </button>
         
         <!-- Submit Status -->
         <div class="submit-status mt-2" *ngIf="isSubmitting">
           <small class="text-muted">
             <i class="bi bi-clock me-1"></i>
-            กำลังสร้างตั๋ว กรุณารอสักครู่...
+            <span *ngIf="!isEditMode">กำลังสร้างตั๋ว กรุณารอสักครู่...</span>
+            <span *ngIf="isEditMode">กำลังอัปเดตตั๋ว กรุณารอสักครู่...</span>
           </small>
         </div>
       </div>

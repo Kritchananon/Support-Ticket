@@ -48,6 +48,11 @@ export const routes: Routes = [
             component: TicketCreateComponent
           },
           {
+            path: 'edit/:ticket_no',
+            component: TicketCreateComponent,
+            title: 'Edit Ticket'
+          },
+          {
             // ✅ แก้ไข: เปลี่ยนจาก :id เป็น :ticketNo เพื่อรับ ticket_no แทน ticket_id
             path: ':ticket_no',
             component: TicketDetailComponent

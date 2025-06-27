@@ -108,6 +108,29 @@ export interface TicketData {
   isenabled?: boolean;
 }
 
+// ✅ เพิ่ม interfaces สำหรับ Update และ Delete Ticket APIs
+export interface UpdateTicketRequest {
+  status_id?: number;
+  fix_issue_description?: string;
+  estimate_time?: string;
+  due_date?: string;
+  lead_time?: string;
+  change_request?: string;
+  related_ticket_id?: number;
+}
+
+export interface UpdateTicketResponse {
+  code: number;
+  message: string;
+  data: any;
+}
+
+export interface DeleteTicketResponse {
+  code: number;
+  message: string;
+  data: null;
+}
+
 // ✅ เพิ่ม interfaces สำหรับ getAllMasterFilter API
 export interface MasterFilterCategory {
   id: number;
@@ -353,6 +376,70 @@ export class ApiService {
     }
     
     return throwError(() => errorMessage);
+  }
+
+  // ===== NEW: Update และ Delete Ticket Methods ===== ✅
+  
+  /**
+   * อัปเดต ticket โดยใช้ ticket_no (สำหรับการเปลี่ยนสถานะเป็น Resolved)
+   */
+  updateTicketByTicketNo(ticket_no: string, data: UpdateTicketRequest): Observable<UpdateTicketResponse> {
+    console.log('Calling updateTicketByTicketNo API with:', { ticket_no, data });
+    
+    return this.http.put<UpdateTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, data, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('updateTicketByTicketNo API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * ลบ ticket โดยใช้ ticket_no (Soft Delete)
+   */
+  deleteTicketByTicketNo(ticket_no: string): Observable<DeleteTicketResponse> {
+    console.log('Calling deleteTicketByTicketNo API with ticket_no:', ticket_no);
+    
+    return this.http.delete<DeleteTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('deleteTicketByTicketNo API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * เปลี่ยนสถานะ ticket เป็น Resolved
+   */
+  resolveTicket(ticket_no: string, fix_description?: string): Observable<UpdateTicketResponse> {
+    const updateData: UpdateTicketRequest = {
+      status_id: 4, // Resolved status
+      fix_issue_description: fix_description || 'Ticket has been resolved'
+    };
+
+    return this.updateTicketByTicketNo(ticket_no, updateData);
+  }
+
+  /**
+   * เปลี่ยนสถานะ ticket เป็น Completed
+   */
+  completeTicket(ticket_no: string): Observable<UpdateTicketResponse> {
+    const updateData: UpdateTicketRequest = {
+      status_id: 5 // Completed status
+    };
+
+    return this.updateTicketByTicketNo(ticket_no, updateData);
+  }
+
+  /**
+   * เปลี่ยนสถานะ ticket เป็น Cancelled
+   */
+  cancelTicket(ticket_no: string): Observable<UpdateTicketResponse> {
+    const updateData: UpdateTicketRequest = {
+      status_id: 6 // Cancel status
+    };
+
+    return this.updateTicketByTicketNo(ticket_no, updateData);
   }
 
   // ===== Get All Tickets API ===== ✅

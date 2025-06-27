@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, ViewEncapsulation, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { TicketService } from '../../../shared/services/ticket.service';
@@ -28,6 +28,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute); // ✅ เพิ่ม ActivatedRoute
   private ticketService = inject(TicketService);
   private cdr = inject(ChangeDetectorRef);
 
@@ -53,7 +54,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   
   autoNavigationTimer: any = null;
 
-  // ✅ แก้ไข: เปลี่ยนจาก ticketId เป็น ticketNo สำหรับการ navigate
+  // ✅ NEW: Edit Mode Properties
+  isEditMode = false;
+  editTicketNo: string = '';
+  originalTicketData: any = null;
+  existingAttachments: any[] = [];
+
   ticketId: number | null = null;
   ticket_no: string = '';
   isTicketCreated = false;
@@ -78,13 +84,16 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
     
-    this.restoreIncompleteTicket();
+    // ✅ NEW: ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
+    this.checkEditMode();
     
     this.ticketForm.get('issueDescription')?.valueChanges
       .pipe(debounceTime(1000))
       .subscribe(value => {
         console.log('Issue Description changed:', value);
-        this.onFormCompleted();
+        if (!this.isEditMode) {
+          this.onFormCompleted();
+        }
       });
   }
 
@@ -98,9 +107,227 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     if (this.autoNavigationTimer) {
       clearTimeout(this.autoNavigationTimer);
     }
+
+    // ✅ NEW: ลบข้อมูล edit ออกจาก localStorage เมื่อออกจากหน้า
+    this.clearEditData();
   }
 
+  // ===== NEW: Edit Mode Methods ===== ✅
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
+   */
+  private checkEditMode(): void {
+    // ตรวจสอบจาก URL parameter
+    this.editTicketNo = this.route.snapshot.params['ticket_no'];
+    
+    if (this.editTicketNo) {
+      console.log('Edit mode detected for ticket:', this.editTicketNo);
+      this.isEditMode = true;
+      this.restoreEditTicketData();
+    } else {
+      console.log('Create mode detected');
+      this.isEditMode = false;
+      this.restoreIncompleteTicket();
+    }
+  }
+
+  /**
+   * ✅ NEW: กู้คืนข้อมูล ticket สำหรับการแก้ไข
+   */
+  private restoreEditTicketData(): void {
+    try {
+      const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+      if (!currentUserId) {
+        console.log('No current user ID found');
+        this.backToTicketDetail();
+        return;
+      }
+
+      const editStorageKey = `editTicket_${currentUserId}_${this.editTicketNo}`;
+      const editTicketData = localStorage.getItem(editStorageKey);
+      
+      if (editTicketData) {
+        const ticketData = JSON.parse(editTicketData);
+        console.log('Found edit ticket data:', ticketData);
+        
+        // ตรวจสอบความถูกต้องของข้อมูล
+        if (ticketData.userId !== currentUserId || !ticketData.isEditMode) {
+          console.log('Invalid edit data, clearing');
+          localStorage.removeItem(editStorageKey);
+          this.backToTicketDetail();
+          return;
+        }
+
+        // เซ็ต properties สำหรับ edit mode
+        this.isEditMode = true;
+        this.ticketId = ticketData.ticketId;
+        this.ticket_no = ticketData.ticket_no;
+        this.isTicketCreated = true;
+        this.originalTicketData = ticketData;
+        this.existingAttachments = ticketData.existingAttachments || [];
+        
+        // กรอกข้อมูลในฟอร์ม
+        this.ticketForm.patchValue({
+          projectId: ticketData.formData.projectId,
+          categoryId: ticketData.formData.categoryId,
+          issueDescription: ticketData.formData.issueDescription
+        });
+        
+        this.selectedProject = ticketData.selectedProject;
+        this.selectedCategory = ticketData.selectedCategory;
+        
+        // อัปเดต UI
+        setTimeout(() => {
+          this.updateUIFromRestoredData(ticketData);
+          this.addSuccessState();
+        }, 500);
+        
+        console.log('Edit mode initialized for ticket:', this.ticket_no);
+      } else {
+        console.log('No edit data found, redirecting back');
+        this.backToTicketDetail();
+      }
+    } catch (error) {
+      console.error('Error restoring edit ticket data:', error);
+      this.backToTicketDetail();
+    }
+  }
+
+  /**
+   * ✅ NEW: กลับไปหน้า ticket detail
+   */
+  private backToTicketDetail(): void {
+    if (this.editTicketNo) {
+      this.router.navigate(['/tickets', this.editTicketNo]);
+    } else {
+      this.router.navigate(['/tickets']);
+    }
+  }
+
+  /**
+   * ✅ NEW: ลบข้อมูล edit ออกจาก localStorage
+   */
+  private clearEditData(): void {
+    if (this.isEditMode && this.editTicketNo) {
+      const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
+      if (currentUserId) {
+        const editStorageKey = `editTicket_${currentUserId}_${this.editTicketNo}`;
+        localStorage.removeItem(editStorageKey);
+        console.log('Cleared edit data from localStorage');
+      }
+    }
+  }
+
+  /**
+   * ✅ NEW: อัปเดต ticket ที่มีอยู่แล้ว
+   */
+  private updateExistingTicket(): void {
+    if (!this.ticketId) {
+      console.error('No ticket ID for update');
+      return;
+    }
+
+    this.isSubmitting = true;
+    
+    const formData = this.ticketForm.value;
+    
+    const updateData = {
+      project_id: parseInt(formData.projectId),
+      categories_id: parseInt(formData.categoryId),
+      issue_description: formData.issueDescription
+    };
+
+    console.log('Updating existing ticket with data:', updateData);
+
+    // ใช้ saveTicket API แต่ส่ง ticket_id ด้วย
+    this.apiService.updateTicketData(this.ticketId, updateData).subscribe({
+      next: (response) => {
+        console.log('updateTicketData response:', response);
+        
+        if (response.code === 1) {
+          console.log('Ticket updated successfully');
+          
+          // อัปโหลดไฟล์ใหม่ (ถ้ามี)
+          if (this.selectedFiles.length > 0) {
+            this.uploadFilesToExistingTicket(this.selectedFiles);
+          } else {
+            this.completeTicketUpdate();
+          }
+        } else {
+          this.onUpdateError('Failed to update ticket: ' + response.message);
+        }
+      },
+      error: (error) => {
+        console.error('Error updating ticket:', error);
+        this.onUpdateError('เกิดข้อผิดพลาดในการอัปเดตตั๋ว');
+      }
+    });
+  }
+
+  /**
+   * ✅ NEW: จัดการข้อผิดพลาดในการอัปเดต
+   */
+  private onUpdateError(error: any): void {
+    let message = 'เกิดข้อผิดพลาดในการอัปเดตตั๋ว';
+    
+    if (typeof error === 'string') {
+      message = error;
+    } else if (error && error.message) {
+      message = error.message;
+    }
+    
+    console.error('Update error:', error);
+    
+    this.alertMessage = message;
+    this.alertType = 'error';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+  }
+
+  /**
+   * ✅ NEW: เสร็จสิ้นการอัปเดต ticket
+   */
+  private completeTicketUpdate(): void {
+    console.log('Ticket update completed');
+    
+    this.clearEditData();
+    
+    this.alertMessage = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
+    this.alertType = 'success';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+
+    // นำทางกลับไปหน้า ticket detail
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticket_no && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 2000);
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับชื่อหน้าที่ถูกต้อง
+   */
+  getPageTitle(): string {
+    return this.isEditMode ? 'Edit Ticket' : 'New Ticket';
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับข้อความปุ่มที่ถูกต้อง
+   */
+  getSubmitButtonText(): string {
+    if (this.isSubmitting) {
+      return this.isEditMode ? 'Updating Ticket...' : 'Creating Ticket...';
+    }
+    return this.isEditMode ? 'Update Ticket' : 'New Ticket';
+  }
+
+  // ===== UPDATED: Existing Methods ===== ✅
+
   private restoreIncompleteTicket(): void {
+    if (this.isEditMode) return; // ถ้าเป็น edit mode ไม่ต้อง restore incomplete ticket
+    
     try {
       const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
       if (!currentUserId) {
@@ -177,6 +404,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private saveIncompleteTicket(): void {
+    if (this.isEditMode) return; // ไม่ save incomplete ticket ในโหมดแก้ไข
+    
     if (this.isTicketCreated && this.ticketId) {
       const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
       if (!currentUserId) {
@@ -205,6 +434,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private clearIncompleteTicket(): void {
+    if (this.isEditMode) return; // ไม่ clear incomplete ticket ในโหมดแก้ไข
+    
     const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
     if (currentUserId) {
       localStorage.removeItem(`incompleteTicket_${currentUserId}`);
@@ -221,7 +452,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
     
     console.log('Project selected:', event);
-    this.onFormCompleted();
+    if (!this.isEditMode) {
+      this.onFormCompleted();
+    }
   }
 
   onCategoryChange(event: { category: any, categoryId: string | number }): void {
@@ -233,10 +466,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
     
     console.log('Category selected:', event);
-    this.onFormCompleted();
+    if (!this.isEditMode) {
+      this.onFormCompleted();
+    }
   }
 
   onFormCompleted(): void {
+    if (this.isEditMode) return; // ไม่ auto-create ในโหมดแก้ไข
+    
     const validation = this.validateFormForAutoSave();
     
     if (validation.isValid && !this.isTicketCreated && !this.isSubmitting) {
@@ -269,6 +506,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private createTicketAutomatically(): void {
+    if (this.isEditMode) return; // ไม่ auto-create ในโหมดแก้ไข
+    
     this.isSubmitting = true;
     
     const formData = this.ticketForm.value;
@@ -356,18 +595,21 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     
-    const validation = this.validateFormForAutoSave();
-    if (!validation.isValid) {
-      input.value = '';
-      
-      this.alertMessage = 'กรุณากรอกข้อมูลให้ครบก่อน';
-      this.alertType = 'error';
-      this.showCustomAlert = true;
-      
-      this.showValidationErrors = true;
-      this.markFieldsAsInvalid();
-      
-      return;
+    // ✅ ในโหมดแก้ไข ไม่ต้องตรวจสอบ form validation
+    if (!this.isEditMode) {
+      const validation = this.validateFormForAutoSave();
+      if (!validation.isValid) {
+        input.value = '';
+        
+        this.alertMessage = 'กรุณากรอกข้อมูลให้ครบก่อน';
+        this.alertType = 'error';
+        this.showCustomAlert = true;
+        
+        this.showValidationErrors = true;
+        this.markFieldsAsInvalid();
+        
+        return;
+      }
     }
 
     if (input.files) {
@@ -523,7 +765,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
-    console.log('Submit button clicked');
+    console.log('Submit button clicked, Edit mode:', this.isEditMode);
     
     const validation = this.validateFormForAutoSave();
     
@@ -535,6 +777,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.showValidationErrors = true;
       this.markFieldsAsInvalid();
       
+      return;
+    }
+    
+    // ✅ NEW: แยกการทำงานระหว่าง edit และ create
+    if (this.isEditMode) {
+      this.updateExistingTicket();
       return;
     }
     
@@ -556,7 +804,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     
     setTimeout(() => {
       this.isSubmitting = false;
-      this.completedTicketCreation();
+      if (this.isEditMode) {
+        this.completeTicketUpdate();
+      } else {
+        this.completedTicketCreation();
+      }
     }, 2000);
   }
 
@@ -569,7 +821,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.alertType = 'success';
     this.showCustomAlert = true;
 
-    // ✅ แก้ไข: ใช้ ticketNo แทน ticketId สำหรับการ navigate
     this.autoNavigationTimer = setTimeout(() => {
       if (this.ticket_no && !this.isNavigating) {
         this.navigateToTicketDetail();
@@ -577,7 +828,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, 3000);
   }
 
-  // ✅ แก้ไข: ใช้ ticketNo แทน ticketId สำหรับการ navigate
   private navigateToTicketDetail(): void {
     if (this.ticket_no) {
       console.log('Navigating to ticket detail with ticket_no:', this.ticket_no);
@@ -589,7 +839,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.autoNavigationTimer = null;
       }
       
-      // ✅ เปลี่ยนจาก ticketId เป็น ticketNo
       this.router.navigate(['/tickets', this.ticket_no]);
     }
   }
@@ -598,6 +847,13 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     if (this.autoNavigationTimer) {
       clearTimeout(this.autoNavigationTimer);
       this.autoNavigationTimer = null;
+    }
+    
+    // ✅ NEW: แยกการ clear ระหว่าง edit และ create mode
+    if (this.isEditMode) {
+      this.clearEditData();
+      this.backToTicketDetail();
+      return;
     }
     
     this.clearIncompleteTicket();
@@ -649,6 +905,26 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   get hasUnsavedChanges(): boolean {
+    if (this.isEditMode) {
+      // ในโหมดแก้ไข ตรวจสอบว่ามีการเปลี่ยนแปลงหรือไม่
+      if (!this.originalTicketData) return false;
+      
+      const currentFormData = {
+        projectId: this.ticketForm.get('projectId')?.value,
+        categoryId: this.ticketForm.get('categoryId')?.value,
+        issueDescription: this.ticketForm.get('issueDescription')?.value
+      };
+      
+      const originalFormData = this.originalTicketData.formData;
+      
+      return (
+        currentFormData.projectId !== originalFormData.projectId ||
+        currentFormData.categoryId !== originalFormData.categoryId ||
+        currentFormData.issueDescription !== originalFormData.issueDescription ||
+        this.selectedFiles.length > 0
+      );
+    }
+    
     return this.isFormCompleted && !this.isTicketCreated;
   }
 
@@ -730,7 +1006,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.validationErrors['issueDescription'] = false;
     }
     
-    if (this.isTicketCreated) {
+    // ✅ UPDATED: บันทึกข้อมูลต่างกันระหว่าง edit และ create mode
+    if (this.isEditMode) {
+      // ในโหมดแก้ไข ไม่ต้องบันทึก localStorage
+      console.log('Edit mode: Description updated');
+    } else if (this.isTicketCreated) {
       this.saveIncompleteTicket();
     }
   }
@@ -756,7 +1036,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
   
   onAlertClosed(): void {
-    // ✅ แก้ไข: ใช้ ticketNo แทน ticketId
     if (this.alertType === 'success' && this.ticket_no && !this.isNavigating) {
       this.navigateToTicketDetail();
     } else {
@@ -787,15 +1066,109 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.autoNavigationTimer = null;
     }
     
-    // ✅ แก้ไข: ใช้ ticketNo แทน ticketId
-    if (this.isTicketCreated && this.ticket_no) {
-      this.saveIncompleteTicket();
+    // ✅ UPDATED: จัดการ localStorage ต่างกันระหว่าง edit และ create mode
+    if (this.isEditMode) {
+      // ในโหมดแก้ไข ไม่ต้องบันทึก incomplete ticket
+      if (this.hasUnsavedChanges) {
+        event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return false;
+      }
+    } else {
+      // ในโหมดสร้างใหม่ บันทึก incomplete ticket ตามเดิม
+      if (this.isTicketCreated && this.ticket_no) {
+        this.saveIncompleteTicket();
+      }
+      
+      if (this.hasUnsavedChanges) {
+        event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return false;
+      }
     }
     
-    if (this.hasUnsavedChanges) {
-      event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-      return false;
-    }
     return true;
+  }
+
+  // ===== NEW: Helper Methods for Edit Mode ===== ✅
+
+  /**
+   * ✅ NEW: ตรวจสอบว่ามี existing attachments หรือไม่
+   */
+  hasExistingAttachments(): boolean {
+    return this.isEditMode && this.existingAttachments.length > 0;
+  }
+
+  /**
+   * ✅ NEW: ลบ existing attachment
+   */
+  removeExistingAttachment(index: number): void {
+    if (this.existingAttachments[index]) {
+      // ในที่นี้คุณอาจต้องเรียก API เพื่อลบไฟล์จริงๆ
+      console.log('Removing existing attachment:', this.existingAttachments[index]);
+      this.existingAttachments.splice(index, 1);
+    }
+  }
+
+  /**
+   * ✅ NEW: ดาวน์โหลด existing attachment
+   */
+  downloadExistingAttachment(attachment: any): void {
+    if (attachment.path.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = attachment.path;
+      link.download = attachment.filename || `attachment_${attachment.attachment_id}`;
+      link.click();
+    } else {
+      window.open(attachment.path, '_blank');
+    }
+    
+    console.log('Downloading existing attachment:', attachment);
+  }
+
+  /**
+   * ✅ NEW: ได้รับไอคอนสำหรับ existing attachment
+   */
+  getExistingAttachmentIcon(attachment: any): string {
+    if (!attachment.filename && !attachment.file_type) {
+      return 'bi-file-earmark-fill';
+    }
+    
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+    
+    if (fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i)) {
+      return 'bi-image-fill';
+    }
+    
+    if (fileType.includes('pdf') || filename.match(/\.pdf$/i)) {
+      return 'bi-file-earmark-pdf-fill';
+    }
+    
+    if (fileType.includes('excel') || fileType.includes('spreadsheet') || filename.match(/\.(xls|xlsx|csv)$/i)) {
+      return 'bi-file-earmark-excel-fill';
+    }
+    
+    if (fileType.includes('word') || fileType.includes('document') || filename.match(/\.(doc|docx|rtf)$/i)) {
+      return 'bi-file-earmark-word-fill';
+    }
+    
+    if (fileType.includes('text') || filename.match(/\.(txt|log|md|json|xml)$/i)) {
+      return 'bi-file-earmark-text-fill';
+    }
+    
+    return 'bi-file-earmark-fill';
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า existing attachment เป็นรูปภาพหรือไม่
+   */
+  isExistingAttachmentImage(attachment: any): boolean {
+    if (attachment.path && attachment.path.startsWith('data:image/')) {
+      return true;
+    }
+    
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+    
+    return fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
   }
 }

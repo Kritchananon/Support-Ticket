@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
@@ -53,7 +54,7 @@ interface TicketData {
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './ticket-detail.component.html',
   styleUrls: ['./ticket-detail.component.css']
 })
@@ -66,12 +67,16 @@ export class TicketDetailComponent implements OnInit {
   ticketData: TicketData | null = null;
   isLoading = false;
   error = '';
-  // ✅ แก้ไข: เปลี่ยนจาก ticketId เป็น ticketNo
   ticket_no: string = '';
   
   // Rating properties
   currentRating = 0;
   hoverRating = 0;
+
+  // ✅ UPDATED: เปลี่ยนจาก Resolved เป็น Edit properties
+  isUpdating = false;
+  isDeleting = false;
+  isEditing = false;
 
   attachmentTypes: { [key: number]: {
     type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
@@ -81,7 +86,6 @@ export class TicketDetailComponent implements OnInit {
   } } = {};
 
   ngOnInit(): void {
-    // ✅ แก้ไข: ดึง ticketNo จาก route parameter แทน id
     this.ticket_no = this.route.snapshot.params['ticket_no'];
     if (this.ticket_no) {
       this.loadTicketDetail();
@@ -90,16 +94,250 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ แก้ไข: ใช้ getTicketData method ที่มีอยู่แล้ว
+  // ===== UPDATED: Edit Methods ===== ✅
+
+  /**
+   * ✅ UPDATED: จัดการการแก้ไข ticket - นำทางไปหน้า edit
+   */
+  onEditTicket(): void {
+    if (!this.ticketData?.ticket?.ticket_no) {
+      console.error('No ticket number available for edit');
+      return;
+    }
+
+    const ticketNo = this.ticketData.ticket.ticket_no;
+    const currentStatus = this.ticketData.ticket.status_id;
+    
+    // ตรวจสอบสถานะปัจจุบัน
+    if (currentStatus === 5) {
+      alert('Ticket นี้เสร็จสิ้นแล้ว ไม่สามารถแก้ไขได้');
+      return;
+    }
+    
+    if (currentStatus === 6) {
+      alert('Ticket นี้ถูกยกเลิกแล้ว ไม่สามารถแก้ไขได้');
+      return;
+    }
+
+    // ✅ NEW: เซฟข้อมูลไปยัง localStorage สำหรับการแก้ไข
+    this.saveTicketDataForEdit();
+    
+    // ✅ NEW: นำทางไปหน้า edit ticket (ใช้หน้า new ticket แต่โหมดแก้ไข)
+    this.router.navigate(['/tickets/edit', ticketNo]);
+  }
+
+  /**
+   * ✅ NEW: บันทึกข้อมูล ticket ไปยัง localStorage สำหรับการแก้ไข
+   */
+  private saveTicketDataForEdit(): void {
+    if (!this.ticketData?.ticket) {
+      return;
+    }
+
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id || currentUser?.user_id;
+    
+    if (!currentUserId) {
+      console.error('No current user ID found');
+      return;
+    }
+
+    // ✅ NEW: สร้างข้อมูลสำหรับการแก้ไข
+    const editTicketData = {
+      userId: currentUserId,
+      ticketId: this.ticketData.ticket.id,
+      ticket_no: this.ticketData.ticket.ticket_no,
+      isEditMode: true, // ✅ บอกว่าเป็นโหมดแก้ไข
+      isTicketCreated: true,
+      formData: {
+        projectId: this.ticketData.ticket.project_id,
+        categoryId: this.ticketData.ticket.categories_id,
+        issueDescription: this.ticketData.ticket.issue_description
+      },
+      selectedProject: {
+        id: this.ticketData.ticket.project_id,
+        projectName: this.ticketData.ticket.project_name
+      },
+      selectedCategory: {
+        id: this.ticketData.ticket.categories_id,
+        categoryName: this.ticketData.ticket.categories_name
+      },
+      // ✅ เก็บข้อมูล attachments ด้วย
+      existingAttachments: this.ticketData.issue_attachment.map(attachment => ({
+        attachment_id: attachment.attachment_id,
+        path: attachment.path,
+        filename: attachment.filename,
+        file_type: attachment.file_type,
+        file_size: attachment.file_size
+      })),
+      timestamp: new Date().getTime()
+    };
+    
+    // ✅ บันทึกลง localStorage ด้วย key ที่แตกต่าง
+    const storageKey = `editTicket_${currentUserId}_${this.ticketData.ticket.ticket_no}`;
+    localStorage.setItem(storageKey, JSON.stringify(editTicketData));
+    
+    console.log('Saved ticket data for editing:', editTicketData);
+  }
+
+  /**
+   * จัดการการลบ ticket (คงเดิม)
+   */
+  onDeleteTicket(): void {
+    if (!this.ticketData?.ticket?.ticket_no) {
+      console.error('No ticket number available for deletion');
+      return;
+    }
+
+    const ticketNo = this.ticketData.ticket.ticket_no;
+    
+    const confirmMessage = `คุณแน่ใจหรือไม่ที่ต้องการลบ ticket ${ticketNo}?\n\nการลบนี้ไม่สามารถยกเลิกได้`;
+    
+    if (confirm(confirmMessage)) {
+      this.deleteTicket(ticketNo);
+    }
+  }
+
+  /**
+   * ลบ ticket จริง (คงเดิม)
+   */
+  private deleteTicket(ticket_no: string): void {
+    this.isDeleting = true;
+    
+    console.log('Deleting ticket:', ticket_no);
+    
+    this.apiService.deleteTicketByTicketNo(ticket_no).subscribe({
+      next: (response) => {
+        console.log('Delete ticket response:', response);
+        
+        if (response.code === 1) {
+          alert('ลบ ticket สำเร็จแล้ว');
+          this.clearLocalStorageData();
+          this.backToList();
+        } else {
+          console.error('Delete failed:', response.message);
+          alert(`ไม่สามารถลบ ticket ได้: ${response.message}`);
+        }
+        
+        this.isDeleting = false;
+      },
+      error: (error) => {
+        console.error('Delete ticket error:', error);
+        alert(`เกิดข้อผิดพลาดในการลบ ticket: ${error}`);
+        this.isDeleting = false;
+      }
+    });
+  }
+
+  /**
+   * ลบข้อมูลใน localStorage
+   */
+  private clearLocalStorageData(): void {
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id || currentUser?.user_id;
+    
+    if (currentUserId) {
+      // ลบทั้ง incomplete และ edit data
+      const incompleteKey = `incompleteTicket_${currentUserId}`;
+      const editKey = `editTicket_${currentUserId}_${this.ticket_no}`;
+      
+      localStorage.removeItem(incompleteKey);
+      localStorage.removeItem(editKey);
+      
+      console.log('Cleared localStorage data for deleted ticket');
+    }
+  }
+
+  /**
+   * ✅ UPDATED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่
+   */
+  canEdit(): boolean {
+    if (!this.ticketData?.ticket) {
+      return false;
+    }
+    
+    const status = this.ticketData.ticket.status_id;
+    // สามารถแก้ไขได้เฉพาะสถานะ Pending (1), Open (2), In Progress (3), Resolved (4)
+    return [1, 2, 3, 4].includes(status);
+  }
+
+  /**
+   * ตรวจสอบว่าสามารถลบได้หรือไม่ (คงเดิม)
+   */
+  canDelete(): boolean {
+    if (!this.ticketData?.ticket) {
+      return false;
+    }
+    
+    const status = this.ticketData.ticket.status_id;
+    // สามารถลบได้เฉพาะสถานะที่ยังไม่เสร็จสิ้น
+    return ![5, 6].includes(status);
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับข้อความสถานะสำหรับปุ่ม Edit
+   */
+  getEditButtonText(): string {
+    if (!this.ticketData?.ticket) {
+      return 'Edit';
+    }
+    
+    const status = this.ticketData.ticket.status_id;
+    
+    switch (status) {
+      case 5:
+        return 'Completed';
+      case 6:
+        return 'Cancelled';
+      default:
+        return 'Edit';
+    }
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับคลาส CSS สำหรับปุ่ม Edit
+   */
+  getEditButtonClass(): string {
+    if (!this.canEdit()) {
+      return 'btn-edit disabled';
+    }
+    
+    return 'btn-edit';
+  }
+
+  /**
+   * ได้รับคลาส CSS สำหรับปุ่ม Delete (คงเดิม)
+   */
+  getDeleteButtonClass(): string {
+    if (!this.canDelete()) {
+      return 'btn-delete disabled';
+    }
+    
+    return 'btn-delete';
+  }
+
+  // ===== EXISTING METHODS (เดิม) ===== ✅
+
+  private getTicketByTicketNo(ticket_no: string): void {
+    console.log('=== getTicketByTicketNo ===');
+    console.log('Input ticket_no:', ticket_no);
+    
+    if (!ticket_no || ticket_no.trim() === '') {
+      console.error('❌ Empty ticket_no');
+      this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
+      this.isLoading = false;
+      return;
+    }
+
+    this.callGetTicketDataAPI(ticket_no);
+  }
+
   private callGetTicketDataAPI(ticket_no: string): void {
     console.log('=== callGetTicketDataAPI ===');
     console.log('ticket_no:', ticket_no);
     
-    // ✅ ส่ง ticket_no ไปยัง method เดิม
     const requestData = { ticket_no: ticket_no };
     
-    // ✅ ใช้ method getTicketData ที่มีอยู่แล้ว
-    // แต่ส่ง ticket_no แทน ticket_id
     this.apiService.getTicketData(requestData).subscribe({
       next: (response: any) => {
         console.log('=== API Response ===');
@@ -137,26 +375,6 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  // ✅ แก้ไข getTicketByTicketNo method
-  private getTicketByTicketNo(ticket_no: string): void {
-    console.log('=== getTicketByTicketNo ===');
-    console.log('Input ticket_no:', ticket_no);
-    
-    if (!ticket_no || ticket_no.trim() === '') {
-      console.error('❌ Empty ticket_no');
-      this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
-      this.isLoading = false;
-      return;
-    }
-
-    // ✅ เรียก method ที่แก้ไขแล้ว
-    this.callGetTicketDataAPI(ticket_no);
-  }
-
-  // ✅ ลบ method extractTicketIdFromTicketNo เพราะไม่ต้องใช้แล้ว
-  // Backend ต้องการ ticket_no โดยตรง
-
-  // ✅ แก้ไข loadTicketDetail method
   loadTicketDetail(): void {
     console.log('=== loadTicketDetail ===');
     console.log('ticket_no:', this.ticket_no);
@@ -164,11 +382,9 @@ export class TicketDetailComponent implements OnInit {
     this.isLoading = true;
     this.error = '';
 
-    // ✅ เรียกใช้ method ที่แก้ไขแล้ว
     this.getTicketByTicketNo(this.ticket_no);
   }
 
-  // ✅ เก็บ method validation และ helper methods
   private isValidTicketData(data: any): boolean {
     if (!data || typeof data !== 'object') {
       return false;
@@ -860,18 +1076,6 @@ export class TicketDetailComponent implements OnInit {
       return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
     }
     return '';
-  }
-
-  onEditTicket(): void {
-    if (confirm('คุณต้องการแก้ไข status เป็น Resolved หรือไม่?')) {
-      console.log('Edit ticket status to Resolved:', this.ticket_no);
-    }
-  }
-
-  onDeleteTicket(): void {
-    if (confirm('คุณแน่ใจหรือไม่ที่ต้องการลบ ticket นี้?')) {
-      console.log('Delete ticket:', this.ticket_no);
-    }
   }
 
   onDownloadAttachment(attachmentId: number, path: string): void {

@@ -37,7 +37,7 @@
     <!-- Main Content Area -->
     <div class="main-content-area">
       <!-- Main Ticket Information Card -->
-      <div class="ticket-card">
+      <div class="ticket-card" [attr.data-updating]="isUpdating">
         <!-- Ticket Header -->
         <div class="ticket-header">
           <div class="ticket-header-left">
@@ -50,14 +50,33 @@
             </div>
           </div>
           
+          <!-- ✅ UPDATED: Changed Resolved Button to Edit Button -->
           <div class="ticket-header-right">
             <div class="action-buttons">
-              <button class="btn-delete" (click)="onDeleteTicket()">
-                Delete
+              <!-- ปุ่ม Delete - คงเดิม -->
+              <button 
+                [class]="getDeleteButtonClass()" 
+                (click)="onDeleteTicket()"
+                [disabled]="!canDelete() || isDeleting"
+                [title]="canDelete() ? 'ลบ ticket นี้' : 'ไม่สามารถลบ ticket ในสถานะนี้ได้'">
+                
+                <!-- แสดง loading spinner เมื่อกำลังลบ -->
+                <span *ngIf="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <span *ngIf="!isDeleting">Delete</span>
+                <span *ngIf="isDeleting">Deleting...</span>
               </button>
-              <button class="btn-edit" (click)="onEditTicket()">
-                <i class="bi bi-pencil"></i>
-                <span>Resolved</span>
+              
+              <!-- ✅ UPDATED: ปุ่ม Edit - เปลี่ยนจาก Resolved -->
+              <button 
+                [class]="getEditButtonClass()" 
+                (click)="onEditTicket()"
+                [disabled]="!canEdit() || isEditing"
+                [title]="canEdit() ? 'แก้ไข ticket นี้' : 'ไม่สามารถแก้ไขในสถานะนี้ได้'">
+                
+                <!-- แสดง loading spinner เมื่อกำลังไปหน้าแก้ไข -->
+                <span *ngIf="isEditing" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <i class="bi bi-pencil" *ngIf="!isEditing"></i>
+                <span>{{ getEditButtonText() }}</span>
               </button>
             </div>
           </div>
@@ -112,7 +131,7 @@
           </div>
         </div>
 
-        <!-- ✅ Attachments Section - อัปเดตแล้ว -->
+        <!-- Attachments Section -->
         <div class="attachments-section">
           <div class="attachment-label">Attachment:</div>
           <div class="attachment-grid">
@@ -120,14 +139,14 @@
                  class="attachment-item"
                  (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
               
-              <!-- ✅ Loading State -->
+              <!-- Loading State -->
               <div class="attachment-loading" 
                    *ngIf="getFileInfo(attachment.attachment_id).isLoading">
                 <i class="bi bi-hourglass-split"></i>
                 <div class="loading-text">Analyzing...</div>
               </div>
               
-              <!-- ✅ แสดงรูปภาพ preview โดยใช้ข้อมูลที่วิเคราะห์แล้ว -->
+              <!-- แสดงรูปภาพ preview โดยใช้ข้อมูลที่วิเคราะห์แล้ว -->
               <div class="attachment-preview" 
                    *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
                 <img [src]="attachment.path" 
@@ -144,7 +163,7 @@
                 </div>
               </div>
               
-              <!-- ✅ แสดง file icon สำหรับไฟล์ที่ไม่ใช่รูปภาพ -->
+              <!-- แสดง file icon สำหรับไฟล์ที่ไม่ใช่รูปภาพ -->
               <div class="attachment-file" 
                    *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
                 
