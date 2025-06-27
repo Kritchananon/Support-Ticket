@@ -134,6 +134,36 @@ export interface MasterFilterResponse {
   data: MasterFilterData | null;
 }
 
+// ✅ เพิ่ม interfaces สำหรับ getAllTicket API
+export interface GetAllTicketRequest {
+  // ไม่มี parameters เพิ่มเติม เพราะ userId จะมาจาก JWT token
+}
+
+export interface GetAllTicketResponse {
+  success: boolean;
+  data?: AllTicketData[];
+  message?: string;
+  debug?: {
+    userId: number;
+    ticketCount: number;
+  };
+}
+
+export interface AllTicketData {
+  ticket_no: string;
+  categories_id: number;
+  project_id: number;
+  issue_description: string;
+  status_id: number;
+  create_by: number;
+  create_date: string;
+  // เพิ่มข้อมูลที่อาจจะได้จาก join หรือ mapping
+  category_name?: string;
+  project_name?: string;
+  user_name?: string;
+  priority?: string;
+}
+
 // ✅ เพิ่ม interfaces สำหรับ saveTicket API
 export interface SaveTicketRequest {
   ticket_id?: number;           
@@ -323,6 +353,90 @@ export class ApiService {
     }
     
     return throwError(() => errorMessage);
+  }
+
+  // ===== Get All Tickets API ===== ✅
+  /**
+   * เรียก API getAllTicket เพื่อดึงข้อมูล tickets ทั้งหมดของ user ปัจจุบัน
+   * userId จะถูกดึงจาก JWT token อัตโนมัติ
+   */
+  getAllTickets(): Observable<GetAllTicketResponse> {
+    console.log('Calling getAllTicket API');
+    
+    const requestBody: GetAllTicketRequest = {};
+    
+    return this.http.post<GetAllTicketResponse>(`${this.apiUrl}/getAllTicket`, requestBody, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('getAllTicket API response:', response);
+        if (response.debug) {
+          console.log('Debug info:', response.debug);
+        }
+      }),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Helper method สำหรับแปลง raw ticket data ให้มีข้อมูลเพิ่มเติม
+   * @param tickets Raw ticket data จาก API
+   * @returns Processed ticket data พร้อมข้อมูลเพิ่มเติม
+   */
+  private processTicketData(tickets: AllTicketData[]): AllTicketData[] {
+    return tickets.map(ticket => ({
+      ...ticket,
+      // เพิ่ม priority default ถ้าไม่มี
+      priority: ticket.priority || this.generateRandomPriority(),
+      // Format date ถ้าต้องการ
+      create_date: ticket.create_date || new Date().toISOString()
+    }));
+  }
+
+  /**
+   * สร้าง priority แบบสุ่มสำหรับ demo (ในการใช้งานจริงควรมาจาก database)
+   */
+  private generateRandomPriority(): string {
+    const priorities = ['high', 'medium', 'low'];
+    return priorities[Math.floor(Math.random() * priorities.length)];
+  }
+
+  /**
+   * Fallback method ที่ใช้ข้อมูลจาก master filter มาช่วยเติมข้อมูล
+   */
+  getAllTicketsWithDetails(): Observable<AllTicketData[]> {
+    return this.getAllTickets().pipe(
+      switchMap(ticketResponse => {
+        if (!ticketResponse.success || !ticketResponse.data) {
+          return of([]);
+        }
+
+        // ดึงข้อมูล master filter เพื่อ map ชื่อ category และ project
+        return this.getAllMasterFilter().pipe(
+          map(masterResponse => {
+            const categories = masterResponse.data?.categories || [];
+            const projects = masterResponse.data?.projects || [];
+
+            return ticketResponse.data!.map(ticket => ({
+              ...ticket,
+              category_name: categories.find(c => c.id === ticket.categories_id)?.name || 'Unknown Category',
+              project_name: projects.find(p => p.id === ticket.project_id)?.name || 'Unknown Project',
+              user_name: 'Current User', // ในการใช้งานจริงอาจต้องดึงจาก user service
+              priority: ticket.priority || this.generateRandomPriority()
+            }));
+          }),
+          catchError(error => {
+            console.warn('Error loading master filter, using basic ticket data:', error);
+            // ถ้า master filter ล้มเหลว ให้ใช้ข้อมูลพื้นฐาน
+            return of(this.processTicketData(ticketResponse.data!));
+          })
+        );
+      }),
+      catchError(error => {
+        console.error('Error in getAllTicketsWithDetails:', error);
+        return of([]);
+      })
+    );
   }
 
   // ===== Get All Master Filter API ===== ✅

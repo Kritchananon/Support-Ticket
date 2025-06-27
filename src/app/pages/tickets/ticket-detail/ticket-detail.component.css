@@ -245,7 +245,7 @@
   align-items: center;
   padding: 5px 12px;
   gap: 4px;
-  width: 100px;
+  /* width: 100px; */
   height: 24px;
   border-radius: 6px;
 }
@@ -253,6 +253,11 @@
 .status-icon {
   width: 14px;
   height: 14px;
+}
+
+i.status-icon {
+    display: flex;
+    align-items: center;
 }
 
 .status-text {

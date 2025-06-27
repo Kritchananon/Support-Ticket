@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ApiService, MasterFilterCategory, MasterFilterProject } from '../../../shared/services/api.service';
+import { ApiService, MasterFilterCategory, MasterFilterProject, AllTicketData } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 
 @Component({
@@ -20,8 +20,9 @@ export class TicketListComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
 
-  tickets: any[] = [];
-  filteredTickets: any[] = [];
+  // ✅ เปลี่ยนจาก any[] เป็น AllTicketData[]
+  tickets: AllTicketData[] = [];
+  filteredTickets: AllTicketData[] = [];
   isLoading = false;
   currentUser: any;
 
@@ -29,6 +30,10 @@ export class TicketListComponent implements OnInit {
   projects: MasterFilterProject[] = [];
   loadingFilters = false;
   filterError = '';
+
+  // ✅ เพิ่ม error handling สำหรับ tickets
+  ticketsError = '';
+  noTicketsFound = false;
 
   // Filter states
   searchText = '';
@@ -58,8 +63,51 @@ export class TicketListComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
+    console.log('Current user:', this.currentUser);
+    
+    // ✅ โหลด master filters ก่อน แล้วค่อยโหลด tickets
     this.loadMasterFilters();
-    this.loadTickets();
+    this.loadAllTickets();
+  }
+
+  // ✅ ใหม่: Method สำหรับโหลด tickets จาก getAllTicket API
+  loadAllTickets(): void {
+    console.log('=== Loading All Tickets ===');
+    this.isLoading = true;
+    this.ticketsError = '';
+    this.noTicketsFound = false;
+
+    // เรียกใช้ method ที่มีการ enrich ข้อมูล
+    this.apiService.getAllTicketsWithDetails().subscribe({
+      next: (tickets) => {
+        console.log('✅ Tickets loaded successfully:', tickets.length);
+        console.log('Sample ticket:', tickets[0]);
+        
+        if (tickets.length === 0) {
+          this.noTicketsFound = true;
+          this.tickets = [];
+          this.filteredTickets = [];
+        } else {
+          this.tickets = tickets;
+          this.filteredTickets = [...this.tickets];
+          this.applyFilters();
+          this.noTicketsFound = false;
+        }
+        
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading tickets:', error);
+        this.ticketsError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
+        this.isLoading = false;
+        
+        // ✅ Fallback: ใช้ mock data เพื่อให้ระบบยังใช้งานได้
+        console.log('🔄 Using fallback mock data');
+        this.tickets = this.generateMockTickets();
+        this.filteredTickets = [...this.tickets];
+        this.applyFilters();
+      }
+    });
   }
 
   loadMasterFilters(): void {
@@ -106,31 +154,10 @@ export class TicketListComponent implements OnInit {
     console.log('Using mock filter data');
   }
 
-  loadTickets(): void {
-    this.isLoading = true;
-    
-    this.apiService.getTickets().subscribe({
-      next: (response) => {
-        if (response.code === '2' || response.status === 1) {
-          this.tickets = response.data || [];
-          this.filteredTickets = [...this.tickets];
-          this.applyFilters();
-        }
-        this.isLoading = false;
-      },
-      error: (error) => {
-        console.error('Error loading tickets:', error);
-        this.isLoading = false;
-        this.tickets = this.generateMockTickets();
-        this.filteredTickets = [...this.tickets];
-      }
-    });
-  }
-
-  generateMockTickets(): any[] {
+  // ✅ อัปเดต: ปรับปรุง mock data ให้ตรงกับ interface ใหม่
+  generateMockTickets(): AllTicketData[] {
     return [
       {
-        id: 1,
         ticket_no: '#68050001',
         categories_id: 1,
         category_name: 'ระบบล่ม/ใช้งานไม่ได้',
@@ -141,11 +168,9 @@ export class TicketListComponent implements OnInit {
         priority: 'high',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       },
       {
-        id: 2,
         ticket_no: '#68050002',
         categories_id: 1,
         category_name: 'ระบบล่ม/ใช้งานไม่ได้',
@@ -156,11 +181,9 @@ export class TicketListComponent implements OnInit {
         priority: 'medium',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       },
       {
-        id: 3,
         ticket_no: '#68050003',
         categories_id: 2,
         category_name: 'หน้าจอ Error',
@@ -171,11 +194,9 @@ export class TicketListComponent implements OnInit {
         priority: 'low',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       },
       {
-        id: 4,
         ticket_no: '#68050004',
         categories_id: 3,
         category_name: 'ต้องการพัฒนาเพิ่ม',
@@ -186,11 +207,9 @@ export class TicketListComponent implements OnInit {
         priority: 'high',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       },
       {
-        id: 5,
         ticket_no: '#68050005',
         categories_id: 1,
         category_name: 'ระบบล่ม/ใช้งานไม่ได้',
@@ -201,11 +220,9 @@ export class TicketListComponent implements OnInit {
         priority: 'medium',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       },
       {
-        id: 6,
         ticket_no: '#68050006',
         categories_id: 2,
         category_name: 'หน้าจอ Error',
@@ -216,8 +233,7 @@ export class TicketListComponent implements OnInit {
         priority: 'low',
         create_date: '2025-05-08T09:00:00Z',
         create_by: 1,
-        user_name: 'Wasan Rungsavang',
-        avatar: null
+        user_name: 'Wasan Rungsavang'
       }
     ];
   }
@@ -260,9 +276,9 @@ export class TicketListComponent implements OnInit {
       filtered = filtered.filter(ticket => 
         ticket.ticket_no.toLowerCase().includes(searchLower) ||
         ticket.issue_description.toLowerCase().includes(searchLower) ||
-        ticket.project_name.toLowerCase().includes(searchLower) ||
-        ticket.user_name.toLowerCase().includes(searchLower) ||
-        ticket.category_name.toLowerCase().includes(searchLower)
+        (ticket.project_name && ticket.project_name.toLowerCase().includes(searchLower)) ||
+        (ticket.user_name && ticket.user_name.toLowerCase().includes(searchLower)) ||
+        (ticket.category_name && ticket.category_name.toLowerCase().includes(searchLower))
       );
     }
 
@@ -293,10 +309,6 @@ export class TicketListComponent implements OnInit {
     this.selectedProject = '';
     this.selectedCategory = '';
     this.filteredTickets = [...this.tickets];
-  }
-
-  refreshFilters(): void {
-    this.loadMasterFilters();
   }
 
   getStatusBadgeClass(statusId: number): string {
@@ -360,12 +372,30 @@ export class TicketListComponent implements OnInit {
   }
 
   // ✅ แก้ไข: ใช้ ticket_no แทน ticket id สำหรับการ navigate
-  viewTicket(ticket: any): void {
+  viewTicket(ticket: AllTicketData): void {
     console.log('Viewing ticket:', ticket.ticket_no);
     this.router.navigate(['/tickets', ticket.ticket_no]);
   }
 
   createNewTicket(): void {
     this.router.navigate(['/tickets/new']);
+  }
+
+  // ✅ เพิ่ม debug methods
+  getDebugInfo(): any {
+    return {
+      totalTickets: this.tickets.length,
+      filteredTickets: this.filteredTickets.length,
+      currentUser: this.currentUser?.id,
+      hasError: !!this.ticketsError,
+      isLoading: this.isLoading,
+      filters: {
+        search: this.searchText,
+        priority: this.selectedPriority,
+        status: this.selectedStatus,
+        project: this.selectedProject,
+        category: this.selectedCategory
+      }
+    };
   }
 }

@@ -472,6 +472,11 @@
   height: 14px;
 }
 
+i.status-icon {
+    display: flex;
+    align-items: center;
+}
+
 .status-text {
   font-family: 'Noto Sans Thai';
   font-style: normal;
