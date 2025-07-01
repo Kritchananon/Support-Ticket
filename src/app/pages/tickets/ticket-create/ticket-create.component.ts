@@ -28,9 +28,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
-  private route = inject(ActivatedRoute); // ✅ เพิ่ม ActivatedRoute
+  private route = inject(ActivatedRoute);
   private ticketService = inject(TicketService);
   private cdr = inject(ChangeDetectorRef);
+
+  // เพิ่ม environment สำหรับ debug (ใช้แทน import)
+  get environment() {
+    return { production: false }; // เปลี่ยนเป็น true ใน production
+  }
 
   ticketForm: FormGroup;
   
@@ -54,7 +59,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   
   autoNavigationTimer: any = null;
 
-  // ✅ NEW: Edit Mode Properties
+  // Edit Mode Properties
   isEditMode = false;
   editTicketNo: string = '';
   originalTicketData: any = null;
@@ -71,6 +76,20 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   
   isNavigating = false;
 
+  // Delete attachment tracking
+  private deletingAttachmentIds: Set<number> = new Set();
+
+  // ✅ NEW: File Analysis Properties
+  attachmentTypes: { [key: number]: {
+    type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
+    extension: string;
+    filename: string;
+    isLoading?: boolean;
+  } } = {};
+
+  // ✅ NEW: Bulk Selection Properties
+  selectedAttachmentIds: Set<number> = new Set();
+
   constructor() {
     this.ticketForm = this.fb.group({
       projectId: ['', Validators.required],
@@ -84,7 +103,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
     
-    // ✅ NEW: ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
+    // ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
     this.checkEditMode();
     
     this.ticketForm.get('issueDescription')?.valueChanges
@@ -108,14 +127,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       clearTimeout(this.autoNavigationTimer);
     }
 
-    // ✅ NEW: ลบข้อมูล edit ออกจาก localStorage เมื่อออกจากหน้า
+    // ลบข้อมูล edit ออกจาก localStorage เมื่อออกจากหน้า
     this.clearEditData();
   }
 
-  // ===== NEW: Edit Mode Methods ===== ✅
+  // ===== Edit Mode Methods ===== ✅
 
   /**
-   * ✅ NEW: ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
+   * ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
    */
   private checkEditMode(): void {
     // ตรวจสอบจาก URL parameter
@@ -133,7 +152,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: กู้คืนข้อมูล ticket สำหรับการแก้ไข
+   * ✅ UPDATED: กู้คืนข้อมูล ticket สำหรับการแก้ไข (พร้อมการวิเคราะห์ไฟล์)
    */
   private restoreEditTicketData(): void {
     try {
@@ -177,10 +196,13 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.selectedProject = ticketData.selectedProject;
         this.selectedCategory = ticketData.selectedCategory;
         
-        // อัปเดต UI
+        // อัปเดต UI และวิเคราะห์ไฟล์
         setTimeout(() => {
           this.updateUIFromRestoredData(ticketData);
           this.addSuccessState();
+          
+          // ✅ NEW: วิเคราะห์ไฟล์ existing attachments
+          this.analyzeAllExistingAttachments();
         }, 500);
         
         console.log('Edit mode initialized for ticket:', this.ticket_no);
@@ -195,7 +217,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: กลับไปหน้า ticket detail
+   * กลับไปหน้า ticket detail
    */
   private backToTicketDetail(): void {
     if (this.editTicketNo) {
@@ -206,7 +228,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: ลบข้อมูล edit ออกจาก localStorage
+   * ลบข้อมูล edit ออกจาก localStorage
    */
   private clearEditData(): void {
     if (this.isEditMode && this.editTicketNo) {
@@ -220,7 +242,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: อัปเดต ticket ที่มีอยู่แล้ว
+   * อัปเดต ticket ที่มีอยู่แล้ว
    */
   private updateExistingTicket(): void {
     if (!this.ticketId) {
@@ -266,7 +288,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: จัดการข้อผิดพลาดในการอัปเดต
+   * จัดการข้อผิดพลาดในการอัปเดต
    */
   private onUpdateError(error: any): void {
     let message = 'เกิดข้อผิดพลาดในการอัปเดตตั๋ว';
@@ -286,7 +308,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: เสร็จสิ้นการอัปเดต ticket
+   * เสร็จสิ้นการอัปเดต ticket
    */
   private completeTicketUpdate(): void {
     console.log('Ticket update completed');
@@ -307,14 +329,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ UPDATED: ได้รับชื่อหน้าที่ถูกต้อง
+   * ได้รับชื่อหน้าที่ถูกต้อง
    */
   getPageTitle(): string {
     return this.isEditMode ? 'Edit Ticket' : 'New Ticket';
   }
 
   /**
-   * ✅ UPDATED: ได้รับข้อความปุ่มที่ถูกต้อง
+   * ได้รับข้อความปุ่มที่ถูกต้อง
    */
   getSubmitButtonText(): string {
     if (this.isSubmitting) {
@@ -323,7 +345,720 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     return this.isEditMode ? 'Update Ticket' : 'New Ticket';
   }
 
-  // ===== UPDATED: Existing Methods ===== ✅
+  // ===== File Analysis Methods ===== ✅
+
+  /**
+   * ✅ NEW: วิเคราะห์ไฟล์ทั้งหมดใน existing attachments
+   */
+  private analyzeAllExistingAttachments(): void {
+    if (!this.existingAttachments || this.existingAttachments.length === 0) {
+      return;
+    }
+
+    console.log('Analyzing existing attachments:', this.existingAttachments.length);
+    this.existingAttachments.forEach(attachment => {
+      this.analyzeExistingAttachment(attachment);
+    });
+  }
+
+  /**
+   * ✅ NEW: วิเคราะห์ไฟล์ existing attachment แต่ละไฟล์
+   */
+  private analyzeExistingAttachment(attachment: any): void {
+    const attachmentId = attachment.attachment_id;
+    
+    // เริ่มต้นด้วย loading state
+    this.attachmentTypes[attachmentId] = {
+      type: 'file',
+      extension: '',
+      filename: 'Loading...',
+      isLoading: true
+    };
+
+    // ถ้ามีข้อมูล filename และ file_type จาก API
+    if (attachment.filename || attachment.file_type) {
+      const filename = attachment.filename || this.extractFilenameFromPath(attachment.path);
+      const fileType = attachment.file_type || this.getFileTypeFromFilename(filename);
+      
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategory(fileType, filename),
+        extension: this.getFileExtension(filename),
+        filename: filename,
+        isLoading: false
+      };
+      
+      console.log(`Existing file analyzed from API data:`, {
+        id: attachmentId,
+        filename,
+        fileType,
+        category: this.attachmentTypes[attachmentId].type
+      });
+      return;
+    }
+
+    // ถ้าไม่มีข้อมูลจาก API ให้วิเคราะห์จาก path
+    const filename = this.extractFilenameFromPath(attachment.path);
+    const extension = this.getFileExtension(filename);
+    
+    if (extension) {
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategoryByExtension(extension),
+        extension: extension,
+        filename: filename,
+        isLoading: false
+      };
+      
+      console.log(`Existing file analyzed from path:`, {
+        id: attachmentId,
+        filename,
+        extension,
+        category: this.attachmentTypes[attachmentId].type
+      });
+      return;
+    }
+
+    // ถ้าเป็น data URL
+    if (attachment.path.startsWith('data:')) {
+      const mimeType = this.extractMimeTypeFromDataUrl(attachment.path);
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategoryByMimeType(mimeType),
+        extension: this.getExtensionFromMimeType(mimeType),
+        filename: `attachment_${attachmentId}.${this.getExtensionFromMimeType(mimeType)}`,
+        isLoading: false
+      };
+      
+      console.log(`Existing file analyzed from data URL:`, {
+        id: attachmentId,
+        mimeType,
+        category: this.attachmentTypes[attachmentId].type
+      });
+      return;
+    }
+
+    // ลองตรวจสอบจาก HTTP headers
+    this.checkFileTypeFromHeaders(attachment.path, attachmentId);
+  }
+
+  private extractFilenameFromPath(path: string): string {
+    if (!path) return 'unknown';
+    
+    if (path.startsWith('data:')) {
+      return 'data_file';
+    }
+    
+    const parts = path.split('/');
+    const lastPart = parts[parts.length - 1];
+    
+    return lastPart.split('?')[0] || 'unknown';
+  }
+
+  private getFileExtension(filename: string): string {
+    if (!filename || filename === 'unknown') return '';
+    
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  }
+
+  private getFileTypeFromFilename(filename: string): string {
+    const extension = this.getFileExtension(filename);
+    return extension || 'unknown';
+  }
+
+  private determineFileCategory(fileType: string, filename: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const type = fileType.toLowerCase();
+    const ext = this.getFileExtension(filename).toLowerCase();
+    
+    if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+      return 'image';
+    }
+    
+    if (type.includes('pdf') || ext === 'pdf') {
+      return 'pdf';
+    }
+    
+    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+      return 'excel';
+    }
+    
+    if (type.includes('word') || type.includes('document') || ['doc', 'docx', 'rtf'].includes(ext)) {
+      return 'word';
+    }
+    
+    if (type.includes('text') || ['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+      return 'text';
+    }
+    
+    if (type.includes('archive') || type.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return 'archive';
+    }
+    
+    if (type.includes('video') || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+      return 'video';
+    }
+    
+    if (type.includes('audio') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+      return 'audio';
+    }
+    
+    return 'file';
+  }
+
+  private determineFileCategoryByExtension(extension: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const ext = extension.toLowerCase();
+    
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+      return 'image';
+    }
+    
+    if (ext === 'pdf') {
+      return 'pdf';
+    }
+    
+    if (['xls', 'xlsx', 'csv'].includes(ext)) {
+      return 'excel';
+    }
+    
+    if (['doc', 'docx', 'rtf'].includes(ext)) {
+      return 'word';
+    }
+    
+    if (['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+      return 'text';
+    }
+    
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return 'archive';
+    }
+    
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+      return 'video';
+    }
+    
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+      return 'audio';
+    }
+    
+    return 'file';
+  }
+
+  private extractMimeTypeFromDataUrl(dataUrl: string): string {
+    const match = dataUrl.match(/^data:([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  private determineFileCategoryByMimeType(mimeType: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'word';
+    if (mimeType.startsWith('text/')) return 'text';
+    if (mimeType.includes('zip') || mimeType.includes('archive')) return 'archive';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    
+    return 'file';
+  }
+
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeToExt: { [key: string]: string } = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+      'application/pdf': 'pdf',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'text/plain': 'txt',
+      'application/json': 'json',
+      'text/html': 'html',
+      'application/zip': 'zip',
+      'video/mp4': 'mp4',
+      'audio/mpeg': 'mp3'
+    };
+    
+    return mimeToExt[mimeType] || 'bin';
+  }
+
+  private checkFileTypeFromHeaders(url: string, attachmentId: number): void {
+    fetch(url, { 
+      method: 'HEAD',
+      mode: 'cors'
+    })
+    .then(response => {
+      const contentType = response.headers.get('content-type');
+      const contentDisposition = response.headers.get('content-disposition');
+      
+      let filename = `attachment_${attachmentId}`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      if (contentType) {
+        this.attachmentTypes[attachmentId] = {
+          type: this.determineFileCategoryByMimeType(contentType),
+          extension: this.getExtensionFromMimeType(contentType),
+          filename: filename,
+          isLoading: false
+        };
+        
+        console.log(`Existing file analyzed from HTTP headers:`, {
+          id: attachmentId,
+          contentType,
+          filename,
+          category: this.attachmentTypes[attachmentId].type
+        });
+      } else {
+        this.attachmentTypes[attachmentId] = {
+          type: 'file',
+          extension: '',
+          filename: filename,
+          isLoading: false
+        };
+      }
+    })
+    .catch(error => {
+      console.log(`Could not fetch headers for ${url}:`, error);
+      this.tryImageLoad(url, attachmentId);
+    });
+  }
+
+  private tryImageLoad(url: string, attachmentId: number): void {
+    const img = new Image();
+    
+    img.onload = () => {
+      this.attachmentTypes[attachmentId] = {
+        type: 'image',
+        extension: 'jpg',
+        filename: this.extractFilenameFromPath(url) || `image_${attachmentId}.jpg`,
+        isLoading: false
+      };
+      console.log(`Existing file detected as image through loading test:`, attachmentId);
+    };
+    
+    img.onerror = () => {
+      this.attachmentTypes[attachmentId] = {
+        type: 'file',
+        extension: '',
+        filename: this.extractFilenameFromPath(url) || `file_${attachmentId}`,
+        isLoading: false
+      };
+      console.log(`Existing file defaulted to generic file type:`, attachmentId);
+    };
+    
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+  }
+
+  // ===== Existing Attachment Preview Methods ===== ✅
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า existing attachment เป็นไฟล์รูปภาพหรือไม่
+   */
+  isExistingAttachmentImage(attachment: any): boolean {
+    if (!attachment) return false;
+    
+    const attachmentId = attachment.attachment_id;
+    
+    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].type === 'image';
+    }
+    
+    // Fallback: ตรวจสอบจาก path
+    if (attachment.path && attachment.path.startsWith('data:image/')) {
+      return true;
+    }
+    
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+    
+    return fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+  }
+
+  /**
+   * ✅ NEW: ได้รับ icon สำหรับ existing attachment
+   */
+  getExistingAttachmentIcon(attachment: any): string {
+    if (!attachment) return 'bi-file-earmark-fill';
+    
+    const attachmentId = attachment.attachment_id;
+    
+    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      const fileInfo = this.attachmentTypes[attachmentId];
+      
+      switch (fileInfo.type) {
+        case 'image': return 'bi-image-fill';
+        case 'pdf': return 'bi-file-earmark-pdf-fill';
+        case 'excel': return 'bi-file-earmark-excel-fill';
+        case 'word': return 'bi-file-earmark-word-fill';
+        case 'text': return 'bi-file-earmark-text-fill';
+        case 'archive': return 'bi-file-earmark-zip-fill';
+        case 'video': return 'bi-file-earmark-play-fill';
+        case 'audio': return 'bi-file-earmark-music-fill';
+        default: return 'bi-file-earmark-fill';
+      }
+    }
+    
+    // Fallback: ตรวจสอบจาก filename
+    if (!attachment.filename && !attachment.file_type) {
+      return 'bi-file-earmark-fill';
+    }
+    
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+    
+    if (fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i)) {
+      return 'bi-image-fill';
+    }
+    
+    if (fileType.includes('pdf') || filename.match(/\.pdf$/i)) {
+      return 'bi-file-earmark-pdf-fill';
+    }
+    
+    if (fileType.includes('excel') || fileType.includes('spreadsheet') || filename.match(/\.(xls|xlsx|csv)$/i)) {
+      return 'bi-file-earmark-excel-fill';
+    }
+    
+    if (fileType.includes('word') || fileType.includes('document') || filename.match(/\.(doc|docx|rtf)$/i)) {
+      return 'bi-file-earmark-word-fill';
+    }
+    
+    if (fileType.includes('text') || filename.match(/\.(txt|log|md|json|xml)$/i)) {
+      return 'bi-file-earmark-text-fill';
+    }
+    
+    return 'bi-file-earmark-fill';
+  }
+
+  /**
+   * ✅ NEW: ได้รับชื่อไฟล์ที่แสดงสำหรับ existing attachment
+   */
+  getExistingAttachmentDisplayName(attachment: any): string {
+    if (!attachment) return 'Unknown file';
+    
+    const attachmentId = attachment.attachment_id;
+    
+    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].filename;
+    }
+    
+    // Fallback
+    return attachment.filename || this.extractFilenameFromPath(attachment.path) || 'Unknown file';
+  }
+
+  /**
+   * ✅ NEW: ได้รับข้อมูลไฟล์สำหรับ existing attachment
+   */
+  getExistingAttachmentFileInfo(attachmentId: number): {
+    type: string;
+    extension: string;
+    filename: string;
+    isLoading: boolean;
+    icon: string;
+  } {
+    const fileInfo = this.attachmentTypes[attachmentId];
+    
+    if (fileInfo) {
+      return {
+        type: fileInfo.type,
+        extension: fileInfo.extension,
+        filename: fileInfo.filename,
+        isLoading: fileInfo.isLoading || false,
+        icon: this.getExistingAttachmentIcon({ attachment_id: attachmentId })
+      };
+    }
+    
+    return {
+      type: 'unknown',
+      extension: '',
+      filename: 'Unknown file',
+      isLoading: false,
+      icon: 'bi-file-earmark-fill'
+    };
+  }
+
+  /**
+   * ✅ NEW: Format file size สำหรับ existing attachments
+   */
+  formatExistingAttachmentSize(attachment: any): string {
+    if (attachment.file_size) {
+      return this.formatFileSize(attachment.file_size);
+    }
+    return '';
+  }
+
+  /**
+   * ✅ NEW: จัดการข้อผิดพลาดการโหลดรูปภาพ
+   */
+  onExistingAttachmentImageError(attachmentId: number): void {
+    console.log(`Image failed to load for existing attachment ${attachmentId}`);
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'file';
+    }
+  }
+
+  /**
+   * ✅ NEW: จัดการการโหลดรูปภาพสำเร็จ
+   */
+  onExistingAttachmentImageLoad(attachmentId: number): void {
+    console.log(`Image loaded successfully for existing attachment ${attachmentId}`);
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'image';
+    }
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่ามี existing attachments หรือไม่
+   */
+  hasExistingAttachments(): boolean {
+    return this.isEditMode && this.existingAttachments.length > 0;
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า attachment กำลังถูกลบหรือไม่
+   */
+  isAttachmentDeleting(attachmentId: number): boolean {
+    return this.deletingAttachmentIds.has(attachmentId);
+  }
+
+  // ===== Attachment Management Methods ===== ✅
+
+  /**
+   * ✅ UPDATED: ลบ existing attachment (ใช้ข้อมูลที่วิเคราะห์แล้ว)
+   */
+  removeExistingAttachment(index: number, attachment?: any): void {
+    // ใช้ attachment จาก parameter หรือ ดึงจาก array
+    const attachmentToDelete = attachment || this.existingAttachments[index];
+    
+    if (!attachmentToDelete || !attachmentToDelete.attachment_id) {
+      console.error('Invalid attachment data:', attachmentToDelete);
+      this.showFileUploadError('ไม่สามารถลบไฟล์ได้: ข้อมูลไฟล์ไม่ถูกต้อง');
+      return;
+    }
+
+    // ใช้ชื่อไฟล์ที่วิเคราะห์แล้ว
+    const filename = this.getExistingAttachmentDisplayName(attachmentToDelete);
+
+    // แสดง confirmation dialog
+    if (!confirm(`คุณต้องการลบไฟล์ "${filename}" หรือไม่?`)) {
+      return;
+    }
+
+    const attachmentId = attachmentToDelete.attachment_id;
+    
+    // เพิ่ม loading state
+    this.deletingAttachmentIds.add(attachmentId);
+    
+    console.log('Removing existing attachment:', attachmentToDelete);
+
+    this.apiService.deleteAttachment(attachmentId).subscribe({
+      next: (response) => {
+        console.log('Delete attachment response:', response);
+        
+        // ลบ loading state
+        this.deletingAttachmentIds.delete(attachmentId);
+        
+        if (response.code === 1 || response.code === 200) {
+          // ลบออกจาก array
+          this.existingAttachments.splice(index, 1);
+          
+          // ลบข้อมูลการวิเคราะห์ไฟล์
+          delete this.attachmentTypes[attachmentId];
+          
+          this.showFileUploadSuccess(`ลบไฟล์ "${filename}" สำเร็จ`);
+          
+          // อัปเดต UI
+          this.cdr.detectChanges();
+          
+          console.log('Attachment deleted successfully');
+        } else {
+          this.showFileUploadError(response.message || 'ไม่สามารถลบไฟล์ได้');
+        }
+      },
+      error: (error) => {
+        console.error('Error deleting attachment:', error);
+        
+        // ลบ loading state
+        this.deletingAttachmentIds.delete(attachmentId);
+        
+        let errorMessage = 'เกิดข้อผิดพลาดในการลบไฟล์';
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error?.message) {
+          errorMessage = error.message;
+        }
+        
+        this.showFileUploadError(errorMessage);
+      }
+    });
+  }
+
+  /**
+   * ✅ UPDATED: ดาวน์โหลด existing attachment (ใช้ข้อมูลที่วิเคราะห์แล้ว)
+   */
+  downloadExistingAttachment(attachment: any): void {
+    if (!attachment || !attachment.path) {
+      this.showFileUploadError('ไม่สามารถดาวน์โหลดไฟล์ได้: ไม่พบที่อยู่ไฟล์');
+      return;
+    }
+
+    // ใช้ข้อมูลที่วิเคราะห์แล้วสำหรับชื่อไฟล์
+    const filename = this.getExistingAttachmentDisplayName(attachment);
+
+    console.log('Downloading existing attachment:', attachment);
+
+    try {
+      if (attachment.path.startsWith('data:')) {
+        // ไฟล์เป็น base64 data URL
+        const link = document.createElement('a');
+        link.href = attachment.path;
+        link.download = filename || `attachment_${attachment.attachment_id}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else if (attachment.path.startsWith('http')) {
+        // ไฟล์เป็น URL
+        window.open(attachment.path, '_blank');
+      } else {
+        // ไฟล์เป็น path ในเซิร์ฟเวอร์ - ใช้ apiUrl จาก ApiService
+        const apiUrl = this.apiService['apiUrl'] || '/api'; // fallback
+        const fullUrl = `${apiUrl}/${attachment.path}`;
+        window.open(fullUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      this.showFileUploadError('เกิดข้อผิดพลาดในการดาวน์โหลดไฟล์');
+    }
+  }
+
+  // ===== Bulk Selection Methods ===== ✅
+
+  /**
+   * ✅ NEW: เลือก/ยกเลิกการเลือก attachment
+   */
+  toggleAttachmentSelection(attachmentId: number): void {
+    if (this.selectedAttachmentIds.has(attachmentId)) {
+      this.selectedAttachmentIds.delete(attachmentId);
+    } else {
+      this.selectedAttachmentIds.add(attachmentId);
+    }
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า attachment ถูกเลือกหรือไม่
+   */
+  isAttachmentSelected(attachmentId: number): boolean {
+    return this.selectedAttachmentIds.has(attachmentId);
+  }
+
+  /**
+   * ✅ NEW: ลบ attachments ที่เลือกไว้
+   */
+  removeSelectedAttachments(): void {
+    const selectedIds = Array.from(this.selectedAttachmentIds);
+    if (selectedIds.length > 0) {
+      this.removeMultipleExistingAttachments(selectedIds);
+      this.selectedAttachmentIds.clear();
+    }
+  }
+
+  /**
+   * ✅ NEW: เลือก attachments ทั้งหมด
+   */
+  selectAllAttachments(): void {
+    this.existingAttachments.forEach(att => {
+      if (att.attachment_id) {
+        this.selectedAttachmentIds.add(att.attachment_id);
+      }
+    });
+  }
+
+  /**
+   * ✅ NEW: ยกเลิกการเลือก attachments ทั้งหมด
+   */
+  clearAttachmentSelection(): void {
+    this.selectedAttachmentIds.clear();
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่ามี attachments ที่เลือกไว้หรือไม่
+   */
+  get hasSelectedAttachments(): boolean {
+    return this.selectedAttachmentIds.size > 0;
+  }
+
+  /**
+   * ✅ NEW: ได้รับจำนวน attachments ที่เลือกไว้
+   */
+  get selectedAttachmentCount(): number {
+    return this.selectedAttachmentIds.size;
+  }
+
+  /**
+   * ✅ NEW: ลบ existing attachments หลายไฟล์พร้อมกัน
+   */
+  removeMultipleExistingAttachments(attachmentIds: number[]): void {
+    if (attachmentIds.length === 0) return;
+
+    if (!confirm(`คุณต้องการลบไฟล์ ${attachmentIds.length} ไฟล์หรือไม่?`)) {
+      return;
+    }
+
+    // เพิ่ม loading state สำหรับทุกไฟล์
+    attachmentIds.forEach(id => this.deletingAttachmentIds.add(id));
+
+    const deletePromises = attachmentIds.map(attachmentId => 
+      this.apiService.deleteAttachment(attachmentId).toPromise()
+    );
+
+    Promise.allSettled(deletePromises).then(results => {
+      let successCount = 0;
+      let errorCount = 0;
+
+      results.forEach((result, index) => {
+        const attachmentId = attachmentIds[index];
+        
+        // ลบ loading state
+        this.deletingAttachmentIds.delete(attachmentId);
+        
+        if (result.status === 'fulfilled' && result.value?.code === 1) {
+          successCount++;
+          // ลบออกจาก array
+          const attachmentIndex = this.existingAttachments.findIndex(
+            att => att.attachment_id === attachmentId
+          );
+          if (attachmentIndex > -1) {
+            this.existingAttachments.splice(attachmentIndex, 1);
+          }
+          // ลบข้อมูลการวิเคราะห์ไฟล์
+          delete this.attachmentTypes[attachmentId];
+        } else {
+          errorCount++;
+        }
+      });
+
+      if (successCount > 0) {
+        this.showFileUploadSuccess(`ลบไฟล์สำเร็จ ${successCount} ไฟล์`);
+      }
+      
+      if (errorCount > 0) {
+        this.showFileUploadError(`ไม่สามารถลบไฟล์ได้ ${errorCount} ไฟล์`);
+      }
+
+      this.cdr.detectChanges();
+    });
+  }
+
+  // ===== EXISTING METHODS (เดิม) ===== ✅
 
   private restoreIncompleteTicket(): void {
     if (this.isEditMode) return; // ถ้าเป็น edit mode ไม่ต้อง restore incomplete ticket
@@ -595,7 +1330,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     
-    // ✅ ในโหมดแก้ไข ไม่ต้องตรวจสอบ form validation
+    // ในโหมดแก้ไข ไม่ต้องตรวจสอบ form validation
     if (!this.isEditMode) {
       const validation = this.validateFormForAutoSave();
       if (!validation.isValid) {
@@ -780,7 +1515,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
     
-    // ✅ NEW: แยกการทำงานระหว่าง edit และ create
+    // แยกการทำงานระหว่าง edit และ create
     if (this.isEditMode) {
       this.updateExistingTicket();
       return;
@@ -849,7 +1584,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.autoNavigationTimer = null;
     }
     
-    // ✅ NEW: แยกการ clear ระหว่าง edit และ create mode
+    // แยกการ clear ระหว่าง edit และ create mode
     if (this.isEditMode) {
       this.clearEditData();
       this.backToTicketDetail();
@@ -1006,7 +1741,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.validationErrors['issueDescription'] = false;
     }
     
-    // ✅ UPDATED: บันทึกข้อมูลต่างกันระหว่าง edit และ create mode
+    // บันทึกข้อมูลต่างกันระหว่าง edit และ create mode
     if (this.isEditMode) {
       // ในโหมดแก้ไข ไม่ต้องบันทึก localStorage
       console.log('Edit mode: Description updated');
@@ -1066,7 +1801,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.autoNavigationTimer = null;
     }
     
-    // ✅ UPDATED: จัดการ localStorage ต่างกันระหว่าง edit และ create mode
+    // จัดการ localStorage ต่างกันระหว่าง edit และ create mode
     if (this.isEditMode) {
       // ในโหมดแก้ไข ไม่ต้องบันทึก incomplete ticket
       if (this.hasUnsavedChanges) {
@@ -1086,89 +1821,5 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
     
     return true;
-  }
-
-  // ===== NEW: Helper Methods for Edit Mode ===== ✅
-
-  /**
-   * ✅ NEW: ตรวจสอบว่ามี existing attachments หรือไม่
-   */
-  hasExistingAttachments(): boolean {
-    return this.isEditMode && this.existingAttachments.length > 0;
-  }
-
-  /**
-   * ✅ NEW: ลบ existing attachment
-   */
-  removeExistingAttachment(index: number): void {
-    if (this.existingAttachments[index]) {
-      // ในที่นี้คุณอาจต้องเรียก API เพื่อลบไฟล์จริงๆ
-      console.log('Removing existing attachment:', this.existingAttachments[index]);
-      this.existingAttachments.splice(index, 1);
-    }
-  }
-
-  /**
-   * ✅ NEW: ดาวน์โหลด existing attachment
-   */
-  downloadExistingAttachment(attachment: any): void {
-    if (attachment.path.startsWith('data:')) {
-      const link = document.createElement('a');
-      link.href = attachment.path;
-      link.download = attachment.filename || `attachment_${attachment.attachment_id}`;
-      link.click();
-    } else {
-      window.open(attachment.path, '_blank');
-    }
-    
-    console.log('Downloading existing attachment:', attachment);
-  }
-
-  /**
-   * ✅ NEW: ได้รับไอคอนสำหรับ existing attachment
-   */
-  getExistingAttachmentIcon(attachment: any): string {
-    if (!attachment.filename && !attachment.file_type) {
-      return 'bi-file-earmark-fill';
-    }
-    
-    const filename = attachment.filename || '';
-    const fileType = attachment.file_type || '';
-    
-    if (fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i)) {
-      return 'bi-image-fill';
-    }
-    
-    if (fileType.includes('pdf') || filename.match(/\.pdf$/i)) {
-      return 'bi-file-earmark-pdf-fill';
-    }
-    
-    if (fileType.includes('excel') || fileType.includes('spreadsheet') || filename.match(/\.(xls|xlsx|csv)$/i)) {
-      return 'bi-file-earmark-excel-fill';
-    }
-    
-    if (fileType.includes('word') || fileType.includes('document') || filename.match(/\.(doc|docx|rtf)$/i)) {
-      return 'bi-file-earmark-word-fill';
-    }
-    
-    if (fileType.includes('text') || filename.match(/\.(txt|log|md|json|xml)$/i)) {
-      return 'bi-file-earmark-text-fill';
-    }
-    
-    return 'bi-file-earmark-fill';
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบว่า existing attachment เป็นรูปภาพหรือไม่
-   */
-  isExistingAttachmentImage(attachment: any): boolean {
-    if (attachment.path && attachment.path.startsWith('data:image/')) {
-      return true;
-    }
-    
-    const filename = attachment.filename || '';
-    const fileType = attachment.file_type || '';
-    
-    return fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
   }
 }

@@ -214,7 +214,7 @@ export class TicketService {
    */
   deleteAttachment(attachmentId: number): Observable<ApiResponse<any>> {
     return this.http.delete<ApiResponse<any>>(
-      `${this.apiUrl}/attachment/${attachmentId}`,
+      `${this.apiUrl}/images/issue_attachment/${attachmentId}`,
       { headers: this.getAuthHeaders() }
     ).pipe(
       catchError(this.handleError)

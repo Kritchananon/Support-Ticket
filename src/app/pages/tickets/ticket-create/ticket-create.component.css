@@ -442,6 +442,191 @@ app-category-dropdown .form-select.is-invalid {
   outline: none;
 }
 
+/* ===== NEW: Current Attachments Styles ===== */
+
+/* Current Attachments Section */
+.existing-attachments-section {
+  border: 1px solid #D9D9D9;
+  border-radius: 6px;
+  background: #FFFFFF;
+  padding: 16px;
+}
+
+.existing-attachments-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.existing-attachment-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100px;
+  height: 100px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #E0E0E0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.existing-attachment-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.attachment-preview {
+  width: 100%;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+
+.attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-file {
+  width: 100%;
+  height: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  padding: 8px;
+}
+
+.file-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+}
+
+.file-icon-container i {
+  font-size: 32px;
+}
+
+.file-details {
+  flex: 1;
+  text-align: center;
+}
+
+.file-details .file-name {
+  font-family: 'Noto Sans Thai', sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  color: #2d3436;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+
+/* File type colors for existing attachments */
+.existing-attachment-item .bi-file-earmark-pdf-fill {
+  color: #DC3545;
+}
+
+.existing-attachment-item .bi-file-earmark-word-fill {
+  color: #2980b9;
+}
+
+.existing-attachment-item .bi-file-earmark-excel-fill {
+  color: #1e7e34;
+}
+
+.existing-attachment-item .bi-file-earmark-text-fill {
+  color: #95a5a6;
+}
+
+.existing-attachment-item .bi-file-earmark-fill {
+  color: #6c757d;
+}
+
+.existing-attachment-item .bi-image-fill {
+  color: #6f42c1;
+}
+
+/* Action Buttons */
+.attachment-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(248, 249, 250, 0.95);
+  padding: 4px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.existing-attachment-item:hover .attachment-actions {
+  opacity: 1;
+}
+
+.btn-download,
+.btn-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 10px;
+}
+
+.btn-download {
+  background: #28a745;
+  color: white;
+}
+
+.btn-download:hover {
+  background: #218838;
+  transform: scale(1.1);
+}
+
+.btn-remove {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-remove:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
+/* File Upload Instructions */
+.file-upload-instructions {
+  margin-bottom: 12px;
+}
+
+.text-muted {
+  color: #6c757d;
+  font-size: 12px;
+}
+
+/* ===== End Current Attachments Styles ===== */
+
 /* File Upload */
 .file-upload-area {
   box-sizing: border-box;
@@ -747,6 +932,36 @@ app-category-dropdown .form-select.is-invalid {
   .file-upload-area {
     height: auto;
     min-height: 134px;
+  }
+
+  /* Responsive for existing attachments */
+  .existing-attachments-grid {
+    gap: 12px;
+  }
+
+  .existing-attachment-item {
+    width: 80px;
+    height: 80px;
+  }
+
+  .attachment-preview,
+  .attachment-file {
+    height: 50px;
+  }
+
+  .file-icon-container i {
+    font-size: 24px;
+  }
+
+  .file-details .file-name {
+    font-size: 7px;
+  }
+
+  .btn-download,
+  .btn-remove {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
   }
 }
 

@@ -224,6 +224,17 @@ export interface AttachmentData {
   attachment_path: string;
 }
 
+// ✅ UPDATED: เพิ่ม interfaces สำหรับ deleteAttachment API
+export interface DeleteAttachmentResponse {
+  code: number;
+  message: string;
+  data?: {
+    id: number;
+    attachment_id?: number;
+    deleted?: boolean;
+  };
+}
+
 // ✅ เพิ่ม interfaces สำหรับ getTicketData API
 export interface GetTicketDataRequest {
   ticket_no: string;
@@ -665,6 +676,63 @@ export class ApiService {
       tap(response => console.log('updateAttachment API response:', response)),
       catchError(this.handleError)
     );
+  }
+
+  // ===== SIMPLIFIED: Delete Attachment API ===== ✅
+  /**
+   * ลบ attachment โดยใช้ attachment ID (แบบเดิม - ง่ายๆ)
+   * @param attachmentId - ID ของ attachment ที่ต้องการลบ
+   * @returns Observable<DeleteAttachmentResponse>
+   */
+  deleteAttachment(attachmentId: number): Observable<DeleteAttachmentResponse> {
+    console.log('Calling deleteAttachment API with attachmentId:', attachmentId);
+    
+    return this.http.delete<DeleteAttachmentResponse>(`${this.apiUrl}/images/issue_attachment/${attachmentId}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('deleteAttachment API response:', response)),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * ลองลบ attachment อีกครั้งหาก API call แรกล้มเหลว (เก็บไว้เป็น optional)
+   */
+  retryDeleteAttachment(attachmentId: number, maxRetries: number = 3): Observable<boolean> {
+    return new Observable(observer => {
+      let attempts = 0;
+      
+      const attemptDelete = () => {
+        attempts++;
+        console.log(`Delete attempt ${attempts} for attachment ${attachmentId}`);
+        
+        this.deleteAttachment(attachmentId).subscribe({
+          next: (response) => {
+            if (response.code === 1 || response.code === 200) {
+              observer.next(true);
+              observer.complete();
+            } else if (attempts < maxRetries) {
+              setTimeout(attemptDelete, 1000 * attempts); // เพิ่ม delay ตาม attempt
+            } else {
+              observer.next(false);
+              observer.complete();
+            }
+          },
+          error: (error) => {
+            console.warn(`Delete attempt ${attempts} failed:`, error);
+            
+            if (attempts < maxRetries) {
+              setTimeout(attemptDelete, 1000 * attempts);
+            } else {
+              observer.next(false);
+              observer.complete();
+            }
+          }
+        });
+      };
+      
+      attemptDelete();
+    });
   }
 
   // ===== Get Ticket Data API ===== ✅
