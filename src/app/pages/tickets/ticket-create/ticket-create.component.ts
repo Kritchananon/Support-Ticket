@@ -90,6 +90,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   // ✅ NEW: Bulk Selection Properties
   selectedAttachmentIds: Set<number> = new Set();
 
+  // ✅ NEW: File Upload Timeout Timer
+  private fileUploadTimeoutTimer: any = null;
+  private readonly FILE_UPLOAD_TIMEOUT = 30000; // 30 seconds
+
   constructor() {
     this.ticketForm = this.fb.group({
       projectId: ['', Validators.required],
@@ -117,18 +121,31 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Clean up file preview URLs
     Object.values(this.filePreviewUrls).forEach(url => {
       if (url.startsWith('blob:')) {
         URL.revokeObjectURL(url);
       }
     });
     
-    if (this.autoNavigationTimer) {
-      clearTimeout(this.autoNavigationTimer);
-    }
+    // Clear all timers
+    this.clearAllTimers();
 
     // ลบข้อมูล edit ออกจาก localStorage เมื่อออกจากหน้า
     this.clearEditData();
+  }
+
+  // ===== Timer Management ===== ✅
+  private clearAllTimers(): void {
+    if (this.autoNavigationTimer) {
+      clearTimeout(this.autoNavigationTimer);
+      this.autoNavigationTimer = null;
+    }
+
+    if (this.fileUploadTimeoutTimer) {
+      clearTimeout(this.fileUploadTimeoutTimer);
+      this.fileUploadTimeoutTimer = null;
+    }
   }
 
   // ===== Edit Mode Methods ===== ✅
@@ -242,7 +259,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * อัปเดต ticket ที่มีอยู่แล้ว
+   * ✅ FIX 7: ปรับปรุง updateExistingTicket เพื่อ tracking ที่ดีขึ้น
    */
   private updateExistingTicket(): void {
     if (!this.ticketId) {
@@ -262,7 +279,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
     console.log('Updating existing ticket with data:', updateData);
 
-    // ใช้ saveTicket API แต่ส่ง ticket_id ด้วย
     this.apiService.updateTicketData(this.ticketId, updateData).subscribe({
       next: (response) => {
         console.log('updateTicketData response:', response);
@@ -270,11 +286,29 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         if (response.code === 1) {
           console.log('Ticket updated successfully');
           
-          // อัปโหลดไฟล์ใหม่ (ถ้ามี)
-          if (this.selectedFiles.length > 0) {
-            this.uploadFilesToExistingTicket(this.selectedFiles);
+          // ตรวจสอบไฟล์ใหม่ที่ต้องอัปโหลด
+          const newFilesToUpload = this.selectedFiles.filter(file => 
+            !this.uploadedFileNames.includes(file.name) && 
+            !this.uploadingFileNames.includes(file.name)
+          );
+          
+          console.log('Files to upload after ticket update:', {
+            totalSelectedFiles: this.selectedFiles.length,
+            newFilesToUpload: newFilesToUpload.length,
+            alreadyUploaded: this.uploadedFileNames.length,
+            currentlyUploading: this.uploadingFileNames.length
+          });
+          
+          if (newFilesToUpload.length > 0) {
+            console.log('Uploading new files:', newFilesToUpload.map(f => f.name));
+            this.uploadFilesToExistingTicket(newFilesToUpload);
+            
+            // รอให้การอัปโหลดเสร็จ
+            this.waitForFileUploadsToComplete();
           } else {
-            this.completeTicketUpdate();
+            // ไม่มีไฟล์ใหม่ ให้จบการอัปเดตเลย
+            console.log('No new files to upload, completing immediately');
+            this.completeTicketUpdateSuccess(0, 0);
           }
         } else {
           this.onUpdateError('Failed to update ticket: ' + response.message);
@@ -285,6 +319,132 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.onUpdateError('เกิดข้อผิดพลาดในการอัปเดตตั๋ว');
       }
     });
+  }
+
+  /**
+   * ✅ FIX 1: ปรับปรุง waitForFileUploadsToComplete method พร้อมการตรวจสอบที่แม่นยำขึ้น
+   */
+  private waitForFileUploadsToComplete(): void {
+    console.log('Starting file upload monitoring...');
+    
+    let checkCount = 0;
+    const maxChecks = 60; // 30 วินาที (500ms * 60)
+    
+    const checkInterval = setInterval(() => {
+      checkCount++;
+      
+      // ตรวจสอบสถานะการอัปโหลด
+      const stillUploading = this.uploadingFileNames.length > 0;
+      const totalSelectedFiles = this.selectedFiles.length;
+      const successfulUploads = this.uploadedFileNames.length;
+      const failedUploads = this.errorFileNames.length;
+      const completedFiles = successfulUploads + failedUploads;
+      
+      console.log(`Upload monitoring (${checkCount}/${maxChecks}):`, {
+        stillUploading,
+        totalSelectedFiles,
+        successfulUploads,
+        failedUploads,
+        completedFiles,
+        uploadingFiles: this.uploadingFileNames,
+        uploadedFiles: this.uploadedFileNames,
+        errorFiles: this.errorFileNames
+      });
+      
+      // ✅ FIX: ปรับเงื่อนไขการตรวจสอบให้แม่นยำขึ้น
+      const allFilesProcessed = !stillUploading && (completedFiles >= totalSelectedFiles || totalSelectedFiles === 0);
+      const timeoutReached = checkCount >= maxChecks;
+      
+      if (allFilesProcessed || timeoutReached) {
+        clearInterval(checkInterval);
+        
+        if (timeoutReached) {
+          console.warn('File upload monitoring timeout reached, proceeding anyway');
+        }
+        
+        // ✅ FIX: ใช้ข้อมูลที่ได้จริงแทนการพึ่งพา error array
+        console.log('Final upload status:', {
+          successfulUploads,
+          failedUploads,
+          totalFiles: totalSelectedFiles
+        });
+        
+        if (totalSelectedFiles === 0) {
+          // ไม่มีไฟล์ใหม่
+          this.completeTicketUpdateSuccess(0, 0);
+        } else if (failedUploads === 0 && successfulUploads > 0) {
+          // อัปโหลดสำเร็จทั้งหมด
+          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
+        } else if (successfulUploads > 0 && failedUploads > 0) {
+          // อัปโหลดสำเร็จบางส่วน
+          this.completeTicketUpdatePartial(successfulUploads, failedUploads);
+        } else if (failedUploads > 0) {
+          // อัปโหลดล้มเหลวทั้งหมด
+          this.completeTicketUpdateWithError(failedUploads);
+        } else {
+          // กรณีไม่ชัดเจน ให้ถือว่าสำเร็จ
+          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
+        }
+      }
+    }, 500);
+  }
+
+  /**
+   * ✅ FIX 2: แยก method การจัดการผลลัพธ์
+   */
+  private completeTicketUpdateSuccess(successfulUploads: number, failedUploads: number): void {
+    console.log('Completing ticket update - all successful');
+    
+    this.clearEditData();
+    
+    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
+    
+    if (successfulUploads > 0) {
+      message += `\nFiles uploaded: ${successfulUploads}`;
+    }
+    
+    this.alertMessage = message;
+    this.alertType = 'success';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+
+    // นำทางกลับไปหน้า ticket detail
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticket_no && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 2000);
+  }
+
+  private completeTicketUpdatePartial(successfulUploads: number, failedUploads: number): void {
+    console.log('Completing ticket update - partial success');
+    
+    this.clearEditData();
+    
+    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
+    message += `\nFiles uploaded: ${successfulUploads}`;
+    message += `\nFiles failed: ${failedUploads}`;
+    
+    this.alertMessage = message;
+    this.alertType = 'success'; // ✅ ใช้ success แทน error เพราะ ticket update สำเร็จ
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+
+    // นำทางกลับไปหน้า ticket detail
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticket_no && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 3000); // ให้เวลานานขึ้นเพื่ออ่าน message
+  }
+
+  private completeTicketUpdateWithError(failedUploads: number): void {
+    console.log('Completing ticket update - upload errors');
+    
+    this.isSubmitting = false;
+    this.alertMessage = `อัปเดตตั๋วสำเร็จ แต่ไฟล์ ${failedUploads} ไฟล์อัปโหลดไม่สำเร็จ`;
+    this.alertType = 'error';
+    this.showCustomAlert = true;
   }
 
   /**
@@ -305,27 +465,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.alertType = 'error';
     this.showCustomAlert = true;
     this.isSubmitting = false;
-  }
-
-  /**
-   * เสร็จสิ้นการอัปเดต ticket
-   */
-  private completeTicketUpdate(): void {
-    console.log('Ticket update completed');
-    
-    this.clearEditData();
-    
-    this.alertMessage = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
-    this.alertType = 'success';
-    this.showCustomAlert = true;
-    this.isSubmitting = false;
-
-    // นำทางกลับไปหน้า ticket detail
-    this.autoNavigationTimer = setTimeout(() => {
-      if (this.ticket_no && !this.isNavigating) {
-        this.navigateToTicketDetail();
-      }
-    }, 2000);
   }
 
   /**
@@ -418,7 +557,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
 
     // ถ้าเป็น data URL
-    if (attachment.path.startsWith('data:')) {
+    if (attachment.path && attachment.path.startsWith('data:')) {
       const mimeType = this.extractMimeTypeFromDataUrl(attachment.path);
       this.attachmentTypes[attachmentId] = {
         type: this.determineFileCategoryByMimeType(mimeType),
@@ -583,6 +722,16 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private checkFileTypeFromHeaders(url: string, attachmentId: number): void {
+    if (!url) {
+      this.attachmentTypes[attachmentId] = {
+        type: 'file',
+        extension: '',
+        filename: `attachment_${attachmentId}`,
+        isLoading: false
+      };
+      return;
+    }
+
     fetch(url, { 
       method: 'HEAD',
       mode: 'cors'
@@ -1327,6 +1476,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
+  /**
+   * ✅ FIX 9: ปรับปรุง onFileSelect เพื่อ reset states และเพิ่ม error handling
+   */
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     
@@ -1352,7 +1504,21 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       
       this.fileErrors = [];
       
-      const allFiles = [...this.selectedFiles, ...newFiles];
+      // ✅ FIX 10: ตรวจสอบไฟล์ซ้ำ
+      const uniqueNewFiles = newFiles.filter(newFile => 
+        !this.selectedFiles.some(existingFile => 
+          existingFile.name === newFile.name && existingFile.size === newFile.size
+        )
+      );
+      
+      if (uniqueNewFiles.length === 0) {
+        console.log('All selected files are duplicates');
+        input.value = '';
+        this.showFileUploadError('ไฟล์ที่เลือกมีอยู่แล้ว');
+        return;
+      }
+      
+      const allFiles = [...this.selectedFiles, ...uniqueNewFiles];
       const fileValidation = this.ticketService.validateFiles(allFiles);
       
       if (!fileValidation.isValid) {
@@ -1361,7 +1527,15 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         return;
       }
       
-      const imagePromises = newFiles
+      // ✅ FIX: Reset file states for new files
+      uniqueNewFiles.forEach(file => {
+        // ลบออกจากทุก state arrays
+        this.uploadedFileNames = this.uploadedFileNames.filter(name => name !== file.name);
+        this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== file.name);
+        this.errorFileNames = this.errorFileNames.filter(name => name !== file.name);
+      });
+      
+      const imagePromises = uniqueNewFiles
         .filter(file => this.isImageFile(file))
         .map(file => 
           this.ticketService.createImagePreview(file)
@@ -1370,19 +1544,26 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         );
       
       Promise.all(imagePromises).then(() => {
-        this.selectedFiles = [...this.selectedFiles, ...newFiles];
+        this.selectedFiles = [...this.selectedFiles, ...uniqueNewFiles];
         this.ticketForm.patchValue({ attachments: this.selectedFiles });
         console.log('Files selected:', this.selectedFiles.length);
         
-        if (this.isTicketCreated && this.ticketId) {
-          this.uploadFilesToExistingTicket(newFiles);
+        // ✅ ในโหมดแก้ไข ไม่ต้องอัปโหลดทันที รอให้กดปุ่ม Update
+        if (this.isTicketCreated && this.ticketId && !this.isEditMode) {
+          this.uploadFilesToExistingTicket(uniqueNewFiles);
         }
+      }).catch(error => {
+        console.error('Error processing file selection:', error);
+        this.showFileUploadError('เกิดข้อผิดพลาดในการเลือกไฟล์');
       });
       
       input.value = '';
     }
   }
 
+  /**
+   * ✅ FIX 3: ปรับปรุง uploadFilesToExistingTicket เพื่อ tracking ที่ดีขึ้น
+   */
   private uploadFilesToExistingTicket(files: File[]): void {
     if (!this.ticketId || files.length === 0) {
       return;
@@ -1390,86 +1571,328 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
     console.log('Uploading files to existing ticket:', this.ticketId);
 
-    files.forEach(file => {
-      this.uploadingFileNames.push(file.name);
+    // ตรวจสอบไฟล์ที่ยังไม่ได้อัปโหลด
+    const filesToUpload = files.filter(file => 
+      !this.uploadingFileNames.includes(file.name) && 
+      !this.uploadedFileNames.includes(file.name)
+    );
+
+    if (filesToUpload.length === 0) {
+      console.log('No new files to upload');
+      return;
+    }
+
+    // ✅ FIX: Clear previous states ก่อนเริ่มใหม่
+    filesToUpload.forEach(file => {
+      // ลบออกจาก error state ก่อน (ถ้ามี)
+      this.errorFileNames = this.errorFileNames.filter(name => name !== file.name);
+      
+      // เพิ่มเข้า uploading state
+      if (!this.uploadingFileNames.includes(file.name)) {
+        this.uploadingFileNames.push(file.name);
+      }
     });
+
+    // ✅ FIX: เพิ่ม timeout สำหรับการอัปโหลดไฟล์
+    this.startFileUploadTimeout(filesToUpload);
 
     const attachmentData = {
       ticket_id: this.ticketId,
-      files: files,
+      files: filesToUpload,
       project_id: parseInt(this.ticketForm.get('projectId')?.value),
       categories_id: parseInt(this.ticketForm.get('categoryId')?.value),
       issue_description: this.ticketForm.get('issueDescription')?.value,
       type: 'reporter'
     };
 
-    console.log('Attachment data being sent:', attachmentData);
+    console.log('Attachment data being sent:', {
+      ticket_id: attachmentData.ticket_id,
+      files_count: filesToUpload.length,
+      files_names: filesToUpload.map(f => f.name)
+    });
 
     this.apiService.updateAttachment(attachmentData).subscribe({
       next: (response) => {
         console.log('updateAttachment response:', response);
         
-        if (response.code === 1) {
+        // ✅ Clear timeout เมื่อได้ response
+        this.clearFileUploadTimeout();
+        
+        // ✅ FIX: ปรับปรุงการตรวจสอบ response ให้รองรับ structure ที่หลากหลาย
+        const isSuccess = (
+          response.code === 1 || 
+          response.code === 200 || 
+          response.code === 201 || 
+          (response as any).success === true ||
+          (response as any).success === 'true'
+        );
+        
+        console.log('Response analysis:', {
+          responseCode: response.code,
+          responseSuccess: (response as any).success,
+          responseMessage: (response as any).message || response.message,
+          isSuccess,
+          responseData: response.data
+        });
+        
+        if (isSuccess) {
           console.log('Files uploaded successfully:', response.data);
           
-          files.forEach((file, index) => {
-            this.markFileAsUploaded(file.name);
+          // ✅ FIX: ตรวจสอบว่ามีการ return file information หรือไม่
+          let actualUploadedCount = filesToUpload.length;
+          
+          // ถ้า response มีข้อมูลไฟล์ที่อัปโหลดสำเร็จ ให้ใช้จำนวนนั้น
+          if (response.data && Array.isArray(response.data)) {
+            actualUploadedCount = response.data.length;
+          } else if ((response as any).uploaded_files && Array.isArray((response as any).uploaded_files)) {
+            actualUploadedCount = (response as any).uploaded_files.length;
+          } else if ((response as any).files && Array.isArray((response as any).files)) {
+            actualUploadedCount = (response as any).files.length;
+          } else if ((response as any).success_count !== undefined) {
+            actualUploadedCount = (response as any).success_count;
+          } else if ((response as any).message && typeof (response as any).message === 'string') {
+            // ลองดึงจำนวนไฟล์จาก message เช่น "Successfully uploaded 1 file(s)"
+            const match = (response as any).message.match(/uploaded\s+(\d+)\s+file/i);
+            if (match) {
+              actualUploadedCount = parseInt(match[1], 10);
+            }
+          }
+          
+          console.log('Actual uploaded count determined:', {
+            filesToUploadCount: filesToUpload.length,
+            actualUploadedCount,
+            source: response.data ? 'response.data' : 'message_parsing'
           });
           
-          this.showFileUploadSuccess(`อัปโหลดไฟล์ ${files.length} ไฟล์สำเร็จ`);
+          // ✅ FIX: Mark files as uploaded individually with validation
+          let uploadedFiles: string[] = [];
+          let failedFiles: string[] = [];
+          
+          filesToUpload.forEach((file, index) => {
+            // ถ้าไฟล์อัปโหลดสำเร็จตามจำนวนที่ server ตอบกลับ
+            if (index < actualUploadedCount) {
+              this.markFileAsUploaded(file.name);
+              uploadedFiles.push(file.name);
+            } else {
+              this.markFileAsError(file.name);
+              failedFiles.push(file.name);
+            }
+          });
+          
+          // ✅ FIX: แสดงข้อความที่ถูกต้องตามผลลัพธ์จริง
+          if (failedFiles.length === 0) {
+            // ทุกไฟล์สำเร็จ
+            this.showFileUploadSuccess(`อัปโหลดไฟล์ ${uploadedFiles.length} ไฟล์สำเร็จ`);
+          } else if (uploadedFiles.length > 0) {
+            // บางไฟล์สำเร็จ บางไฟล์ล้มเหลว
+            this.showFileUploadSuccess(`อัปโหลดไฟล์สำเร็จ ${uploadedFiles.length} ไฟล์`);
+            this.showFileUploadError(`อัปโหลดไฟล์ล้มเหลว ${failedFiles.length} ไฟล์`);
+          } else {
+            // ทุกไฟล์ล้มเหลว
+            this.handleFileUploadError(filesToUpload, 'อัปโหลดไฟล์ล้มเหลวทั้งหมด');
+          }
+          
+          console.log('File upload results:', {
+            total: filesToUpload.length,
+            uploaded: uploadedFiles.length,
+            failed: failedFiles.length,
+            uploadedFiles,
+            failedFiles,
+            actualUploadedCount,
+            responseData: response.data
+          });
           
         } else {
-          console.error('File upload failed:', response.message);
-          this.showFileUploadError(response.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
-          files.forEach(file => {
-            this.markFileAsError(file.name);
+          const errorMessage = (response as any).message || response.message || `เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (Code: ${response.code})`;
+          console.error('File upload failed - invalid response:', {
+            responseCode: response.code,
+            responseSuccess: (response as any).success,
+            errorMessage
           });
+          this.handleFileUploadError(filesToUpload, errorMessage);
         }
       },
       error: (error) => {
         console.error('File upload error:', error);
         
+        // ✅ Clear timeout เมื่อเกิด error
+        this.clearFileUploadTimeout();
+        
         let errorMessage = 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
-        if (typeof error === 'string') {
-          errorMessage = error;
+        
+        // ✅ FIX: ปรับปรุงการจัดการ error message
+        if (error?.error?.message) {
+          errorMessage = error.error.message;
         } else if (error?.message) {
           errorMessage = error.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error?.status) {
+          errorMessage = `เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (HTTP ${error.status})`;
         }
         
-        this.showFileUploadError(errorMessage);
-        files.forEach(file => {
-          this.markFileAsError(file.name);
-        });
+        this.handleFileUploadError(filesToUpload, errorMessage);
       }
     });
   }
 
+  /**
+   * ✅ NEW: เริ่ม timeout สำหรับการอัปโหลดไฟล์
+   */
+  private startFileUploadTimeout(files: File[]): void {
+    this.clearFileUploadTimeout(); // Clear existing timeout first
+    
+    this.fileUploadTimeoutTimer = setTimeout(() => {
+      console.warn('File upload timeout reached for files:', files.map(f => f.name));
+      
+      // Mark files as error due to timeout
+      files.forEach(file => {
+        if (this.uploadingFileNames.includes(file.name)) {
+          this.markFileAsError(file.name);
+        }
+      });
+      
+      this.showFileUploadError('การอัปโหลดไฟล์ใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง');
+    }, this.FILE_UPLOAD_TIMEOUT);
+  }
+
+  /**
+   * ✅ NEW: ยกเลิก timeout สำหรับการอัปโหลดไฟล์
+   */
+  private clearFileUploadTimeout(): void {
+    if (this.fileUploadTimeoutTimer) {
+      clearTimeout(this.fileUploadTimeoutTimer);
+      this.fileUploadTimeoutTimer = null;
+    }
+  }
+
+  /**
+   * ✅ FIX 4: สร้าง method แยกสำหรับจัดการ error
+   */
+  private handleFileUploadError(files: File[], errorMessage: string): void {
+    files.forEach(file => {
+      this.markFileAsError(file.name);
+    });
+    
+    this.showFileUploadError(errorMessage);
+  }
+
+  /**
+   * ✅ FIX 5: ปรับปรุง markFileAsUploaded ให้มี validation และ logging ที่ดีขึ้น
+   */
   private markFileAsUploaded(fileName: string): void {
+    console.log('🔄 Marking file as uploaded:', fileName);
+    
+    // ลบออกจาก uploading state
+    const wasUploading = this.uploadingFileNames.includes(fileName);
     this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== fileName);
+    
+    // ลบออกจาก error state
+    const wasError = this.errorFileNames.includes(fileName);
     this.errorFileNames = this.errorFileNames.filter(name => name !== fileName);
     
-    if (!this.uploadedFileNames.includes(fileName)) {
+    // เพิ่มเข้า uploaded state เฉพาะถ้ายังไม่มี
+    const alreadyUploaded = this.uploadedFileNames.includes(fileName);
+    if (!alreadyUploaded) {
       this.uploadedFileNames.push(fileName);
+      console.log('✅ File successfully marked as uploaded:', fileName);
+    } else {
+      console.log('ℹ️ File already marked as uploaded:', fileName);
     }
+    
+    // ✅ Log detailed state for debugging
+    console.log('📊 Upload states after marking:', {
+      fileName,
+      wasUploading,
+      wasError,
+      alreadyUploaded,
+      currentStates: {
+        uploading: this.uploadingFileNames.length,
+        uploaded: this.uploadedFileNames.length,
+        errors: this.errorFileNames.length
+      },
+      details: {
+        uploadingFiles: this.uploadingFileNames,
+        uploadedFiles: this.uploadedFileNames,
+        errorFiles: this.errorFileNames
+      }
+    });
   }
 
+  /**
+   * ✅ FIX 6: ปรับปรุง markFileAsError พร้อม logging ที่ดีขึ้น
+   */
   private markFileAsError(fileName: string): void {
+    console.log('🔄 Marking file as error:', fileName);
+    
+    // ลบออกจาก uploading state
+    const wasUploading = this.uploadingFileNames.includes(fileName);
     this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== fileName);
     
-    if (!this.errorFileNames.includes(fileName)) {
+    // ลบออกจาก uploaded state (ในกรณีที่มีปัญหา)
+    const wasUploaded = this.uploadedFileNames.includes(fileName);
+    this.uploadedFileNames = this.uploadedFileNames.filter(name => name !== fileName);
+    
+    // เพิ่มเข้า error state เฉพาะถ้ายังไม่มี
+    const alreadyError = this.errorFileNames.includes(fileName);
+    if (!alreadyError) {
       this.errorFileNames.push(fileName);
+      console.log('❌ File marked as error:', fileName);
+    } else {
+      console.log('ℹ️ File already marked as error:', fileName);
+    }
+    
+    // ✅ Log detailed state for debugging
+    console.log('📊 Upload states after marking error:', {
+      fileName,
+      wasUploading,
+      wasUploaded,
+      alreadyError,
+      currentStates: {
+        uploading: this.uploadingFileNames.length,
+        uploaded: this.uploadedFileNames.length,
+        errors: this.errorFileNames.length
+      },
+      details: {
+        uploadingFiles: this.uploadingFileNames,
+        uploadedFiles: this.uploadedFileNames,
+        errorFiles: this.errorFileNames
+      }
+    });
+  }
+
+  /**
+   * ✅ FIX 7: ปรับปรุง showFileUploadSuccess เพื่อไม่ให้แสดงซ้ำ
+   */
+  private showFileUploadSuccess(message: string): void {
+    // ✅ ตรวจสอบว่า message นี้ยังไม่ได้แสดงหรือไม่
+    if (!this.fileSuccessMessages.includes(message)) {
+      this.fileSuccessMessages.push(message);
+      
+      setTimeout(() => {
+        this.fileSuccessMessages = this.fileSuccessMessages.filter(msg => msg !== message);
+      }, 3000); // แสดง 3 วินาที แทน 5 วินาที
     }
   }
 
-  private showFileUploadSuccess(message: string): void {
-    this.fileSuccessMessages.push(message);
-    setTimeout(() => {
-      this.fileSuccessMessages = this.fileSuccessMessages.filter(msg => msg !== message);
-    }, 5000);
+  /**
+   * ✅ FIX 8: เพิ่ม method สำหรับ reset file states
+   */
+  private resetFileStates(): void {
+    this.uploadedFileNames = [];
+    this.uploadingFileNames = [];
+    this.errorFileNames = [];
+    this.fileSuccessMessages = [];
+    console.log('File states reset');
   }
 
   private showFileUploadError(message: string): void {
     this.fileErrors.push(message);
+    
+    // ✅ Auto-remove error after 5 seconds
+    setTimeout(() => {
+      this.fileErrors = this.fileErrors.filter(err => err !== message);
+    }, 5000);
   }
 
   removeFile(index: number): void {
@@ -1540,7 +1963,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.isSubmitting = false;
       if (this.isEditMode) {
-        this.completeTicketUpdate();
+        this.completeTicketUpdateSuccess(0, 0);
       } else {
         this.completedTicketCreation();
       }
@@ -1569,20 +1992,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.isNavigating = true;
       this.showCustomAlert = false;
       
-      if (this.autoNavigationTimer) {
-        clearTimeout(this.autoNavigationTimer);
-        this.autoNavigationTimer = null;
-      }
+      this.clearAllTimers();
       
       this.router.navigate(['/tickets', this.ticket_no]);
     }
   }
 
   resetForm(): void {
-    if (this.autoNavigationTimer) {
-      clearTimeout(this.autoNavigationTimer);
-      this.autoNavigationTimer = null;
-    }
+    this.clearAllTimers();
     
     // แยกการ clear ระหว่าง edit และ create mode
     if (this.isEditMode) {
@@ -1604,10 +2021,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.validationErrors = {};
     this.isNavigating = false;
     
-    this.uploadedFileNames = [];
-    this.uploadingFileNames = [];
-    this.errorFileNames = [];
-    this.fileSuccessMessages = [];
+    this.resetFileStates();
     
     this.selectedProject = null;
     this.selectedCategory = null;
@@ -1796,10 +2210,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
   @HostListener('window:beforeunload', ['$event'])
   canDeactivate(event: BeforeUnloadEvent): boolean {
-    if (this.autoNavigationTimer) {
-      clearTimeout(this.autoNavigationTimer);
-      this.autoNavigationTimer = null;
-    }
+    this.clearAllTimers();
     
     // จัดการ localStorage ต่างกันระหว่าง edit และ create mode
     if (this.isEditMode) {
