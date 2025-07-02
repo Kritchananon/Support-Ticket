@@ -212,6 +212,12 @@
   cursor: pointer;
 }
 
+.btn-delete.disabled {
+  color: #adb5bd;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .btn-edit {
   box-sizing: border-box;
   display: flex;
@@ -232,9 +238,16 @@
   cursor: pointer;
 }
 
-.btn-edit:hover {
+.btn-edit:hover:not(.disabled) {
   background: #5873F8;
   color: #FFFFFF;
+}
+
+.btn-edit.disabled {
+  border-color: #adb5bd;
+  color: #adb5bd;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Status Badge */
@@ -990,6 +1003,8 @@ i.status-icon {
   max-width: 120px;
 }
 
+/* ===== UPDATED HISTORY SECTION ===== */
+
 /* History Card */
 .history-card {
   display: flex;
@@ -1045,12 +1060,27 @@ i.status-icon {
   flex: 1;
 }
 
+/* ✅ NEW: History Loading State */
+.history-loading {
+  padding: 1rem;
+  text-align: center;
+}
+
+.loading-spinner-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  color: #737373;
+}
+
+/* ✅ UPDATED: History Timeline */
 .history-timeline {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 0px;
-  gap: 24px;
+  gap: 16px;
   width: 153px;
 }
 
@@ -1061,9 +1091,32 @@ i.status-icon {
   padding: 0px;
   gap: 10px;
   width: 153px;
-  height: 43px;
+  min-height: 43px;
+  position: relative;
+  transition: all 0.3s ease;
 }
 
+/* ✅ NEW: Timeline connector line */
+.history-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 32px;
+  width: 2px;
+  height: calc(100% + 8px);
+  background: #E0E0E0;
+  z-index: 1;
+}
+
+.history-item.completed-status:not(:last-child)::after {
+  background: #28A745;
+}
+
+.history-item.current-status:not(:last-child)::after {
+  background: linear-gradient(to bottom, #5873F8 50%, #E0E0E0 50%);
+}
+
+/* ✅ UPDATED: History Badge Styles */
 .history-badge {
   display: flex;
   flex-direction: row;
@@ -1074,48 +1127,144 @@ i.status-icon {
   width: 24px;
   height: 24px;
   border-radius: 20px;
+  z-index: 2;
+  position: relative;
+  transition: all 0.3s ease;
+  border: 2px solid;
 }
 
+/* ✅ NEW: Updated badge classes for better visual hierarchy */
 .badge-current {
   background: #5873F8;
-}
-
-.badge-current i {
+  border-color: #5873F8;
   color: #FFFFFF;
-  font-size: 14px;
+  box-shadow: 0 0 0 4px rgba(88, 115, 248, 0.2);
+  animation: pulse 2s infinite;
 }
 
+.badge-completed {
+  background: #28A745;
+  border-color: #28A745;
+  color: #FFFFFF;
+}
+
+.badge-pending {
+  background: #F8F9FA;
+  border-color: #DEE2E6;
+  color: #6C757D;
+}
+
+/* ✅ LEGACY: Keep existing badge-history for backward compatibility */
 .badge-history {
   background: #B5B5B5;
+  border-color: #B5B5B5;
+  color: #FFFFFF;
 }
 
+.badge-current i,
+.badge-completed i,
+.badge-pending i,
 .badge-history i {
-  color: #FFFFFF;
   font-size: 14px;
 }
 
+/* ✅ UPDATED: History Content */
 .history-content {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 0px;
-  gap: 10px;
-  height: 43px;
+  gap: 6px;
+  min-height: 43px;
   flex: 1;
+  justify-content: center;
 }
 
 .history-status {
   font-weight: 500;
   font-size: 16px;
   line-height: 120%;
-  color: #212121;
+  color: #212121; /* เปลี่ยนเป็นสีดำเสมอ */
+  transition: color 0.3s ease;
+}
+
+.history-status.active-status {
+  color: #212121; /* ไม่เปลี่ยนสีแม้จะเป็น active */
+  font-weight: 500; /* เปลี่ยนจาก 600 เป็น 500 เหมือนปกติ */
 }
 
 .history-date {
   font-weight: 400;
   font-size: 14px;
   line-height: 100%;
-  color: #737373;
+  color: #737373; /* สีเทาอ่อนเหมือนในรูป */
+  transition: color 0.3s ease;
+}
+
+.history-date.pending {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* ✅ NEW: Current Status Highlighting - ปรับให้ข้อความเป็นสีดำ */
+.current-status .history-status {
+  color: #212121; /* เปลี่ยนเป็นสีดำ */
+  font-weight: 500; /* เปลี่ยนจาก 600 เป็น 500 เหมือนปกติ */
+}
+
+.current-status .history-date {
+  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
+  font-weight: 400; /* เปลี่ยนจาก 500 เป็น 400 เหมือนปกติ */
+}
+
+/* ✅ NEW: Completed Status Styling - ปรับให้ข้อความเป็นสีดำ */
+.completed-status .history-status {
+  color: #212121; /* เปลี่ยนเป็นสีดำ */
+  font-weight: 500;
+}
+
+.completed-status .history-date {
+  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
+}
+
+/* ✅ NEW: Pending Status Styling - ปรับให้ข้อความเป็นสีดำ */
+.pending-status .history-status {
+  color: #212121; /* เปลี่ยนเป็นสีดำ */
+  opacity: 0.8;
+}
+
+.pending-status .history-date {
+  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
+}
+
+/* ✅ NEW: No History State */
+.no-history {
+  padding: 2rem 1rem;
+  text-align: center;
+  border: 2px dashed #DEE2E6;
+  border-radius: 8px;
+  margin: 1rem 0;
+  background: #F8F9FA;
+  color: #6C757D;
+}
+
+.no-history i {
+  color: #ADB5BD;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+/* ✅ NEW: Pulse Animation for Current Status */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(88, 115, 248, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(88, 115, 248, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(88, 115, 248, 0);
+  }
 }
 
 /* Animation */
@@ -1276,6 +1425,35 @@ i.status-icon {
     font-size: 10px;
     max-width: 100px;
   }
+
+  /* ✅ NEW: Mobile History Adjustments */
+  .history-item {
+    margin-bottom: 1rem;
+  }
+  
+  .history-badge {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+  }
+  
+  .history-badge i {
+    font-size: 12px;
+  }
+  
+  .history-status {
+    font-size: 14px;
+  }
+  
+  .history-date {
+    font-size: 12px;
+  }
+  
+  .history-item:not(:last-child)::after {
+    left: 10px;
+    top: 28px;
+    height: calc(100% + 4px);
+  }
 }
 
 @media (max-width: 576px) {
@@ -1381,5 +1559,38 @@ i.status-icon {
   .fix-attachment-item span {
     font-size: 9px;
     max-width: 80px;
+  }
+
+  /* ✅ NEW: Extra Small Screen History Adjustments */
+  .history-timeline {
+    padding: 0.5rem 0;
+    gap: 16px;
+  }
+  
+  .history-badge {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .history-badge i {
+    font-size: 10px;
+  }
+  
+  .history-status {
+    font-size: 13px;
+  }
+  
+  .history-date {
+    font-size: 11px;
+  }
+  
+  .current-status {
+    /* ลบ padding และ margin ที่ทำให้เกิดสีพื้นหลัง */
+  }
+  
+  .history-item:not(:last-child)::after {
+    left: 9px;
+    top: 26px;
+    height: calc(100% + 2px);
   }
 }

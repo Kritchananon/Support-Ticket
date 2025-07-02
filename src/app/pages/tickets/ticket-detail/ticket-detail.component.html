@@ -1,3 +1,5 @@
+<!-- ✅ COMPLETE UPDATED FILE: ticket-detail.component.html -->
+
 <!-- Loading State -->
 <div *ngIf="isLoading" class="loading-container">
   <div class="loading-spinner">
@@ -322,7 +324,7 @@
       </div>
     </div>
 
-    <!-- History Card (Sidebar) -->
+    <!-- ✅ UPDATED: History Card (Sidebar) - แทนที่ส่วน History เดิม -->
     <div class="history-card">
       <div class="history-header">
         <h2 class="history-title">History</h2>
@@ -333,19 +335,51 @@
         </div>
       </div>
 
-      <!-- Status History Timeline -->
-      <div class="history-timeline">
-        <div *ngFor="let status of ticketData.status_history; let i = index" 
+      <!-- ✅ NEW: Loading State for History -->
+      <div *ngIf="isLoadingHistory" class="history-loading">
+        <div class="loading-spinner-small">
+          <span class="spinner-border spinner-border-sm"></span>
+          <span class="text-muted ms-2">Loading history...</span>
+        </div>
+      </div>
+
+      <!-- ✅ UPDATED: Status History Timeline - ใช้ displayHistory แทน status_history -->
+      <div *ngIf="!isLoadingHistory && displayHistory && displayHistory.length > 0" class="history-timeline">
+        <div *ngFor="let historyItem of displayHistory; let i = index" 
              class="history-item"
-             [class.current-status]="i === 0 && status.create_date">
-          <div class="history-badge" [ngClass]="getHistoryBadgeClass(status.status_id, i)">
-            <i [class]="getHistoryIcon(status.status_name)"></i>
+             [class.current-status]="historyItem.is_active"
+             [class.completed-status]="historyItem.is_completed"
+             [class.pending-status]="!historyItem.is_active && !historyItem.is_completed">
+          
+          <!-- ✅ UPDATED: History Badge with new logic -->
+          <div class="history-badge" [ngClass]="getHistoryBadgeClass(historyItem)">
+            <i [class]="getHistoryIcon(historyItem.status_name)"></i>
           </div>
           
+          <!-- ✅ UPDATED: History Content -->
           <div class="history-content">
-            <div class="history-status">{{ status.status_name }}</div>
-            <div class="history-date">{{ formatHistoryDate(status.create_date) }}</div>
+            <div class="history-status" [class.active-status]="historyItem.is_active">
+              {{ historyItem.status_name }}
+            </div>
+            
+            <!-- ✅ NEW: แสดงวันที่เฉพาะเมื่อมีการเปลี่ยนแปลงสถานะ -->
+            <div class="history-date" *ngIf="hasHistoryDate(historyItem)">
+              {{ formatHistoryDate(historyItem.create_date) }}
+            </div>
+            
+            <!-- ✅ NEW: แสดงข้อความ "Pending" เมื่อยังไม่มีวันที่ -->
+            <div class="history-date pending" *ngIf="!hasHistoryDate(historyItem) && !historyItem.is_completed">
+              <span class="text-muted">-</span>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ✅ NEW: Fallback เมื่อไม่มีข้อมูล history -->
+      <div *ngIf="!isLoadingHistory && (!displayHistory || displayHistory.length === 0)" class="no-history">
+        <div class="text-center text-muted py-3">
+          <i class="bi bi-clock-history fs-4"></i>
+          <div class="mt-2">No history available</div>
         </div>
       </div>
     </div>

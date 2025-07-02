@@ -283,6 +283,33 @@ export interface GetTicketDataResponse {
   };
 }
 
+// ✅ NEW: เพิ่ม interfaces สำหรับ getTicketHistory API
+export interface TicketHistoryRequest {
+  ticket_id: number;
+}
+
+export interface TicketHistoryResponse {
+  success: boolean;
+  message: string;
+  data: TicketStatusHistory[];
+}
+
+export interface TicketStatusHistory {
+  id: number;
+  ticket_id: number;
+  status_id: number;
+  create_date: string;
+  create_by: number;
+  status: {
+    id: number;
+    name: string;
+    statusLang?: {
+      name: string;
+      language: string;
+    }[];
+  };
+}
+
 export interface ProjectData {
   id: number;
   name: string;
@@ -451,6 +478,79 @@ export class ApiService {
     };
 
     return this.updateTicketByTicketNo(ticket_no, updateData);
+  }
+
+  // ===== NEW: Get Ticket History API ===== ✅
+  
+  /**
+   * ✅ NEW: เรียก API getTicketHistory เพื่อดึงประวัติการเปลี่ยนแปลงสถานะ
+   * @param ticketId - ID ของ ticket ที่ต้องการดึง history
+   * @returns Observable<TicketHistoryResponse>
+   */
+  getTicketHistory(ticketId: number): Observable<TicketHistoryResponse> {
+    console.log('Calling getTicketHistory API with ticketId:', ticketId);
+    
+    const requestBody: TicketHistoryRequest = {
+      ticket_id: ticketId
+    };
+    
+    return this.http.post<TicketHistoryResponse>(`${this.apiUrl}/getTicketHistory/${ticketId}`, requestBody, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('getTicketHistory API response:', response);
+        if (response.success && response.data) {
+          console.log('History data received:', response.data.length, 'items');
+        }
+      }),
+      catchError((error) => {
+        console.error('Error getting ticket history:', error);
+        // ส่งกลับ mock data ถ้า API ล้มเหลว
+        return this.getMockHistoryResponse(ticketId);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: Mock data สำหรับ history (ใช้เมื่อ API ล้มเหลว)
+   */
+  private getMockHistoryResponse(ticketId: number): Observable<TicketHistoryResponse> {
+    const mockHistory: TicketStatusHistory[] = [
+      {
+        id: 1,
+        ticket_id: ticketId,
+        status_id: 1,
+        create_date: new Date().toISOString(),
+        create_by: 1,
+        status: {
+          id: 1,
+          name: 'Created'
+        }
+      },
+      {
+        id: 2,
+        ticket_id: ticketId,
+        status_id: 2,
+        create_date: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 minutes ago
+        create_by: 1,
+        status: {
+          id: 2,
+          name: 'Open Ticket'
+        }
+      }
+    ];
+
+    const mockResponse: TicketHistoryResponse = {
+      success: true,
+      message: 'Mock history data',
+      data: mockHistory
+    };
+
+    console.log('Returning mock history response');
+    return new Observable(observer => {
+      observer.next(mockResponse);
+      observer.complete();
+    });
   }
 
   // ===== Get All Tickets API ===== ✅

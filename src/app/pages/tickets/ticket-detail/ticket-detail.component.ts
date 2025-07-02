@@ -1,9 +1,36 @@
+// ✅ COMPLETE UPDATED FILE: ticket-detail.component.ts
+
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
+
+// ✅ เพิ่ม interfaces สำหรับ History
+interface TicketStatusHistory {
+  id: number;
+  ticket_id: number;
+  status_id: number;
+  create_date: string;
+  create_by: number;
+  status: {
+    id: number;
+    name: string;
+    statusLang?: {
+      name: string;
+      language: string;
+    }[];
+  };
+}
+
+interface HistoryDisplayItem {
+  status_id: number;
+  status_name: string;
+  create_date: string;
+  is_active: boolean;
+  is_completed: boolean;
+}
 
 interface TicketData {
   ticket: {
@@ -73,10 +100,25 @@ export class TicketDetailComponent implements OnInit {
   currentRating = 0;
   hoverRating = 0;
 
-  // ✅ UPDATED: เปลี่ยนจาก Resolved เป็น Edit properties
+  // Edit/Delete properties
   isUpdating = false;
   isDeleting = false;
   isEditing = false;
+
+  // ✅ NEW: History properties
+  ticketHistory: TicketStatusHistory[] = [];
+  displayHistory: HistoryDisplayItem[] = [];
+  isLoadingHistory = false;
+
+  // ✅ NEW: Status workflow definition
+  private readonly STATUS_WORKFLOW = [
+    { id: 1, name: 'Created', icon: 'bi-plus-circle' },
+    { id: 2, name: 'Open Ticket', icon: 'bi-clock' },
+    { id: 3, name: 'In Progress', icon: 'bi-play-circle' },
+    { id: 4, name: 'Resolved', icon: 'bi-clipboard-check' }, // เปลี่ยนเป็น clipboard-check (คล้ายรูป)
+    { id: 5, name: 'Completed', icon: 'bi-check-circle' }, // ย้าย check-circle มาจาก Resolved
+    { id: 6, name: 'Cancel', icon: 'bi-x-circle' }
+  ];
 
   attachmentTypes: { [key: number]: {
     type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
@@ -94,7 +136,262 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ===== UPDATED: Edit Methods ===== ✅
+  // ===== HISTORY METHODS ===== ✅
+
+  /**
+   * ✅ NEW: โหลด history จาก API
+   */
+  private async loadTicketHistory(): Promise<void> {
+    if (!this.ticketData?.ticket?.id) {
+      console.warn('No ticket ID available for loading history');
+      this.buildHistoryFromExistingData();
+      return;
+    }
+
+    this.isLoadingHistory = true;
+    
+    try {
+      console.log('Loading ticket history for ticket ID:', this.ticketData.ticket.id);
+      
+      const historyResponse = await this.apiService.getTicketHistory(this.ticketData.ticket.id).toPromise();
+      
+      if (historyResponse?.success && historyResponse.data) {
+        this.ticketHistory = historyResponse.data;
+        this.buildDisplayHistory();
+        console.log('✅ Ticket history loaded successfully:', this.ticketHistory);
+      } else {
+        console.warn('History API returned no data, using fallback');
+        this.buildHistoryFromExistingData();
+      }
+    } catch (error) {
+      console.error('❌ Error loading ticket history:', error);
+      this.buildHistoryFromExistingData();
+    } finally {
+      this.isLoadingHistory = false;
+    }
+  }
+
+  /**
+   * ✅ NEW: สร้าง display history จากข้อมูล API
+   */
+  private buildDisplayHistory(): void {
+    if (!this.ticketData?.ticket) return;
+
+    const currentStatusId = this.ticketData.ticket.status_id;
+    
+    // สร้างรายการ status ทั้งหมดตาม workflow
+    this.displayHistory = this.STATUS_WORKFLOW.map(workflowStatus => {
+      // หาข้อมูล history ที่ตรงกับ status นี้
+      const historyItem = this.ticketHistory.find(h => h.status_id === workflowStatus.id);
+      
+      // กำหนด active state
+      const isActive = workflowStatus.id === currentStatusId;
+      const isCompleted = this.getStatusPosition(workflowStatus.id) < this.getStatusPosition(currentStatusId);
+      
+      return {
+        status_id: workflowStatus.id,
+        status_name: workflowStatus.name,
+        create_date: historyItem?.create_date || '',
+        is_active: isActive,
+        is_completed: isCompleted
+      };
+    });
+
+    console.log('Built display history:', this.displayHistory);
+  }
+
+  /**
+   * ✅ NEW: Fallback - สร้าง history จากข้อมูลเดิม
+   */
+  private buildHistoryFromExistingData(): void {
+    if (!this.ticketData?.ticket) return;
+
+    const currentStatusId = this.ticketData.ticket.status_id;
+    const existingHistory = this.ticketData.status_history || [];
+    
+    this.displayHistory = this.STATUS_WORKFLOW.map(workflowStatus => {
+      // หาข้อมูลจาก existing history
+      const existingItem = existingHistory.find(h => h.status_id === workflowStatus.id);
+      
+      const isActive = workflowStatus.id === currentStatusId;
+      const isCompleted = this.getStatusPosition(workflowStatus.id) < this.getStatusPosition(currentStatusId);
+      
+      return {
+        status_id: workflowStatus.id,
+        status_name: workflowStatus.name,
+        create_date: existingItem?.create_date || '',
+        is_active: isActive,
+        is_completed: isCompleted
+      };
+    });
+
+    console.log('Built history from existing data:', this.displayHistory);
+  }
+
+  /**
+   * ✅ NEW: หาลำดับของ status ใน workflow
+   */
+  private getStatusPosition(statusId: number): number {
+    const index = this.STATUS_WORKFLOW.findIndex(s => s.id === statusId);
+    return index !== -1 ? index : 0;
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับคลาส CSS สำหรับ history badge
+   */
+  getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
+    if (historyItem.is_active) {
+      return 'badge-current';
+    }
+    if (historyItem.is_completed) {
+      return 'badge-completed';
+    }
+    return 'badge-pending';
+  }
+
+  /**
+   * ✅ UPDATED: ได้รับไอคอนสำหรับ history
+   */
+  getHistoryIcon(statusName: string): string {
+    const workflowItem = this.STATUS_WORKFLOW.find(s => 
+      s.name.toLowerCase() === statusName.toLowerCase()
+    );
+    return workflowItem?.icon || 'bi-clock';
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า history item มีวันที่หรือไม่
+   */
+  hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
+    return !!historyItem.create_date && historyItem.create_date.trim() !== '';
+  }
+
+  /**
+   * ✅ UPDATED: Format วันที่สำหรับ history
+   */
+  formatHistoryDate(dateString: string): string {
+    if (!dateString || dateString.trim() === '') return '';
+    
+    try {
+      return new Date(dateString).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch {
+      return '';
+    }
+  }
+
+  // ===== LOAD TICKET METHODS ===== ✅
+
+  private async loadTicketDetail(): Promise<void> {
+    console.log('=== loadTicketDetail ===');
+    console.log('ticket_no:', this.ticket_no);
+    
+    this.isLoading = true;
+    this.error = '';
+
+    try {
+      await this.getTicketByTicketNo(this.ticket_no);
+      
+      // ✅ NEW: โหลด history หลังจากโหลดข้อมูล ticket เสร็จ
+      if (this.ticketData) {
+        await this.loadTicketHistory();
+      }
+    } catch (error) {
+      console.error('Error loading ticket detail:', error);
+    }
+  }
+
+  private getTicketByTicketNo(ticket_no: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log('=== getTicketByTicketNo ===');
+      console.log('Input ticket_no:', ticket_no);
+      
+      if (!ticket_no || ticket_no.trim() === '') {
+        console.error('❌ Empty ticket_no');
+        this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
+        this.isLoading = false;
+        reject(new Error('Invalid ticket number'));
+        return;
+      }
+
+      this.callGetTicketDataAPI(ticket_no, resolve, reject);
+    });
+  }
+
+  private callGetTicketDataAPI(ticket_no: string, resolve: Function, reject: Function): void {
+    console.log('=== callGetTicketDataAPI ===');
+    console.log('ticket_no:', ticket_no);
+    
+    const requestData = { ticket_no: ticket_no };
+    
+    this.apiService.getTicketData(requestData).subscribe({
+      next: (response: any) => {
+        console.log('=== API Response ===');
+        console.log('Response:', response);
+        
+        if (response && response.code === 1) {
+          if (response.data && this.isValidTicketData(response.data)) {
+            this.ticketData = response.data as TicketData;
+            this.analyzeAllAttachments();
+            console.log('✅ Ticket data loaded successfully');
+            resolve();
+          } else {
+            console.error('❌ Invalid ticket data structure');
+            this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
+            this.loadMockDataFromCreatedTicket();
+            this.analyzeAllAttachments();
+            resolve();
+          }
+        } else {
+          console.error('❌ API returned error:', response?.message);
+          this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
+          this.loadMockDataFromCreatedTicket();
+          this.analyzeAllAttachments();
+          resolve();
+        }
+        this.isLoading = false;
+      },
+      error: (error: any) => {
+        console.error('=== API Error ===');
+        console.error('Error:', error);
+        this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+        
+        console.warn('🔄 Using mock data');
+        this.loadMockDataFromCreatedTicket();
+        this.analyzeAllAttachments();
+        this.isLoading = false;
+        resolve();
+      }
+    });
+  }
+
+  private isValidTicketData(data: any): boolean {
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+
+    const hasTicket = data.ticket && typeof data.ticket === 'object';
+    const hasIssueAttachment = Array.isArray(data.issue_attachment);
+    const hasFixAttachment = Array.isArray(data.fix_attachment);
+    const hasStatusHistory = Array.isArray(data.status_history);
+
+    console.log('Data validation:', {
+      hasTicket,
+      hasIssueAttachment,
+      hasFixAttachment,
+      hasStatusHistory
+    });
+
+    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
+  }
+
+  // ===== EDIT METHODS ===== ✅
 
   /**
    * ✅ UPDATED: จัดการการแก้ไข ticket - นำทางไปหน้า edit
@@ -316,94 +613,7 @@ export class TicketDetailComponent implements OnInit {
     return 'btn-delete';
   }
 
-  // ===== EXISTING METHODS (เดิม) ===== ✅
-
-  private getTicketByTicketNo(ticket_no: string): void {
-    console.log('=== getTicketByTicketNo ===');
-    console.log('Input ticket_no:', ticket_no);
-    
-    if (!ticket_no || ticket_no.trim() === '') {
-      console.error('❌ Empty ticket_no');
-      this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
-      this.isLoading = false;
-      return;
-    }
-
-    this.callGetTicketDataAPI(ticket_no);
-  }
-
-  private callGetTicketDataAPI(ticket_no: string): void {
-    console.log('=== callGetTicketDataAPI ===');
-    console.log('ticket_no:', ticket_no);
-    
-    const requestData = { ticket_no: ticket_no };
-    
-    this.apiService.getTicketData(requestData).subscribe({
-      next: (response: any) => {
-        console.log('=== API Response ===');
-        console.log('Response:', response);
-        
-        if (response && response.code === 1) {
-          if (response.data && this.isValidTicketData(response.data)) {
-            this.ticketData = response.data as TicketData;
-            this.analyzeAllAttachments();
-            console.log('✅ Ticket data loaded successfully');
-          } else {
-            console.error('❌ Invalid ticket data structure');
-            this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
-            this.loadMockDataFromCreatedTicket();
-            this.analyzeAllAttachments();
-          }
-        } else {
-          console.error('❌ API returned error:', response?.message);
-          this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
-          this.loadMockDataFromCreatedTicket();
-          this.analyzeAllAttachments();
-        }
-        this.isLoading = false;
-      },
-      error: (error: any) => {
-        console.error('=== API Error ===');
-        console.error('Error:', error);
-        this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-        
-        console.warn('🔄 Using mock data');
-        this.loadMockDataFromCreatedTicket();
-        this.analyzeAllAttachments();
-        this.isLoading = false;
-      }
-    });
-  }
-
-  loadTicketDetail(): void {
-    console.log('=== loadTicketDetail ===');
-    console.log('ticket_no:', this.ticket_no);
-    
-    this.isLoading = true;
-    this.error = '';
-
-    this.getTicketByTicketNo(this.ticket_no);
-  }
-
-  private isValidTicketData(data: any): boolean {
-    if (!data || typeof data !== 'object') {
-      return false;
-    }
-
-    const hasTicket = data.ticket && typeof data.ticket === 'object';
-    const hasIssueAttachment = Array.isArray(data.issue_attachment);
-    const hasFixAttachment = Array.isArray(data.fix_attachment);
-    const hasStatusHistory = Array.isArray(data.status_history);
-
-    console.log('Data validation:', {
-      hasTicket,
-      hasIssueAttachment,
-      hasFixAttachment,
-      hasStatusHistory
-    });
-
-    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
-  }
+  // ===== ATTACHMENT METHODS ===== ✅
 
   private analyzeAllAttachments(): void {
     if (!this.ticketData) return;
@@ -880,6 +1090,8 @@ export class TicketDetailComponent implements OnInit {
     this.isLoading = false;
   }
 
+  // ===== UTILITY METHODS ===== ✅
+
   getStatusBadgeClass(statusId: number): string {
     switch (statusId) {
       case 1: return 'badge-pending';
@@ -904,23 +1116,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  getHistoryBadgeClass(statusId: number, index: number): string {
-    if (index === 0) return 'badge-current';
-    return 'badge-history';
-  }
-
-  getHistoryIcon(statusName: string): string {
-    switch (statusName.toLowerCase()) {
-      case 'created': return 'bi-clock';
-      case 'open ticket': return 'bi-clock';
-      case 'in progress': return 'bi-chat';
-      case 'resolved': return 'bi-check-circle';
-      case 'completed': return 'bi-check-circle-fill';
-      case 'cancel': return 'bi-x-circle';
-      default: return 'bi-clock';
-    }
-  }
-
   formatDate(dateString: string): string {
     if (!dateString) return '-';
     try {
@@ -930,22 +1125,6 @@ export class TicketDetailComponent implements OnInit {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
-  }
-
-  formatHistoryDate(dateString: string): string {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
       });
     } catch {
       return '-';
