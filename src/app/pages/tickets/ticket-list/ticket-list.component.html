@@ -11,6 +11,26 @@
     </nav>
   </div>
 
+  <!-- ✅ NEW: Status Loading Indicator -->
+  <div *ngIf="isLoadingStatuses" class="status-loading mb-3">
+    <div class="alert alert-info" role="alert">
+      <span class="spinner-border spinner-border-sm me-2"></span>
+      กำลังโหลดข้อมูลสถานะ...
+    </div>
+  </div>
+
+  <!-- ✅ NEW: Status Error Indicator -->
+  <div *ngIf="statusError && !isLoadingStatuses" class="status-error mb-3">
+    <div class="alert alert-warning" role="alert">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      {{ statusError }}
+      <button type="button" class="btn btn-sm btn-outline-warning ms-2" (click)="reloadStatusCache()">
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        โหลดใหม่
+      </button>
+    </div>
+  </div>
+
   <!-- ✅ เพิ่ม Debug Info (เฉพาะ Development) -->
   <div *ngIf="!isLoading && tickets.length > 0" class="debug-info mb-3 d-none">
     <div class="alert alert-info">
@@ -47,16 +67,28 @@
       </select>
     </div>
 
-    <!-- Status Filter -->
+    <!-- ✅ UPDATED: Status Filter - ใช้ข้อมูลจาก status cache -->
     <div class="filter-item status-item">
       <label class="filter-label">Status</label>
       <select 
         class="filter-select"
         [value]="selectedStatus"
-        (change)="onStatusChange($event)">
-        <option *ngFor="let option of statusOptions" [value]="option.value">
-          {{ option.label }}
-        </option>
+        (change)="onStatusChange($event)"
+        [disabled]="isLoadingStatuses">
+        
+        <!-- Option แรกคงเดิม -->
+        <option value="">All Status</option>
+        
+        <!-- ✅ NEW: แสดง loading เมื่อกำลังโหลด status -->
+        <option value="" *ngIf="isLoadingStatuses" disabled>Loading statuses...</option>
+        
+        <!-- ✅ UPDATED: ใช้ข้อมูลจาก status cache แทน hardcode -->
+        <option value="1">{{ getStatusText(1) }}</option>
+        <option value="2">{{ getStatusText(2) }}</option>
+        <option value="3">{{ getStatusText(3) }}</option>
+        <option value="4">{{ getStatusText(4) }}</option>
+        <option value="5">{{ getStatusText(5) }}</option>
+        <option value="6">{{ getStatusText(6) }}</option>
       </select>
     </div>
 
@@ -187,8 +219,17 @@
             <div class="ticket-date-status">
               <span class="ticket-date">{{ formatDate(ticket.create_date) }}</span>
               <div class="ticket-divider"></div>
+              
+              <!-- ✅ UPDATED: Status Badge - ใช้ getStatusText() ที่อัปเดตแล้ว -->
               <div class="status-badge" [ngClass]="getStatusBadgeClass(ticket.status_id)">
+                <!-- ✅ NEW: แสดง warning ถ้า status cache ยังไม่โหลด -->
+                <i class="bi bi-exclamation-triangle text-warning me-1" 
+                   *ngIf="!statusCacheLoaded && !isLoadingStatuses"
+                   title="Status cache not loaded"></i>
+                
                 <i class="status-icon" [ngClass]="getStatusIcon(ticket.status_id)"></i>
+                
+                <!-- ✅ UPDATED: ใช้ getStatusText() แทน getStatusText() เดิม -->
                 <span class="status-text">{{ getStatusText(ticket.status_id) }}</span>
               </div>
             </div>
@@ -227,6 +268,11 @@
         <span *ngIf="ticketsError" class="text-warning ms-2">
           <i class="bi bi-exclamation-triangle"></i>
           (ใช้ข้อมูลตัวอย่าง)
+        </span>
+        <!-- ✅ NEW: แสดงสถานะของ status cache -->
+        <span *ngIf="!statusCacheLoaded && !isLoadingStatuses" class="text-muted ms-2">
+          <i class="bi bi-info-circle"></i>
+          (สถานะจากค่าเริ่มต้น)
         </span>
       </p>
     </div>

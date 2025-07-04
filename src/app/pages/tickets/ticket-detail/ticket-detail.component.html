@@ -34,6 +34,17 @@
     </nav>
   </div>
 
+  <!-- ✅ NEW: แสดง debug info สำหรับ status (สำหรับ development) -->
+  <div *ngIf="currentStatusInfo && !isLoadingStatus" class="debug-status-info d-none">
+    <div class="alert alert-info">
+      <strong>Status Debug:</strong><br>
+      ID: {{ currentStatusInfo.status_id }}<br>
+      Name: {{ currentStatusInfo.status_name }}<br>
+      Language: {{ currentStatusInfo.language_id }}<br>
+      <span *ngIf="statusError" class="text-warning">Error: {{ statusError }}</span>
+    </div>
+  </div>
+
   <!-- Layout Container -->
   <div class="layout-container">
     <!-- Main Content Area -->
@@ -45,9 +56,20 @@
           <div class="ticket-header-left">
             <div class="ticket-title-container">
               <h1 class="ticket-title">Ticket</h1>
-              <div class="status-badge" [ngClass]="getStatusBadgeClass(ticketData.ticket.status_id)">
-                <i class="status-icon" [ngClass]="getStatusIcon(ticketData.ticket.status_id)"></i>
-                <span class="status-text">{{ ticketData.ticket.status_name }}</span>
+              
+              <!-- ✅ UPDATED: ใช้ getCurrentStatusId() และ getCurrentStatusName() -->
+              <div class="status-badge" [ngClass]="getStatusBadgeClass()">
+                <!-- ✅ NEW: แสดง loading spinner เมื่อกำลังโหลด status -->
+                <span *ngIf="isLoadingStatus" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                
+                <!-- ✅ UPDATED: ใช้ method ใหม่ -->
+                <i class="status-icon" [ngClass]="getStatusIcon()" *ngIf="!isLoadingStatus"></i>
+                <span class="status-text">{{ getCurrentStatusName() }}</span>
+                
+                <!-- ✅ NEW: แสดง error ถ้าโหลด status ไม่ได้ -->
+                <i class="bi bi-exclamation-triangle text-warning ms-1" 
+                   *ngIf="statusError && !isLoadingStatus"
+                   [title]="statusError"></i>
               </div>
             </div>
           </div>

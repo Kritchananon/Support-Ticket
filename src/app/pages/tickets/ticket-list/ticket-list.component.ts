@@ -35,6 +35,11 @@ export class TicketListComponent implements OnInit {
   ticketsError = '';
   noTicketsFound = false;
 
+  // ✅ NEW: Status management properties
+  statusCacheLoaded = false;
+  isLoadingStatuses = false;
+  statusError = '';
+
   // Filter states
   searchText = '';
   selectedPriority = '';
@@ -65,9 +70,45 @@ export class TicketListComponent implements OnInit {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
     
-    // ✅ โหลด master filters ก่อน แล้วค่อยโหลด tickets
+    // ✅ NEW: โหลด status cache ก่อน
+    this.loadStatusCache();
+    
+    // โหลด master filters ก่อน แล้วค่อยโหลด tickets
     this.loadMasterFilters();
     this.loadAllTickets();
+  }
+
+  // ✅ NEW: โหลด status cache
+  private loadStatusCache(): void {
+    console.log('=== Loading Status Cache ===');
+    
+    // ตรวจสอบว่า cache โหลดแล้วหรือยัง
+    if (this.apiService.isStatusCacheLoaded()) {
+      this.statusCacheLoaded = true;
+      console.log('✅ Status cache already loaded');
+      return;
+    }
+
+    this.isLoadingStatuses = true;
+    this.statusError = '';
+
+    this.apiService.loadAndCacheStatuses().subscribe({
+      next: (success) => {
+        if (success) {
+          this.statusCacheLoaded = true;
+          console.log('✅ Status cache loaded successfully');
+        } else {
+          console.warn('Status cache loading failed, using defaults');
+          this.statusError = 'ไม่สามารถโหลดข้อมูลสถานะได้';
+        }
+        this.isLoadingStatuses = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading status cache:', error);
+        this.statusError = 'เกิดข้อผิดพลาดในการโหลดสถานะ';
+        this.isLoadingStatuses = false;
+      }
+    });
   }
 
   // ✅ ใหม่: Method สำหรับโหลด tickets จาก getAllTicket API
@@ -154,9 +195,27 @@ export class TicketListComponent implements OnInit {
     console.log('Using mock filter data');
   }
 
-  // ✅ อัปเดต: ปรับปรุง mock data ให้ตรงกับ interface ใหม่
+  // ✅ UPDATED: ปรับปรุง getStatusText ให้ใช้ cache
+  getStatusText(statusId: number): string {
+    if (this.statusCacheLoaded) {
+      return this.apiService.getCachedStatusName(statusId);
+    }
+    
+    // Fallback ถ้า cache ยังไม่โหลด
+    switch (statusId) {
+      case 1: return 'Created';
+      case 2: return 'Open Ticket';
+      case 3: return 'In Progress';
+      case 4: return 'Resolved';
+      case 5: return 'Completed';
+      case 6: return 'Cancel';
+      default: return 'Unknown';
+    }
+  }
+
+  // ✅ UPDATED: ปรับปรุง generateMockTickets ให้ใช้ status name จาก cache
   generateMockTickets(): AllTicketData[] {
-    return [
+    const mockTickets = [
       {
         ticket_no: '#68050001',
         categories_id: 1,
@@ -236,6 +295,12 @@ export class TicketListComponent implements OnInit {
         user_name: 'Wasan Rungsavang'
       }
     ];
+
+    // ✅ NEW: เพิ่ม status_name ให้ mock tickets
+    return mockTickets.map(ticket => ({
+      ...ticket,
+      status_name: this.getStatusText(ticket.status_id)
+    }));
   }
 
   onSearchChange(): void {
@@ -323,26 +388,17 @@ export class TicketListComponent implements OnInit {
     }
   }
 
-  getStatusText(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'Pending';
-      case 2: return 'In Progress';
-      case 3: return 'Hold';
-      case 4: return 'Resolved';
-      case 5: return 'Complete';
-      case 6: return 'Cancel';
-      default: return 'Unknown';
-    }
-  }
-
+  /**
+   * ✅ UPDATED: เปลี่ยนไอคอนให้ตรงกับ history
+   */
   getStatusIcon(statusId: number): string {
     switch (statusId) {
-      case 1: return 'bi-clock';
-      case 2: return 'bi-chat';
-      case 3: return 'bi-pause-circle';
-      case 4: return 'bi-check-circle';
-      case 5: return 'bi-check-circle-fill';
-      case 6: return 'bi-x-circle';
+      case 1: return 'bi-plus-circle';      // Created - ตรงกับ history
+      case 2: return 'bi-clock';            // Open Ticket - ตรงกับ history
+      case 3: return 'bi-play-circle';      // In Progress - ตรงกับ history
+      case 4: return 'bi-clipboard-check';  // Resolved - ตรงกับ history
+      case 5: return 'bi-check-circle';     // Completed - ตรงกับ history
+      case 6: return 'bi-x-circle';         // Cancel - ตรงกับ history
       default: return 'bi-clock';
     }
   }
@@ -381,7 +437,7 @@ export class TicketListComponent implements OnInit {
     this.router.navigate(['/tickets/new']);
   }
 
-  // ✅ เพิ่ม debug methods
+  // ✅ NEW: ปรับปรุง getDebugInfo ให้แสดงข้อมูล status
   getDebugInfo(): any {
     return {
       totalTickets: this.tickets.length,
@@ -389,6 +445,11 @@ export class TicketListComponent implements OnInit {
       currentUser: this.currentUser?.id,
       hasError: !!this.ticketsError,
       isLoading: this.isLoading,
+      statusCache: {
+        loaded: this.statusCacheLoaded,
+        loading: this.isLoadingStatuses,
+        error: this.statusError
+      },
       filters: {
         search: this.searchText,
         priority: this.selectedPriority,
@@ -397,5 +458,13 @@ export class TicketListComponent implements OnInit {
         category: this.selectedCategory
       }
     };
+  }
+
+  // ✅ NEW: Method สำหรับ reload status cache
+  reloadStatusCache(): void {
+    console.log('Reloading status cache...');
+    this.apiService.clearStatusCache();
+    this.statusCacheLoaded = false;
+    this.loadStatusCache();
   }
 }
