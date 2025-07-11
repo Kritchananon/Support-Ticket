@@ -1,3 +1,5 @@
+// ✅ FIXED: ticket-create.component.ts - แก้ไข function การ preview รูปภาพ
+
 import { Component, OnInit, OnDestroy, inject, ViewEncapsulation, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -32,9 +34,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private ticketService = inject(TicketService);
   private cdr = inject(ChangeDetectorRef);
 
-  // เพิ่ม environment สำหรับ debug (ใช้แทน import)
   get environment() {
-    return { production: false }; // เปลี่ยนเป็น true ใน production
+    return { production: false };
   }
 
   ticketForm: FormGroup;
@@ -79,18 +80,19 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   // Delete attachment tracking
   private deletingAttachmentIds: Set<number> = new Set();
 
-  // ✅ NEW: File Analysis Properties
+  // ✅ FIXED: File Analysis Properties - เพิ่ม complete type definitions
   attachmentTypes: { [key: number]: {
     type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
     extension: string;
     filename: string;
     isLoading?: boolean;
+    isAnalyzed?: boolean; // ✅ เพิ่ม flag เพื่อป้องกันการวิเคราะห์ซ้ำ
   } } = {};
 
-  // ✅ NEW: Bulk Selection Properties
+  // Bulk Selection Properties
   selectedAttachmentIds: Set<number> = new Set();
 
-  // ✅ NEW: File Upload Timeout Timer
+  // File Upload Timeout Timer
   private fileUploadTimeoutTimer: any = null;
   private readonly FILE_UPLOAD_TIMEOUT = 30000; // 30 seconds
 
@@ -107,7 +109,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.currentUser = this.authService.getCurrentUser();
     console.log('Current user:', this.currentUser);
     
-    // ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
     this.checkEditMode();
     
     this.ticketForm.get('issueDescription')?.valueChanges
@@ -121,17 +122,13 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Clean up file preview URLs
     Object.values(this.filePreviewUrls).forEach(url => {
       if (url.startsWith('blob:')) {
         URL.revokeObjectURL(url);
       }
     });
     
-    // Clear all timers
     this.clearAllTimers();
-
-    // ลบข้อมูล edit ออกจาก localStorage เมื่อออกจากหน้า
     this.clearEditData();
   }
 
@@ -150,11 +147,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
   // ===== Edit Mode Methods ===== ✅
 
-  /**
-   * ตรวจสอบว่าเป็นโหมดแก้ไขหรือไม่
-   */
   private checkEditMode(): void {
-    // ตรวจสอบจาก URL parameter
     this.editTicketNo = this.route.snapshot.params['ticket_no'];
     
     if (this.editTicketNo) {
@@ -169,7 +162,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ UPDATED: กู้คืนข้อมูล ticket สำหรับการแก้ไข (พร้อมการวิเคราะห์ไฟล์)
+   * ✅ FIXED: กู้คืนข้อมูล ticket สำหรับการแก้ไข พร้อมการวิเคราะห์ไฟล์ที่ปรับปรุงแล้ว
    */
   private restoreEditTicketData(): void {
     try {
@@ -187,7 +180,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         const ticketData = JSON.parse(editTicketData);
         console.log('Found edit ticket data:', ticketData);
         
-        // ตรวจสอบความถูกต้องของข้อมูล
         if (ticketData.userId !== currentUserId || !ticketData.isEditMode) {
           console.log('Invalid edit data, clearing');
           localStorage.removeItem(editStorageKey);
@@ -195,7 +187,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           return;
         }
 
-        // เซ็ต properties สำหรับ edit mode
         this.isEditMode = true;
         this.ticketId = ticketData.ticketId;
         this.ticket_no = ticketData.ticket_no;
@@ -203,7 +194,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.originalTicketData = ticketData;
         this.existingAttachments = ticketData.existingAttachments || [];
         
-        // กรอกข้อมูลในฟอร์ม
         this.ticketForm.patchValue({
           projectId: ticketData.formData.projectId,
           categoryId: ticketData.formData.categoryId,
@@ -213,12 +203,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.selectedProject = ticketData.selectedProject;
         this.selectedCategory = ticketData.selectedCategory;
         
-        // อัปเดต UI และวิเคราะห์ไฟล์
         setTimeout(() => {
           this.updateUIFromRestoredData(ticketData);
           this.addSuccessState();
           
-          // ✅ NEW: วิเคราะห์ไฟล์ existing attachments
+          // ✅ FIXED: วิเคราะห์ไฟล์ existing attachments ด้วย method ที่ปรับปรุงแล้ว
           this.analyzeAllExistingAttachments();
         }, 500);
         
@@ -233,9 +222,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * กลับไปหน้า ticket detail
-   */
   private backToTicketDetail(): void {
     if (this.editTicketNo) {
       this.router.navigate(['/tickets', this.editTicketNo]);
@@ -244,9 +230,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ลบข้อมูล edit ออกจาก localStorage
-   */
   private clearEditData(): void {
     if (this.isEditMode && this.editTicketNo) {
       const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
@@ -258,263 +241,60 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ FIX 7: ปรับปรุง updateExistingTicket เพื่อ tracking ที่ดีขึ้น
-   */
-  private updateExistingTicket(): void {
-    if (!this.ticketId) {
-      console.error('No ticket ID for update');
-      return;
-    }
-
-    this.isSubmitting = true;
-    
-    const formData = this.ticketForm.value;
-    
-    const updateData = {
-      project_id: parseInt(formData.projectId),
-      categories_id: parseInt(formData.categoryId),
-      issue_description: formData.issueDescription
-    };
-
-    console.log('Updating existing ticket with data:', updateData);
-
-    this.apiService.updateTicketData(this.ticketId, updateData).subscribe({
-      next: (response) => {
-        console.log('updateTicketData response:', response);
-        
-        if (response.code === 1) {
-          console.log('Ticket updated successfully');
-          
-          // ตรวจสอบไฟล์ใหม่ที่ต้องอัปโหลด
-          const newFilesToUpload = this.selectedFiles.filter(file => 
-            !this.uploadedFileNames.includes(file.name) && 
-            !this.uploadingFileNames.includes(file.name)
-          );
-          
-          console.log('Files to upload after ticket update:', {
-            totalSelectedFiles: this.selectedFiles.length,
-            newFilesToUpload: newFilesToUpload.length,
-            alreadyUploaded: this.uploadedFileNames.length,
-            currentlyUploading: this.uploadingFileNames.length
-          });
-          
-          if (newFilesToUpload.length > 0) {
-            console.log('Uploading new files:', newFilesToUpload.map(f => f.name));
-            this.uploadFilesToExistingTicket(newFilesToUpload);
-            
-            // รอให้การอัปโหลดเสร็จ
-            this.waitForFileUploadsToComplete();
-          } else {
-            // ไม่มีไฟล์ใหม่ ให้จบการอัปเดตเลย
-            console.log('No new files to upload, completing immediately');
-            this.completeTicketUpdateSuccess(0, 0);
-          }
-        } else {
-          this.onUpdateError('Failed to update ticket: ' + response.message);
-        }
-      },
-      error: (error) => {
-        console.error('Error updating ticket:', error);
-        this.onUpdateError('เกิดข้อผิดพลาดในการอัปเดตตั๋ว');
-      }
-    });
-  }
+  // ===== FIXED: File Analysis Methods ===== ✅
 
   /**
-   * ✅ FIX 1: ปรับปรุง waitForFileUploadsToComplete method พร้อมการตรวจสอบที่แม่นยำขึ้น
-   */
-  private waitForFileUploadsToComplete(): void {
-    console.log('Starting file upload monitoring...');
-    
-    let checkCount = 0;
-    const maxChecks = 60; // 30 วินาที (500ms * 60)
-    
-    const checkInterval = setInterval(() => {
-      checkCount++;
-      
-      // ตรวจสอบสถานะการอัปโหลด
-      const stillUploading = this.uploadingFileNames.length > 0;
-      const totalSelectedFiles = this.selectedFiles.length;
-      const successfulUploads = this.uploadedFileNames.length;
-      const failedUploads = this.errorFileNames.length;
-      const completedFiles = successfulUploads + failedUploads;
-      
-      console.log(`Upload monitoring (${checkCount}/${maxChecks}):`, {
-        stillUploading,
-        totalSelectedFiles,
-        successfulUploads,
-        failedUploads,
-        completedFiles,
-        uploadingFiles: this.uploadingFileNames,
-        uploadedFiles: this.uploadedFileNames,
-        errorFiles: this.errorFileNames
-      });
-      
-      // ✅ FIX: ปรับเงื่อนไขการตรวจสอบให้แม่นยำขึ้น
-      const allFilesProcessed = !stillUploading && (completedFiles >= totalSelectedFiles || totalSelectedFiles === 0);
-      const timeoutReached = checkCount >= maxChecks;
-      
-      if (allFilesProcessed || timeoutReached) {
-        clearInterval(checkInterval);
-        
-        if (timeoutReached) {
-          console.warn('File upload monitoring timeout reached, proceeding anyway');
-        }
-        
-        // ✅ FIX: ใช้ข้อมูลที่ได้จริงแทนการพึ่งพา error array
-        console.log('Final upload status:', {
-          successfulUploads,
-          failedUploads,
-          totalFiles: totalSelectedFiles
-        });
-        
-        if (totalSelectedFiles === 0) {
-          // ไม่มีไฟล์ใหม่
-          this.completeTicketUpdateSuccess(0, 0);
-        } else if (failedUploads === 0 && successfulUploads > 0) {
-          // อัปโหลดสำเร็จทั้งหมด
-          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
-        } else if (successfulUploads > 0 && failedUploads > 0) {
-          // อัปโหลดสำเร็จบางส่วน
-          this.completeTicketUpdatePartial(successfulUploads, failedUploads);
-        } else if (failedUploads > 0) {
-          // อัปโหลดล้มเหลวทั้งหมด
-          this.completeTicketUpdateWithError(failedUploads);
-        } else {
-          // กรณีไม่ชัดเจน ให้ถือว่าสำเร็จ
-          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
-        }
-      }
-    }, 500);
-  }
-
-  /**
-   * ✅ FIX 2: แยก method การจัดการผลลัพธ์
-   */
-  private completeTicketUpdateSuccess(successfulUploads: number, failedUploads: number): void {
-    console.log('Completing ticket update - all successful');
-    
-    this.clearEditData();
-    
-    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
-    
-    if (successfulUploads > 0) {
-      message += `\nFiles uploaded: ${successfulUploads}`;
-    }
-    
-    this.alertMessage = message;
-    this.alertType = 'success';
-    this.showCustomAlert = true;
-    this.isSubmitting = false;
-
-    // นำทางกลับไปหน้า ticket detail
-    this.autoNavigationTimer = setTimeout(() => {
-      if (this.ticket_no && !this.isNavigating) {
-        this.navigateToTicketDetail();
-      }
-    }, 2000);
-  }
-
-  private completeTicketUpdatePartial(successfulUploads: number, failedUploads: number): void {
-    console.log('Completing ticket update - partial success');
-    
-    this.clearEditData();
-    
-    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
-    message += `\nFiles uploaded: ${successfulUploads}`;
-    message += `\nFiles failed: ${failedUploads}`;
-    
-    this.alertMessage = message;
-    this.alertType = 'success'; // ✅ ใช้ success แทน error เพราะ ticket update สำเร็จ
-    this.showCustomAlert = true;
-    this.isSubmitting = false;
-
-    // นำทางกลับไปหน้า ticket detail
-    this.autoNavigationTimer = setTimeout(() => {
-      if (this.ticket_no && !this.isNavigating) {
-        this.navigateToTicketDetail();
-      }
-    }, 3000); // ให้เวลานานขึ้นเพื่ออ่าน message
-  }
-
-  private completeTicketUpdateWithError(failedUploads: number): void {
-    console.log('Completing ticket update - upload errors');
-    
-    this.isSubmitting = false;
-    this.alertMessage = `อัปเดตตั๋วสำเร็จ แต่ไฟล์ ${failedUploads} ไฟล์อัปโหลดไม่สำเร็จ`;
-    this.alertType = 'error';
-    this.showCustomAlert = true;
-  }
-
-  /**
-   * จัดการข้อผิดพลาดในการอัปเดต
-   */
-  private onUpdateError(error: any): void {
-    let message = 'เกิดข้อผิดพลาดในการอัปเดตตั๋ว';
-    
-    if (typeof error === 'string') {
-      message = error;
-    } else if (error && error.message) {
-      message = error.message;
-    }
-    
-    console.error('Update error:', error);
-    
-    this.alertMessage = message;
-    this.alertType = 'error';
-    this.showCustomAlert = true;
-    this.isSubmitting = false;
-  }
-
-  /**
-   * ได้รับชื่อหน้าที่ถูกต้อง
-   */
-  getPageTitle(): string {
-    return this.isEditMode ? 'Edit Ticket' : 'New Ticket';
-  }
-
-  /**
-   * ได้รับข้อความปุ่มที่ถูกต้อง
-   */
-  getSubmitButtonText(): string {
-    if (this.isSubmitting) {
-      return this.isEditMode ? 'Updating Ticket...' : 'Creating Ticket...';
-    }
-    return this.isEditMode ? 'Update Ticket' : 'New Ticket';
-  }
-
-  // ===== File Analysis Methods ===== ✅
-
-  /**
-   * ✅ NEW: วิเคราะห์ไฟล์ทั้งหมดใน existing attachments
+   * ✅ FIXED: วิเคราะห์ไฟล์ทั้งหมดใน existing attachments พร้อม error handling
    */
   private analyzeAllExistingAttachments(): void {
     if (!this.existingAttachments || this.existingAttachments.length === 0) {
+      console.log('No existing attachments to analyze');
       return;
     }
 
-    console.log('Analyzing existing attachments:', this.existingAttachments.length);
-    this.existingAttachments.forEach(attachment => {
+    console.log('🔍 Starting analysis of existing attachments:', this.existingAttachments.length);
+    
+    // ✅ วิเคราะห์ไฟล์แต่ละไฟล์พร้อมกัน
+    this.existingAttachments.forEach((attachment, index) => {
+      console.log(`🔍 Analyzing attachment ${index + 1}:`, {
+        id: attachment.attachment_id,
+        path: attachment.path,
+        filename: attachment.filename
+      });
+      
       this.analyzeExistingAttachment(attachment);
     });
   }
 
   /**
-   * ✅ NEW: วิเคราะห์ไฟล์ existing attachment แต่ละไฟล์
+   * ✅ FIXED: วิเคราะห์ไฟล์ existing attachment แต่ละไฟล์ พร้อม comprehensive error handling
    */
   private analyzeExistingAttachment(attachment: any): void {
+    if (!attachment || !attachment.attachment_id) {
+      console.warn('Invalid attachment data:', attachment);
+      return;
+    }
+
     const attachmentId = attachment.attachment_id;
     
-    // เริ่มต้นด้วย loading state
+    // ✅ ตรวจสอบว่าวิเคราะห์แล้วหรือยัง
+    if (this.attachmentTypes[attachmentId]?.isAnalyzed) {
+      console.log('✅ Attachment already analyzed:', attachmentId);
+      return;
+    }
+    
+    // ✅ เริ่มต้นด้วย loading state
     this.attachmentTypes[attachmentId] = {
       type: 'file',
       extension: '',
       filename: 'Loading...',
-      isLoading: true
+      isLoading: true,
+      isAnalyzed: false
     };
 
-    // ถ้ามีข้อมูล filename และ file_type จาก API
+    console.log(`🔍 Starting analysis for attachment ID: ${attachmentId}`);
+
+    // ✅ PRIORITY 1: ถ้ามีข้อมูล filename และ file_type จาก API ใช้ข้อมูลนี้ก่อน
     if (attachment.filename || attachment.file_type) {
       const filename = attachment.filename || this.extractFilenameFromPath(attachment.path);
       const fileType = attachment.file_type || this.getFileTypeFromFilename(filename);
@@ -523,19 +303,24 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         type: this.determineFileCategory(fileType, filename),
         extension: this.getFileExtension(filename),
         filename: filename,
-        isLoading: false
+        isLoading: false,
+        isAnalyzed: true
       };
       
-      console.log(`Existing file analyzed from API data:`, {
+      console.log(`✅ File analyzed from API data:`, {
         id: attachmentId,
         filename,
         fileType,
-        category: this.attachmentTypes[attachmentId].type
+        category: this.attachmentTypes[attachmentId].type,
+        extension: this.attachmentTypes[attachmentId].extension
       });
+      
+      // ✅ Force change detection
+      this.cdr.detectChanges();
       return;
     }
 
-    // ถ้าไม่มีข้อมูลจาก API ให้วิเคราะห์จาก path
+    // ✅ PRIORITY 2: วิเคราะห์จาก path/filename
     const filename = this.extractFilenameFromPath(attachment.path);
     const extension = this.getFileExtension(filename);
     
@@ -544,58 +329,112 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         type: this.determineFileCategoryByExtension(extension),
         extension: extension,
         filename: filename,
-        isLoading: false
+        isLoading: false,
+        isAnalyzed: true
       };
       
-      console.log(`Existing file analyzed from path:`, {
+      console.log(`✅ File analyzed from path:`, {
         id: attachmentId,
         filename,
         extension,
         category: this.attachmentTypes[attachmentId].type
       });
+      
+      this.cdr.detectChanges();
       return;
     }
 
-    // ถ้าเป็น data URL
+    // ✅ PRIORITY 3: ถ้าเป็น data URL
     if (attachment.path && attachment.path.startsWith('data:')) {
       const mimeType = this.extractMimeTypeFromDataUrl(attachment.path);
       this.attachmentTypes[attachmentId] = {
         type: this.determineFileCategoryByMimeType(mimeType),
         extension: this.getExtensionFromMimeType(mimeType),
         filename: `attachment_${attachmentId}.${this.getExtensionFromMimeType(mimeType)}`,
-        isLoading: false
+        isLoading: false,
+        isAnalyzed: true
       };
       
-      console.log(`Existing file analyzed from data URL:`, {
+      console.log(`✅ File analyzed from data URL:`, {
         id: attachmentId,
         mimeType,
         category: this.attachmentTypes[attachmentId].type
       });
+      
+      this.cdr.detectChanges();
       return;
     }
 
-    // ลองตรวจสอบจาก HTTP headers
-    this.checkFileTypeFromHeaders(attachment.path, attachmentId);
+    // ✅ PRIORITY 4: ลองตรวจสอบจาก HTTP headers
+    if (attachment.path && (attachment.path.startsWith('http') || attachment.path.startsWith('/'))) {
+      this.checkFileTypeFromHeaders(attachment.path, attachmentId);
+    } else {
+      // ✅ Fallback: ไม่สามารถวิเคราะห์ได้
+      this.attachmentTypes[attachmentId] = {
+        type: 'file',
+        extension: '',
+        filename: filename || `attachment_${attachmentId}`,
+        isLoading: false,
+        isAnalyzed: true
+      };
+      
+      console.log(`⚠️ Using fallback for attachment:`, attachmentId);
+      this.cdr.detectChanges();
+    }
   }
 
+  /**
+   * ✅ FIXED: แยกชื่อไฟล์จาก path พร้อม better error handling
+   */
   private extractFilenameFromPath(path: string): string {
-    if (!path) return 'unknown';
-    
-    if (path.startsWith('data:')) {
-      return 'data_file';
+    if (!path || typeof path !== 'string') {
+      console.warn('Invalid path provided:', path);
+      return 'unknown';
     }
     
-    const parts = path.split('/');
-    const lastPart = parts[parts.length - 1];
-    
-    return lastPart.split('?')[0] || 'unknown';
+    try {
+      if (path.startsWith('data:')) {
+        return 'data_file';
+      }
+      
+      // ✅ Handle various path formats
+      const parts = path.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      // ✅ Remove query parameters and decode URI if needed
+      const cleanFilename = lastPart.split('?')[0];
+      
+      try {
+        return decodeURIComponent(cleanFilename) || 'unknown';
+      } catch {
+        return cleanFilename || 'unknown';
+      }
+    } catch (error) {
+      console.warn('Error extracting filename from path:', path, error);
+      return 'unknown';
+    }
   }
 
+  /**
+   * ✅ FIXED: ได้รับ file extension พร้อม validation
+   */
   private getFileExtension(filename: string): string {
-    if (!filename || filename === 'unknown') return '';
+    if (!filename || filename === 'unknown' || typeof filename !== 'string') {
+      return '';
+    }
     
-    const parts = filename.split('.');
-    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+    try {
+      const parts = filename.split('.');
+      if (parts.length > 1) {
+        const extension = parts[parts.length - 1].toLowerCase();
+        // ✅ Validate extension (only allow alphanumeric)
+        return /^[a-z0-9]+$/i.test(extension) ? extension : '';
+      }
+      return '';
+    } catch (error) {
+      console.warn('Error getting file extension:', filename, error);
+      return '';
+    }
   }
 
   private getFileTypeFromFilename(filename: string): string {
@@ -603,39 +442,50 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     return extension || 'unknown';
   }
 
+  /**
+   * ✅ FIXED: ปรับปรุง determineFileCategory พร้อม better logic
+   */
   private determineFileCategory(fileType: string, filename: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
-    const type = fileType.toLowerCase();
+    const type = (fileType || '').toLowerCase();
     const ext = this.getFileExtension(filename).toLowerCase();
     
-    if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+    // ✅ Image files
+    if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'].includes(ext)) {
       return 'image';
     }
     
+    // ✅ PDF files
     if (type.includes('pdf') || ext === 'pdf') {
       return 'pdf';
     }
     
-    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+    // ✅ Excel files
+    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv', 'ods'].includes(ext)) {
       return 'excel';
     }
     
-    if (type.includes('word') || type.includes('document') || ['doc', 'docx', 'rtf'].includes(ext)) {
+    // ✅ Word files
+    if (type.includes('word') || type.includes('document') || ['doc', 'docx', 'rtf', 'odt'].includes(ext)) {
       return 'word';
     }
     
-    if (type.includes('text') || ['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+    // ✅ Text files
+    if (type.includes('text') || ['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'csv'].includes(ext)) {
       return 'text';
     }
     
-    if (type.includes('archive') || type.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    // ✅ Archive files
+    if (type.includes('archive') || type.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)) {
       return 'archive';
     }
     
-    if (type.includes('video') || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+    // ✅ Video files
+    if (type.includes('video') || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) {
       return 'video';
     }
     
-    if (type.includes('audio') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+    // ✅ Audio files
+    if (type.includes('audio') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma'].includes(ext)) {
       return 'audio';
     }
     
@@ -645,7 +495,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private determineFileCategoryByExtension(extension: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
     const ext = extension.toLowerCase();
     
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff'].includes(ext)) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'].includes(ext)) {
       return 'image';
     }
     
@@ -653,11 +503,11 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return 'pdf';
     }
     
-    if (['xls', 'xlsx', 'csv'].includes(ext)) {
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) {
       return 'excel';
     }
     
-    if (['doc', 'docx', 'rtf'].includes(ext)) {
+    if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) {
       return 'word';
     }
     
@@ -665,15 +515,15 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return 'text';
     }
     
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)) {
       return 'archive';
     }
     
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) {
       return 'video';
     }
     
-    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) {
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma'].includes(ext)) {
       return 'audio';
     }
     
@@ -721,31 +571,47 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     return mimeToExt[mimeType] || 'bin';
   }
 
+  /**
+   * ✅ FIXED: ตรวจสอบ file type จาก HTTP headers พร้อม timeout และ error handling
+   */
   private checkFileTypeFromHeaders(url: string, attachmentId: number): void {
     if (!url) {
-      this.attachmentTypes[attachmentId] = {
-        type: 'file',
-        extension: '',
-        filename: `attachment_${attachmentId}`,
-        isLoading: false
-      };
+      this.setFallbackFileType(attachmentId);
       return;
     }
 
+    // ✅ เพิ่ม timeout สำหรับ fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
     fetch(url, { 
       method: 'HEAD',
-      mode: 'cors'
+      mode: 'cors',
+      signal: controller.signal,
+      cache: 'no-cache'
     })
     .then(response => {
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const contentType = response.headers.get('content-type');
       const contentDisposition = response.headers.get('content-disposition');
       
       let filename = `attachment_${attachmentId}`;
       
+      // ✅ ปรับปรุงการแยก filename จาก Content-Disposition
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch) {
           filename = filenameMatch[1].replace(/['"]/g, '');
+          try {
+            filename = decodeURIComponent(filename);
+          } catch {
+            // ใช้ filename เดิมถ้า decode ไม่ได้
+          }
         }
       }
       
@@ -754,92 +620,159 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           type: this.determineFileCategoryByMimeType(contentType),
           extension: this.getExtensionFromMimeType(contentType),
           filename: filename,
-          isLoading: false
+          isLoading: false,
+          isAnalyzed: true
         };
         
-        console.log(`Existing file analyzed from HTTP headers:`, {
+        console.log(`✅ File analyzed from HTTP headers:`, {
           id: attachmentId,
           contentType,
           filename,
           category: this.attachmentTypes[attachmentId].type
         });
       } else {
-        this.attachmentTypes[attachmentId] = {
-          type: 'file',
-          extension: '',
-          filename: filename,
-          isLoading: false
-        };
+        this.setFallbackFileType(attachmentId, filename);
       }
+      
+      this.cdr.detectChanges();
     })
     .catch(error => {
-      console.log(`Could not fetch headers for ${url}:`, error);
-      this.tryImageLoad(url, attachmentId);
+      clearTimeout(timeoutId);
+      console.log(`⚠️ Could not fetch headers for ${url}:`, error.message);
+      
+      // ✅ ลองตรวจสอบว่าเป็นรูปภาพหรือไม่ด้วยการโหลดเป็น image
+      if (this.looksLikeImageUrl(url)) {
+        this.tryImageLoad(url, attachmentId);
+      } else {
+        this.setFallbackFileType(attachmentId);
+      }
     });
   }
 
+  /**
+   * ✅ NEW: ตรวจสอบว่า URL ดูเหมือนจะเป็นรูปภาพหรือไม่
+   */
+  private looksLikeImageUrl(url: string): boolean {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    const lowercaseUrl = url.toLowerCase();
+    return imageExtensions.some(ext => lowercaseUrl.includes(ext));
+  }
+
+  /**
+   * ✅ FIXED: ลองโหลดเป็นรูปภาพพร้อม timeout
+   */
   private tryImageLoad(url: string, attachmentId: number): void {
     const img = new Image();
+    let timeoutId: any;
+    
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      img.onload = null;
+      img.onerror = null;
+    };
     
     img.onload = () => {
+      cleanup();
       this.attachmentTypes[attachmentId] = {
         type: 'image',
         extension: 'jpg',
         filename: this.extractFilenameFromPath(url) || `image_${attachmentId}.jpg`,
-        isLoading: false
+        isLoading: false,
+        isAnalyzed: true
       };
-      console.log(`Existing file detected as image through loading test:`, attachmentId);
+      console.log(`✅ File detected as image through loading test:`, attachmentId);
+      this.cdr.detectChanges();
     };
     
     img.onerror = () => {
-      this.attachmentTypes[attachmentId] = {
-        type: 'file',
-        extension: '',
-        filename: this.extractFilenameFromPath(url) || `file_${attachmentId}`,
-        isLoading: false
-      };
-      console.log(`Existing file defaulted to generic file type:`, attachmentId);
+      cleanup();
+      this.setFallbackFileType(attachmentId);
     };
+    
+    // ✅ Set timeout for image loading
+    timeoutId = setTimeout(() => {
+      cleanup();
+      console.log(`⏰ Image load timeout for attachment ${attachmentId}`);
+      this.setFallbackFileType(attachmentId);
+    }, 3000);
     
     img.crossOrigin = 'anonymous';
     img.src = url;
   }
 
-  // ===== Existing Attachment Preview Methods ===== ✅
+  /**
+   * ✅ NEW: Set fallback file type
+   */
+  private setFallbackFileType(attachmentId: number, filename?: string): void {
+    const fallbackFilename = filename || this.extractFilenameFromPath('') || `file_${attachmentId}`;
+    
+    this.attachmentTypes[attachmentId] = {
+      type: 'file',
+      extension: this.getFileExtension(fallbackFilename),
+      filename: fallbackFilename,
+      isLoading: false,
+      isAnalyzed: true
+    };
+    
+    console.log(`📁 Using fallback file type for attachment:`, attachmentId);
+    this.cdr.detectChanges();
+  }
+
+  // ===== FIXED: Existing Attachment Preview Methods ===== ✅
 
   /**
-   * ✅ NEW: ตรวจสอบว่า existing attachment เป็นไฟล์รูปภาพหรือไม่
+   * ✅ FIXED: ตรวจสอบว่า existing attachment เป็นไฟล์รูปภาพหรือไม่
    */
   isExistingAttachmentImage(attachment: any): boolean {
-    if (!attachment) return false;
+    if (!attachment) {
+      return false;
+    }
     
     const attachmentId = attachment.attachment_id;
     
-    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    // ✅ ใช้ข้อมูลที่วิเคราะห์แล้ว (มี fallback)
     if (attachmentId && this.attachmentTypes[attachmentId]) {
-      return this.attachmentTypes[attachmentId].type === 'image';
+      const isImage = this.attachmentTypes[attachmentId].type === 'image';
+      console.log(`🖼️ Checking if attachment ${attachmentId} is image:`, {
+        isImage,
+        type: this.attachmentTypes[attachmentId].type,
+        filename: this.attachmentTypes[attachmentId].filename
+      });
+      return isImage;
     }
     
-    // Fallback: ตรวจสอบจาก path
+    // ✅ Fallback: ตรวจสอบจาก path
     if (attachment.path && attachment.path.startsWith('data:image/')) {
       return true;
     }
     
+    // ✅ Fallback: ตรวจสอบจาก filename และ file_type
     const filename = attachment.filename || '';
     const fileType = attachment.file_type || '';
     
-    return fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+    const isImageByType = fileType.toLowerCase().includes('image');
+    const isImageByExtension = /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|ico)$/i.test(filename);
+    
+    console.log(`🖼️ Fallback image check for attachment ${attachmentId}:`, {
+      filename,
+      fileType,
+      isImageByType,
+      isImageByExtension,
+      path: attachment.path
+    });
+    
+    return isImageByType || isImageByExtension;
   }
 
   /**
-   * ✅ NEW: ได้รับ icon สำหรับ existing attachment
+   * ✅ FIXED: ได้รับ icon สำหรับ existing attachment
    */
   getExistingAttachmentIcon(attachment: any): string {
     if (!attachment) return 'bi-file-earmark-fill';
     
     const attachmentId = attachment.attachment_id;
     
-    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    // ✅ ใช้ข้อมูลที่วิเคราะห์แล้ว
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       const fileInfo = this.attachmentTypes[attachmentId];
       
@@ -856,11 +789,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       }
     }
     
-    // Fallback: ตรวจสอบจาก filename
-    if (!attachment.filename && !attachment.file_type) {
-      return 'bi-file-earmark-fill';
-    }
-    
+    // ✅ Fallback: ตรวจสอบจาก filename และ file_type
     const filename = attachment.filename || '';
     const fileType = attachment.file_type || '';
     
@@ -888,24 +817,24 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: ได้รับชื่อไฟล์ที่แสดงสำหรับ existing attachment
+   * ✅ FIXED: ได้รับชื่อไฟล์ที่แสดงสำหรับ existing attachment
    */
   getExistingAttachmentDisplayName(attachment: any): string {
     if (!attachment) return 'Unknown file';
     
     const attachmentId = attachment.attachment_id;
     
-    // ใช้ข้อมูลที่วิเคราะห์แล้ว
+    // ✅ ใช้ข้อมูลที่วิเคราะห์แล้ว
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       return this.attachmentTypes[attachmentId].filename;
     }
     
-    // Fallback
+    // ✅ Fallback
     return attachment.filename || this.extractFilenameFromPath(attachment.path) || 'Unknown file';
   }
 
   /**
-   * ✅ NEW: ได้รับข้อมูลไฟล์สำหรับ existing attachment
+   * ✅ FIXED: ได้รับข้อมูลไฟล์สำหรับ existing attachment
    */
   getExistingAttachmentFileInfo(attachmentId: number): {
     type: string;
@@ -936,56 +865,73 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ NEW: Format file size สำหรับ existing attachments
+   * ✅ FIXED: Format file size สำหรับ existing attachments
    */
   formatExistingAttachmentSize(attachment: any): string {
-    if (attachment.file_size) {
+    if (attachment && attachment.file_size) {
       return this.formatFileSize(attachment.file_size);
     }
     return '';
   }
 
   /**
-   * ✅ NEW: จัดการข้อผิดพลาดการโหลดรูปภาพ
+   * ✅ FIXED: จัดการข้อผิดพลาดการโหลดรูปภาพ
    */
   onExistingAttachmentImageError(attachmentId: number): void {
-    console.log(`Image failed to load for existing attachment ${attachmentId}`);
+    console.log(`❌ Image failed to load for existing attachment ${attachmentId}`);
+    
     if (this.attachmentTypes[attachmentId]) {
+      // ✅ เปลี่ยนจาก image เป็น file type
       this.attachmentTypes[attachmentId].type = 'file';
+      this.attachmentTypes[attachmentId].isAnalyzed = true;
+      
+      console.log(`🔄 Changed attachment ${attachmentId} from image to file type`);
+      this.cdr.detectChanges();
     }
   }
 
   /**
-   * ✅ NEW: จัดการการโหลดรูปภาพสำเร็จ
+   * ✅ FIXED: จัดการการโหลดรูปภาพสำเร็จ
    */
   onExistingAttachmentImageLoad(attachmentId: number): void {
-    console.log(`Image loaded successfully for existing attachment ${attachmentId}`);
+    console.log(`✅ Image loaded successfully for existing attachment ${attachmentId}`);
+    
     if (this.attachmentTypes[attachmentId]) {
+      // ✅ ยืนยันว่าเป็น image type
       this.attachmentTypes[attachmentId].type = 'image';
+      this.attachmentTypes[attachmentId].isAnalyzed = true;
+      
+      console.log(`✅ Confirmed attachment ${attachmentId} as image type`);
+      this.cdr.detectChanges();
     }
   }
 
   /**
-   * ✅ NEW: ตรวจสอบว่ามี existing attachments หรือไม่
+   * ✅ FIXED: ตรวจสอบว่ามี existing attachments หรือไม่
    */
   hasExistingAttachments(): boolean {
-    return this.isEditMode && this.existingAttachments.length > 0;
+    const hasAttachments = this.isEditMode && this.existingAttachments && this.existingAttachments.length > 0;
+    console.log('🔍 Checking existing attachments:', {
+      isEditMode: this.isEditMode,
+      attachmentsCount: this.existingAttachments?.length || 0,
+      hasAttachments
+    });
+    return hasAttachments;
   }
 
   /**
-   * ✅ NEW: ตรวจสอบว่า attachment กำลังถูกลบหรือไม่
+   * ✅ FIXED: ตรวจสอบว่า attachment กำลังถูกลบหรือไม่
    */
   isAttachmentDeleting(attachmentId: number): boolean {
     return this.deletingAttachmentIds.has(attachmentId);
   }
 
-  // ===== Attachment Management Methods ===== ✅
+  // ===== FIXED: Attachment Management Methods ===== ✅
 
   /**
-   * ✅ UPDATED: ลบ existing attachment (ใช้ข้อมูลที่วิเคราะห์แล้ว)
+   * ✅ FIXED: ลบ existing attachment (ใช้ข้อมูลที่วิเคราะห์แล้ว)
    */
   removeExistingAttachment(index: number, attachment?: any): void {
-    // ใช้ attachment จาก parameter หรือ ดึงจาก array
     const attachmentToDelete = attachment || this.existingAttachments[index];
     
     if (!attachmentToDelete || !attachmentToDelete.attachment_id) {
@@ -994,17 +940,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // ใช้ชื่อไฟล์ที่วิเคราะห์แล้ว
     const filename = this.getExistingAttachmentDisplayName(attachmentToDelete);
 
-    // แสดง confirmation dialog
     if (!confirm(`คุณต้องการลบไฟล์ "${filename}" หรือไม่?`)) {
       return;
     }
 
     const attachmentId = attachmentToDelete.attachment_id;
     
-    // เพิ่ม loading state
     this.deletingAttachmentIds.add(attachmentId);
     
     console.log('Removing existing attachment:', attachmentToDelete);
@@ -1013,19 +956,13 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       next: (response) => {
         console.log('Delete attachment response:', response);
         
-        // ลบ loading state
         this.deletingAttachmentIds.delete(attachmentId);
         
         if (response.code === 1 || response.code === 200) {
-          // ลบออกจาก array
           this.existingAttachments.splice(index, 1);
-          
-          // ลบข้อมูลการวิเคราะห์ไฟล์
           delete this.attachmentTypes[attachmentId];
           
           this.showFileUploadSuccess(`ลบไฟล์ "${filename}" สำเร็จ`);
-          
-          // อัปเดต UI
           this.cdr.detectChanges();
           
           console.log('Attachment deleted successfully');
@@ -1036,7 +973,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('Error deleting attachment:', error);
         
-        // ลบ loading state
         this.deletingAttachmentIds.delete(attachmentId);
         
         let errorMessage = 'เกิดข้อผิดพลาดในการลบไฟล์';
@@ -1052,7 +988,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ UPDATED: ดาวน์โหลด existing attachment (ใช้ข้อมูลที่วิเคราะห์แล้ว)
+   * ✅ FIXED: ดาวน์โหลด existing attachment
    */
   downloadExistingAttachment(attachment: any): void {
     if (!attachment || !attachment.path) {
@@ -1060,14 +996,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // ใช้ข้อมูลที่วิเคราะห์แล้วสำหรับชื่อไฟล์
     const filename = this.getExistingAttachmentDisplayName(attachment);
 
     console.log('Downloading existing attachment:', attachment);
 
     try {
       if (attachment.path.startsWith('data:')) {
-        // ไฟล์เป็น base64 data URL
         const link = document.createElement('a');
         link.href = attachment.path;
         link.download = filename || `attachment_${attachment.attachment_id}`;
@@ -1075,11 +1009,9 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         link.click();
         document.body.removeChild(link);
       } else if (attachment.path.startsWith('http')) {
-        // ไฟล์เป็น URL
         window.open(attachment.path, '_blank');
       } else {
-        // ไฟล์เป็น path ในเซิร์ฟเวอร์ - ใช้ apiUrl จาก ApiService
-        const apiUrl = this.apiService['apiUrl'] || '/api'; // fallback
+        const apiUrl = this.apiService['apiUrl'] || '/api';
         const fullUrl = `${apiUrl}/${attachment.path}`;
         window.open(fullUrl, '_blank');
       }
@@ -1091,9 +1023,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
   // ===== Bulk Selection Methods ===== ✅
 
-  /**
-   * ✅ NEW: เลือก/ยกเลิกการเลือก attachment
-   */
   toggleAttachmentSelection(attachmentId: number): void {
     if (this.selectedAttachmentIds.has(attachmentId)) {
       this.selectedAttachmentIds.delete(attachmentId);
@@ -1102,16 +1031,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ NEW: ตรวจสอบว่า attachment ถูกเลือกหรือไม่
-   */
   isAttachmentSelected(attachmentId: number): boolean {
     return this.selectedAttachmentIds.has(attachmentId);
   }
 
-  /**
-   * ✅ NEW: ลบ attachments ที่เลือกไว้
-   */
   removeSelectedAttachments(): void {
     const selectedIds = Array.from(this.selectedAttachmentIds);
     if (selectedIds.length > 0) {
@@ -1120,9 +1043,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ NEW: เลือก attachments ทั้งหมด
-   */
   selectAllAttachments(): void {
     this.existingAttachments.forEach(att => {
       if (att.attachment_id) {
@@ -1131,30 +1051,18 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * ✅ NEW: ยกเลิกการเลือก attachments ทั้งหมด
-   */
   clearAttachmentSelection(): void {
     this.selectedAttachmentIds.clear();
   }
 
-  /**
-   * ✅ NEW: ตรวจสอบว่ามี attachments ที่เลือกไว้หรือไม่
-   */
   get hasSelectedAttachments(): boolean {
     return this.selectedAttachmentIds.size > 0;
   }
 
-  /**
-   * ✅ NEW: ได้รับจำนวน attachments ที่เลือกไว้
-   */
   get selectedAttachmentCount(): number {
     return this.selectedAttachmentIds.size;
   }
 
-  /**
-   * ✅ NEW: ลบ existing attachments หลายไฟล์พร้อมกัน
-   */
   removeMultipleExistingAttachments(attachmentIds: number[]): void {
     if (attachmentIds.length === 0) return;
 
@@ -1162,7 +1070,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // เพิ่ม loading state สำหรับทุกไฟล์
     attachmentIds.forEach(id => this.deletingAttachmentIds.add(id));
 
     const deletePromises = attachmentIds.map(attachmentId => 
@@ -1176,19 +1083,16 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       results.forEach((result, index) => {
         const attachmentId = attachmentIds[index];
         
-        // ลบ loading state
         this.deletingAttachmentIds.delete(attachmentId);
         
         if (result.status === 'fulfilled' && result.value?.code === 1) {
           successCount++;
-          // ลบออกจาก array
           const attachmentIndex = this.existingAttachments.findIndex(
             att => att.attachment_id === attachmentId
           );
           if (attachmentIndex > -1) {
             this.existingAttachments.splice(attachmentIndex, 1);
           }
-          // ลบข้อมูลการวิเคราะห์ไฟล์
           delete this.attachmentTypes[attachmentId];
         } else {
           errorCount++;
@@ -1207,10 +1111,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ===== EXISTING METHODS (เดิม) ===== ✅
+  // ===== EXISTING METHODS (ส่วนที่เหลือ) ===== ✅
 
   private restoreIncompleteTicket(): void {
-    if (this.isEditMode) return; // ถ้าเป็น edit mode ไม่ต้อง restore incomplete ticket
+    if (this.isEditMode) return;
     
     try {
       const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
@@ -1288,7 +1192,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private saveIncompleteTicket(): void {
-    if (this.isEditMode) return; // ไม่ save incomplete ticket ในโหมดแก้ไข
+    if (this.isEditMode) return;
     
     if (this.isTicketCreated && this.ticketId) {
       const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
@@ -1318,7 +1222,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private clearIncompleteTicket(): void {
-    if (this.isEditMode) return; // ไม่ clear incomplete ticket ในโหมดแก้ไข
+    if (this.isEditMode) return;
     
     const currentUserId = this.currentUser?.id || this.currentUser?.user_id;
     if (currentUserId) {
@@ -1326,6 +1230,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       console.log('Cleared incomplete ticket from localStorage for user:', currentUserId);
     }
   }
+
+  // ===== REST OF THE METHODS (เหมือนเดิม) ===== ✅
 
   onProjectChange(event: { project: any, projectId: string | number }): void {
     this.selectedProject = event.project;
@@ -1356,7 +1262,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   onFormCompleted(): void {
-    if (this.isEditMode) return; // ไม่ auto-create ในโหมดแก้ไข
+    if (this.isEditMode) return;
     
     const validation = this.validateFormForAutoSave();
     
@@ -1390,7 +1296,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   }
 
   private createTicketAutomatically(): void {
-    if (this.isEditMode) return; // ไม่ auto-create ในโหมดแก้ไข
+    if (this.isEditMode) return;
     
     this.isSubmitting = true;
     
@@ -1476,13 +1382,205 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
-  /**
-   * ✅ FIX 9: ปรับปรุง onFileSelect เพื่อ reset states และเพิ่ม error handling
-   */
+  // ===== UPDATE & FILE UPLOAD METHODS (เหมือนเดิม) ===== ✅
+
+  private updateExistingTicket(): void {
+    if (!this.ticketId) {
+      console.error('No ticket ID for update');
+      return;
+    }
+
+    this.isSubmitting = true;
+    
+    const formData = this.ticketForm.value;
+    
+    const updateData = {
+      project_id: parseInt(formData.projectId),
+      categories_id: parseInt(formData.categoryId),
+      issue_description: formData.issueDescription
+    };
+
+    console.log('Updating existing ticket with data:', updateData);
+
+    this.apiService.updateTicketData(this.ticketId, updateData).subscribe({
+      next: (response) => {
+        console.log('updateTicketData response:', response);
+        
+        if (response.code === 1) {
+          console.log('Ticket updated successfully');
+          
+          const newFilesToUpload = this.selectedFiles.filter(file => 
+            !this.uploadedFileNames.includes(file.name) && 
+            !this.uploadingFileNames.includes(file.name)
+          );
+          
+          console.log('Files to upload after ticket update:', {
+            totalSelectedFiles: this.selectedFiles.length,
+            newFilesToUpload: newFilesToUpload.length,
+            alreadyUploaded: this.uploadedFileNames.length,
+            currentlyUploading: this.uploadingFileNames.length
+          });
+          
+          if (newFilesToUpload.length > 0) {
+            console.log('Uploading new files:', newFilesToUpload.map(f => f.name));
+            this.uploadFilesToExistingTicket(newFilesToUpload);
+            this.waitForFileUploadsToComplete();
+          } else {
+            console.log('No new files to upload, completing immediately');
+            this.completeTicketUpdateSuccess(0, 0);
+          }
+        } else {
+          this.onUpdateError('Failed to update ticket: ' + response.message);
+        }
+      },
+      error: (error) => {
+        console.error('Error updating ticket:', error);
+        this.onUpdateError('เกิดข้อผิดพลาดในการอัปเดตตั๋ว');
+      }
+    });
+  }
+
+  private waitForFileUploadsToComplete(): void {
+    console.log('Starting file upload monitoring...');
+    
+    let checkCount = 0;
+    const maxChecks = 60;
+    
+    const checkInterval = setInterval(() => {
+      checkCount++;
+      
+      const stillUploading = this.uploadingFileNames.length > 0;
+      const totalSelectedFiles = this.selectedFiles.length;
+      const successfulUploads = this.uploadedFileNames.length;
+      const failedUploads = this.errorFileNames.length;
+      const completedFiles = successfulUploads + failedUploads;
+      
+      console.log(`Upload monitoring (${checkCount}/${maxChecks}):`, {
+        stillUploading,
+        totalSelectedFiles,
+        successfulUploads,
+        failedUploads,
+        completedFiles,
+        uploadingFiles: this.uploadingFileNames,
+        uploadedFiles: this.uploadedFileNames,
+        errorFiles: this.errorFileNames
+      });
+      
+      const allFilesProcessed = !stillUploading && (completedFiles >= totalSelectedFiles || totalSelectedFiles === 0);
+      const timeoutReached = checkCount >= maxChecks;
+      
+      if (allFilesProcessed || timeoutReached) {
+        clearInterval(checkInterval);
+        
+        if (timeoutReached) {
+          console.warn('File upload monitoring timeout reached, proceeding anyway');
+        }
+        
+        console.log('Final upload status:', {
+          successfulUploads,
+          failedUploads,
+          totalFiles: totalSelectedFiles
+        });
+        
+        if (totalSelectedFiles === 0) {
+          this.completeTicketUpdateSuccess(0, 0);
+        } else if (failedUploads === 0 && successfulUploads > 0) {
+          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
+        } else if (successfulUploads > 0 && failedUploads > 0) {
+          this.completeTicketUpdatePartial(successfulUploads, failedUploads);
+        } else if (failedUploads > 0) {
+          this.completeTicketUpdateWithError(failedUploads);
+        } else {
+          this.completeTicketUpdateSuccess(successfulUploads, failedUploads);
+        }
+      }
+    }, 500);
+  }
+
+  private completeTicketUpdateSuccess(successfulUploads: number, failedUploads: number): void {
+    console.log('Completing ticket update - all successful');
+    
+    this.clearEditData();
+    
+    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
+    
+    if (successfulUploads > 0) {
+      message += `\nFiles uploaded: ${successfulUploads}`;
+    }
+    
+    this.alertMessage = message;
+    this.alertType = 'success';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticket_no && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 2000);
+  }
+
+  private completeTicketUpdatePartial(successfulUploads: number, failedUploads: number): void {
+    console.log('Completing ticket update - partial success');
+    
+    this.clearEditData();
+    
+    let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
+    message += `\nFiles uploaded: ${successfulUploads}`;
+    message += `\nFiles failed: ${failedUploads}`;
+    
+    this.alertMessage = message;
+    this.alertType = 'success';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+
+    this.autoNavigationTimer = setTimeout(() => {
+      if (this.ticket_no && !this.isNavigating) {
+        this.navigateToTicketDetail();
+      }
+    }, 3000);
+  }
+
+  private completeTicketUpdateWithError(failedUploads: number): void {
+    console.log('Completing ticket update - upload errors');
+    
+    this.isSubmitting = false;
+    this.alertMessage = `อัปเดตตั๋วสำเร็จ แต่ไฟล์ ${failedUploads} ไฟล์อัปโหลดไม่สำเร็จ`;
+    this.alertType = 'error';
+    this.showCustomAlert = true;
+  }
+
+  private onUpdateError(error: any): void {
+    let message = 'เกิดข้อผิดพลาดในการอัปเดตตั๋ว';
+    
+    if (typeof error === 'string') {
+      message = error;
+    } else if (error && error.message) {
+      message = error.message;
+    }
+    
+    console.error('Update error:', error);
+    
+    this.alertMessage = message;
+    this.alertType = 'error';
+    this.showCustomAlert = true;
+    this.isSubmitting = false;
+  }
+
+  getPageTitle(): string {
+    return this.isEditMode ? 'Edit Ticket' : 'New Ticket';
+  }
+
+  getSubmitButtonText(): string {
+    if (this.isSubmitting) {
+      return this.isEditMode ? 'Updating Ticket...' : 'Creating Ticket...';
+    }
+    return this.isEditMode ? 'Update Ticket' : 'New Ticket';
+  }
+
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     
-    // ในโหมดแก้ไข ไม่ต้องตรวจสอบ form validation
     if (!this.isEditMode) {
       const validation = this.validateFormForAutoSave();
       if (!validation.isValid) {
@@ -1504,7 +1602,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       
       this.fileErrors = [];
       
-      // ✅ FIX 10: ตรวจสอบไฟล์ซ้ำ
       const uniqueNewFiles = newFiles.filter(newFile => 
         !this.selectedFiles.some(existingFile => 
           existingFile.name === newFile.name && existingFile.size === newFile.size
@@ -1527,9 +1624,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         return;
       }
       
-      // ✅ FIX: Reset file states for new files
       uniqueNewFiles.forEach(file => {
-        // ลบออกจากทุก state arrays
         this.uploadedFileNames = this.uploadedFileNames.filter(name => name !== file.name);
         this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== file.name);
         this.errorFileNames = this.errorFileNames.filter(name => name !== file.name);
@@ -1548,7 +1643,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         this.ticketForm.patchValue({ attachments: this.selectedFiles });
         console.log('Files selected:', this.selectedFiles.length);
         
-        // ✅ ในโหมดแก้ไข ไม่ต้องอัปโหลดทันที รอให้กดปุ่ม Update
         if (this.isTicketCreated && this.ticketId && !this.isEditMode) {
           this.uploadFilesToExistingTicket(uniqueNewFiles);
         }
@@ -1561,9 +1655,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ FIX 3: ปรับปรุง uploadFilesToExistingTicket เพื่อ tracking ที่ดีขึ้น
-   */
   private uploadFilesToExistingTicket(files: File[]): void {
     if (!this.ticketId || files.length === 0) {
       return;
@@ -1571,7 +1662,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
     console.log('Uploading files to existing ticket:', this.ticketId);
 
-    // ตรวจสอบไฟล์ที่ยังไม่ได้อัปโหลด
     const filesToUpload = files.filter(file => 
       !this.uploadingFileNames.includes(file.name) && 
       !this.uploadedFileNames.includes(file.name)
@@ -1582,18 +1672,14 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // ✅ FIX: Clear previous states ก่อนเริ่มใหม่
     filesToUpload.forEach(file => {
-      // ลบออกจาก error state ก่อน (ถ้ามี)
       this.errorFileNames = this.errorFileNames.filter(name => name !== file.name);
       
-      // เพิ่มเข้า uploading state
       if (!this.uploadingFileNames.includes(file.name)) {
         this.uploadingFileNames.push(file.name);
       }
     });
 
-    // ✅ FIX: เพิ่ม timeout สำหรับการอัปโหลดไฟล์
     this.startFileUploadTimeout(filesToUpload);
 
     const attachmentData = {
@@ -1615,10 +1701,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       next: (response) => {
         console.log('updateAttachment response:', response);
         
-        // ✅ Clear timeout เมื่อได้ response
         this.clearFileUploadTimeout();
         
-        // ✅ FIX: ปรับปรุงการตรวจสอบ response ให้รองรับ structure ที่หลากหลาย
         const isSuccess = (
           response.code === 1 || 
           response.code === 200 || 
@@ -1638,10 +1722,8 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         if (isSuccess) {
           console.log('Files uploaded successfully:', response.data);
           
-          // ✅ FIX: ตรวจสอบว่ามีการ return file information หรือไม่
           let actualUploadedCount = filesToUpload.length;
           
-          // ถ้า response มีข้อมูลไฟล์ที่อัปโหลดสำเร็จ ให้ใช้จำนวนนั้น
           if (response.data && Array.isArray(response.data)) {
             actualUploadedCount = response.data.length;
           } else if ((response as any).uploaded_files && Array.isArray((response as any).uploaded_files)) {
@@ -1651,7 +1733,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
           } else if ((response as any).success_count !== undefined) {
             actualUploadedCount = (response as any).success_count;
           } else if ((response as any).message && typeof (response as any).message === 'string') {
-            // ลองดึงจำนวนไฟล์จาก message เช่น "Successfully uploaded 1 file(s)"
             const match = (response as any).message.match(/uploaded\s+(\d+)\s+file/i);
             if (match) {
               actualUploadedCount = parseInt(match[1], 10);
@@ -1664,12 +1745,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
             source: response.data ? 'response.data' : 'message_parsing'
           });
           
-          // ✅ FIX: Mark files as uploaded individually with validation
           let uploadedFiles: string[] = [];
           let failedFiles: string[] = [];
           
           filesToUpload.forEach((file, index) => {
-            // ถ้าไฟล์อัปโหลดสำเร็จตามจำนวนที่ server ตอบกลับ
             if (index < actualUploadedCount) {
               this.markFileAsUploaded(file.name);
               uploadedFiles.push(file.name);
@@ -1679,16 +1758,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
             }
           });
           
-          // ✅ FIX: แสดงข้อความที่ถูกต้องตามผลลัพธ์จริง
           if (failedFiles.length === 0) {
-            // ทุกไฟล์สำเร็จ
             this.showFileUploadSuccess(`อัปโหลดไฟล์ ${uploadedFiles.length} ไฟล์สำเร็จ`);
           } else if (uploadedFiles.length > 0) {
-            // บางไฟล์สำเร็จ บางไฟล์ล้มเหลว
             this.showFileUploadSuccess(`อัปโหลดไฟล์สำเร็จ ${uploadedFiles.length} ไฟล์`);
             this.showFileUploadError(`อัปโหลดไฟล์ล้มเหลว ${failedFiles.length} ไฟล์`);
           } else {
-            // ทุกไฟล์ล้มเหลว
             this.handleFileUploadError(filesToUpload, 'อัปโหลดไฟล์ล้มเหลวทั้งหมด');
           }
           
@@ -1715,12 +1790,10 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('File upload error:', error);
         
-        // ✅ Clear timeout เมื่อเกิด error
         this.clearFileUploadTimeout();
         
         let errorMessage = 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
         
-        // ✅ FIX: ปรับปรุงการจัดการ error message
         if (error?.error?.message) {
           errorMessage = error.error.message;
         } else if (error?.message) {
@@ -1736,16 +1809,12 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * ✅ NEW: เริ่ม timeout สำหรับการอัปโหลดไฟล์
-   */
   private startFileUploadTimeout(files: File[]): void {
-    this.clearFileUploadTimeout(); // Clear existing timeout first
+    this.clearFileUploadTimeout();
     
     this.fileUploadTimeoutTimer = setTimeout(() => {
       console.warn('File upload timeout reached for files:', files.map(f => f.name));
       
-      // Mark files as error due to timeout
       files.forEach(file => {
         if (this.uploadingFileNames.includes(file.name)) {
           this.markFileAsError(file.name);
@@ -1756,9 +1825,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, this.FILE_UPLOAD_TIMEOUT);
   }
 
-  /**
-   * ✅ NEW: ยกเลิก timeout สำหรับการอัปโหลดไฟล์
-   */
   private clearFileUploadTimeout(): void {
     if (this.fileUploadTimeoutTimer) {
       clearTimeout(this.fileUploadTimeoutTimer);
@@ -1766,9 +1832,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ FIX 4: สร้าง method แยกสำหรับจัดการ error
-   */
   private handleFileUploadError(files: File[], errorMessage: string): void {
     files.forEach(file => {
       this.markFileAsError(file.name);
@@ -1777,21 +1840,15 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     this.showFileUploadError(errorMessage);
   }
 
-  /**
-   * ✅ FIX 5: ปรับปรุง markFileAsUploaded ให้มี validation และ logging ที่ดีขึ้น
-   */
   private markFileAsUploaded(fileName: string): void {
     console.log('🔄 Marking file as uploaded:', fileName);
     
-    // ลบออกจาก uploading state
     const wasUploading = this.uploadingFileNames.includes(fileName);
     this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== fileName);
     
-    // ลบออกจาก error state
     const wasError = this.errorFileNames.includes(fileName);
     this.errorFileNames = this.errorFileNames.filter(name => name !== fileName);
     
-    // เพิ่มเข้า uploaded state เฉพาะถ้ายังไม่มี
     const alreadyUploaded = this.uploadedFileNames.includes(fileName);
     if (!alreadyUploaded) {
       this.uploadedFileNames.push(fileName);
@@ -1800,7 +1857,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       console.log('ℹ️ File already marked as uploaded:', fileName);
     }
     
-    // ✅ Log detailed state for debugging
     console.log('📊 Upload states after marking:', {
       fileName,
       wasUploading,
@@ -1810,30 +1866,19 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         uploading: this.uploadingFileNames.length,
         uploaded: this.uploadedFileNames.length,
         errors: this.errorFileNames.length
-      },
-      details: {
-        uploadingFiles: this.uploadingFileNames,
-        uploadedFiles: this.uploadedFileNames,
-        errorFiles: this.errorFileNames
       }
     });
   }
 
-  /**
-   * ✅ FIX 6: ปรับปรุง markFileAsError พร้อม logging ที่ดีขึ้น
-   */
   private markFileAsError(fileName: string): void {
     console.log('🔄 Marking file as error:', fileName);
     
-    // ลบออกจาก uploading state
     const wasUploading = this.uploadingFileNames.includes(fileName);
     this.uploadingFileNames = this.uploadingFileNames.filter(name => name !== fileName);
     
-    // ลบออกจาก uploaded state (ในกรณีที่มีปัญหา)
     const wasUploaded = this.uploadedFileNames.includes(fileName);
     this.uploadedFileNames = this.uploadedFileNames.filter(name => name !== fileName);
     
-    // เพิ่มเข้า error state เฉพาะถ้ายังไม่มี
     const alreadyError = this.errorFileNames.includes(fileName);
     if (!alreadyError) {
       this.errorFileNames.push(fileName);
@@ -1842,7 +1887,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       console.log('ℹ️ File already marked as error:', fileName);
     }
     
-    // ✅ Log detailed state for debugging
     console.log('📊 Upload states after marking error:', {
       fileName,
       wasUploading,
@@ -1852,32 +1896,20 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
         uploading: this.uploadingFileNames.length,
         uploaded: this.uploadedFileNames.length,
         errors: this.errorFileNames.length
-      },
-      details: {
-        uploadingFiles: this.uploadingFileNames,
-        uploadedFiles: this.uploadedFileNames,
-        errorFiles: this.errorFileNames
       }
     });
   }
 
-  /**
-   * ✅ FIX 7: ปรับปรุง showFileUploadSuccess เพื่อไม่ให้แสดงซ้ำ
-   */
   private showFileUploadSuccess(message: string): void {
-    // ✅ ตรวจสอบว่า message นี้ยังไม่ได้แสดงหรือไม่
     if (!this.fileSuccessMessages.includes(message)) {
       this.fileSuccessMessages.push(message);
       
       setTimeout(() => {
         this.fileSuccessMessages = this.fileSuccessMessages.filter(msg => msg !== message);
-      }, 3000); // แสดง 3 วินาที แทน 5 วินาที
+      }, 3000);
     }
   }
 
-  /**
-   * ✅ FIX 8: เพิ่ม method สำหรับ reset file states
-   */
   private resetFileStates(): void {
     this.uploadedFileNames = [];
     this.uploadingFileNames = [];
@@ -1889,7 +1921,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private showFileUploadError(message: string): void {
     this.fileErrors.push(message);
     
-    // ✅ Auto-remove error after 5 seconds
     setTimeout(() => {
       this.fileErrors = this.fileErrors.filter(err => err !== message);
     }, 5000);
@@ -1938,7 +1969,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
     
-    // แยกการทำงานระหว่าง edit และ create
     if (this.isEditMode) {
       this.updateExistingTicket();
       return;
@@ -2001,7 +2031,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   resetForm(): void {
     this.clearAllTimers();
     
-    // แยกการ clear ระหว่าง edit และ create mode
     if (this.isEditMode) {
       this.clearEditData();
       this.backToTicketDetail();
@@ -2055,7 +2084,6 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
 
   get hasUnsavedChanges(): boolean {
     if (this.isEditMode) {
-      // ในโหมดแก้ไข ตรวจสอบว่ามีการเปลี่ยนแปลงหรือไม่
       if (!this.originalTicketData) return false;
       
       const currentFormData = {
@@ -2155,9 +2183,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       this.validationErrors['issueDescription'] = false;
     }
     
-    // บันทึกข้อมูลต่างกันระหว่าง edit และ create mode
     if (this.isEditMode) {
-      // ในโหมดแก้ไข ไม่ต้องบันทึก localStorage
       console.log('Edit mode: Description updated');
     } else if (this.isTicketCreated) {
       this.saveIncompleteTicket();
@@ -2208,19 +2234,33 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * ✅ NEW: ได้รับสีสำหรับ file type
+   */
+  getFileTypeColor(fileType: string): string {
+    switch (fileType) {
+      case 'image': return '#198754'; // Green
+      case 'pdf': return '#dc3545';   // Red
+      case 'excel': return '#198754'; // Green
+      case 'word': return '#0d6efd';  // Blue
+      case 'text': return '#6c757d';  // Gray
+      case 'archive': return '#ffc107'; // Yellow
+      case 'video': return '#6f42c1'; // Purple
+      case 'audio': return '#fd6b6b'; // Pink
+      default: return '#6c757d';      // Gray
+    }
+  }
+
   @HostListener('window:beforeunload', ['$event'])
   canDeactivate(event: BeforeUnloadEvent): boolean {
     this.clearAllTimers();
     
-    // จัดการ localStorage ต่างกันระหว่าง edit และ create mode
     if (this.isEditMode) {
-      // ในโหมดแก้ไข ไม่ต้องบันทึก incomplete ticket
       if (this.hasUnsavedChanges) {
         event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
         return false;
       }
     } else {
-      // ในโหมดสร้างใหม่ บันทึก incomplete ticket ตามเดิม
       if (this.isTicketCreated && this.ticket_no) {
         this.saveIncompleteTicket();
       }

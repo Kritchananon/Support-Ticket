@@ -442,7 +442,7 @@ app-category-dropdown .form-select.is-invalid {
   outline: none;
 }
 
-/* ===== NEW: Current Attachments Styles ===== */
+/* ===== FIXED: Current Attachments Styles (เหมือน Ticket Detail) ===== */
 
 /* Current Attachments Section */
 .existing-attachments-section {
@@ -471,6 +471,7 @@ app-category-dropdown .form-select.is-invalid {
   border: 1px solid #E0E0E0;
   overflow: hidden;
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 
 .existing-attachment-item:hover {
@@ -478,9 +479,34 @@ app-category-dropdown .form-select.is-invalid {
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
+.existing-attachment-item.selected {
+  border-color: #007bff;
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.existing-attachment-item.deleting {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.attachment-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 0.25rem;
+}
+
+.loading-text {
+  font-size: 0.7rem;
+  color: #6c757d;
+}
+
+/* Image Preview - เหมือน Ticket Detail */
 .attachment-preview {
   width: 100%;
-  height: 70px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -489,15 +515,21 @@ app-category-dropdown .form-select.is-invalid {
   position: relative;
 }
 
-.attachment-preview img {
+.attachment-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.2s ease;
 }
 
+.attachment-image:hover {
+  transform: scale(1.05);
+}
+
+/* File Icon - เหมือน Ticket Detail */
 .attachment-file {
   width: 100%;
-  height: 70px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -537,7 +569,7 @@ app-category-dropdown .form-select.is-invalid {
   line-height: 1.2;
 }
 
-/* File type colors for existing attachments */
+/* File type colors for existing attachments - เหมือน Ticket Detail */
 .existing-attachment-item .bi-file-earmark-pdf-fill {
   color: #DC3545;
 }
@@ -562,7 +594,7 @@ app-category-dropdown .form-select.is-invalid {
   color: #6f42c1;
 }
 
-/* Action Buttons */
+/* Action Buttons - เหมือน Ticket Detail */
 .attachment-actions {
   position: absolute;
   bottom: 0;
@@ -615,6 +647,346 @@ app-category-dropdown .form-select.is-invalid {
   transform: scale(1.1);
 }
 
+.deleting-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.deleting-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.deleting-spinner small {
+  font-size: 8px;
+}
+
+.error-indicator {
+  position: absolute;
+  top: 2px;
+  right: 20px;
+  font-size: 12px;
+}
+
+/* Bulk Actions - เหมือน Ticket Detail */
+.bulk-actions {
+  margin-top: 12px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.bulk-actions .form-check {
+  margin-bottom: 0;
+}
+
+.bulk-actions .form-check-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.bulk-actions .btn {
+  margin-top: 8px;
+}
+
+.no-attachments {
+  text-align: center;
+  padding: 20px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 6px;
+  background: white;
+}
+
+.file-info-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: white;
+  padding: 2px 4px;
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.file-name-small {
+  font-size: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 7px;
+  opacity: 0.9;
+}
+
+.file-type-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-size: 7px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.image-badge {
+  background: rgba(25, 135, 84, 0.9);
+}
+
+.pdf-badge {
+  background: rgba(220, 53, 69, 0.9);
+}
+
+.excel-badge {
+  background: rgba(25, 135, 84, 0.9);
+}
+
+.word-badge {
+  background: rgba(13, 110, 253, 0.9);
+}
+
+.text-badge {
+  background: rgba(108, 117, 125, 0.9);
+}
+
+.archive-badge {
+  background: rgba(255, 193, 7, 0.9);
+  color: #000;
+}
+
+.video-badge {
+  background: rgba(111, 66, 193, 0.9);
+}
+
+.audio-badge {
+  background: rgba(255, 107, 107, 0.9);
+}
+
+.attachment-file {
+  width: 100%;
+  height: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  padding: 8px;
+}
+
+.file-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: #f8f9fa;
+}
+
+.file-type-image .file-icon-container {
+  background: rgba(25, 135, 84, 0.1);
+}
+
+.file-type-pdf .file-icon-container {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.file-type-excel .file-icon-container {
+  background: rgba(25, 135, 84, 0.1);
+}
+
+.file-type-word .file-icon-container {
+  background: rgba(13, 110, 253, 0.1);
+}
+
+.file-type-text .file-icon-container {
+  background: rgba(108, 117, 125, 0.1);
+}
+
+.file-type-archive .file-icon-container {
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.file-type-video .file-icon-container {
+  background: rgba(111, 66, 193, 0.1);
+}
+
+.file-type-audio .file-icon-container {
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.file-icon-large {
+  font-size: 32px;
+}
+
+.file-details {
+  flex: 1;
+  text-align: center;
+}
+
+.file-details .file-name {
+  font-family: 'Noto Sans Thai', sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  color: #2d3436;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+
+.file-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  margin-top: 2px;
+}
+
+.selection-checkbox {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+}
+
+.attachment-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(248, 249, 250, 0.95);
+  padding: 4px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.existing-attachment-item:hover .attachment-actions {
+  opacity: 1;
+}
+
+.deleting-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.deleting-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.deleting-spinner small {
+  font-size: 8px;
+}
+
+.error-indicator {
+  position: absolute;
+  top: 2px;
+  right: 20px;
+  font-size: 12px;
+}
+
+.bulk-actions {
+  margin-top: 12px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.bulk-actions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.no-attachments {
+  text-align: center;
+  padding: 20px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 6px;
+  background: white;
+}
+
+/* Enhanced Action Buttons - ปรับขนาดให้เท่าเดิม */
+.btn-download,
+.btn-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 10px;
+}
+
+.btn-download {
+  background: #28a745;
+  color: white;
+}
+
+.btn-download:hover {
+  background: #218838;
+  transform: scale(1.1);
+}
+
+.btn-remove {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-remove:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
 /* File Upload Instructions */
 .file-upload-instructions {
   margin-bottom: 12px;
@@ -625,7 +997,7 @@ app-category-dropdown .form-select.is-invalid {
   font-size: 12px;
 }
 
-/* ===== End Current Attachments Styles ===== */
+/* ===== End Enhanced Current Attachments Styles ===== */
 
 /* File Upload */
 .file-upload-area {
@@ -741,11 +1113,6 @@ app-category-dropdown .form-select.is-invalid {
   object-fit: cover;
 }
 
-.file-icon-large {
-  font-size: 32px;
-  color: #6c757d;
-}
-
 .file-info {
   padding: 6px;
   display: flex;
@@ -822,6 +1189,66 @@ app-category-dropdown .form-select.is-invalid {
   color: #6c757d;
 }
 
+/* Updated existing attachment file type colors */
+.existing-attachment-item .bi-file-earmark-pdf-fill {
+  color: #DC3545;
+}
+
+.existing-attachment-item .bi-file-earmark-word-fill {
+  color: #2980b9;
+}
+
+.existing-attachment-item .bi-file-earmark-excel-fill {
+  color: #1e7e34;
+}
+
+.existing-attachment-item .bi-file-earmark-text-fill {
+  color: #95a5a6;
+}
+
+.existing-attachment-item .bi-file-earmark-fill {
+  color: #6c757d;
+}
+
+.existing-attachment-item .bi-image-fill {
+  color: #6f42c1;
+}
+
+/* Enhanced Action Buttons */
+.btn-download,
+.btn-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 10px;
+}
+
+.btn-download {
+  background: #28a745;
+  color: white;
+}
+
+.btn-download:hover {
+  background: #218838;
+  transform: scale(1.1);
+}
+
+.btn-remove {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-remove:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
 /* Form Actions */
 .form-actions {
   display: flex;
@@ -874,6 +1301,32 @@ app-category-dropdown .form-select.is-invalid {
   width: 1rem;
   height: 1rem;
   border-width: 0.2em;
+}
+
+/* ✅ Animation for smooth transitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.existing-attachment-item {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ✅ Focus states for accessibility */
+.existing-attachment-item:focus-within {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.btn:focus {
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 /* Responsive Design */
@@ -934,7 +1387,7 @@ app-category-dropdown .form-select.is-invalid {
     min-height: 134px;
   }
 
-  /* Responsive for existing attachments */
+  /* Responsive for existing attachments - เหมือน Ticket Detail */
   .existing-attachments-grid {
     gap: 12px;
   }
@@ -944,9 +1397,9 @@ app-category-dropdown .form-select.is-invalid {
     height: 80px;
   }
 
-  .attachment-preview,
-  .attachment-file {
-    height: 50px;
+  .file-icon-container {
+    width: 24px;
+    height: 24px;
   }
 
   .file-icon-container i {
@@ -962,6 +1415,19 @@ app-category-dropdown .form-select.is-invalid {
     width: 18px;
     height: 18px;
     font-size: 9px;
+  }
+
+  .bulk-actions-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .bulk-action-buttons {
+    justify-content: center;
+  }
+  
+  .attachment-actions {
+    flex-direction: column;
   }
 }
 
@@ -1020,6 +1486,74 @@ app-category-dropdown .form-select.is-invalid {
   
   .file-size {
     font-size: 7px;
+  }
+
+  /* Existing attachments responsive - เหมือน Ticket Detail */
+  .existing-attachments-grid {
+    gap: 8px;
+  }
+
+  .existing-attachment-item {
+    width: 70px;
+    height: 70px;
+  }
+
+  .file-icon-container {
+    width: 20px;
+    height: 20px;
+  }
+
+  .file-icon-container i {
+    font-size: 20px;
+  }
+
+  .file-details .file-name {
+    font-size: 6px;
+  }
+
+  .btn-download,
+  .btn-remove {
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+  }
+
+  .bulk-actions {
+    padding: 8px;
+  }attachment-file {
+    height: 45px;
+  }
+
+  .file-icon-container {
+    width: 20px;
+    height: 20px;
+  }
+
+  .file-icon-container i {
+    font-size: 20px;
+  }
+
+  .file-details .file-name {
+    font-size: 6px;
+  }
+
+  .file-meta {
+    font-size: 5px;
+  }
+
+  .btn-download,
+  .btn-remove {
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+  }
+
+  .bulk-actions {
+    padding: 0.5rem;
+  }
+
+  .bulk-action-buttons {
+    flex-direction: column;
   }
 }
 

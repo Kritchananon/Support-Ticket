@@ -251,7 +251,7 @@
         <span *ngIf="isEditMode">Ready to update</span>
       </div>
 
-      <!-- ✅ NEW: Existing Attachments Section (Edit Mode Only) -->
+      <!-- ✅ FIXED: Existing Attachments Section (Edit Mode Only) - แบบเดียวกับ Ticket Detail -->
       <div *ngIf="isEditMode && hasExistingAttachments()" class="form-group existing-attachments-section">
         <label class="form-label">
           <span>Current Attachments</span>
@@ -261,51 +261,38 @@
         <div class="existing-attachments-grid">
           <div *ngFor="let attachment of existingAttachments; let i = index" 
                class="existing-attachment-item"
-               [class.deleting]="isAttachmentDeleting(attachment.attachment_id)">
+               [class.deleting]="isAttachmentDeleting(attachment.attachment_id)"
+               [class.selected]="isAttachmentSelected(attachment.attachment_id)">
             
-            <!-- ✅ Loading State -->
+            <!-- ✅ FIXED: Loading State -->
             <div class="attachment-loading" 
                  *ngIf="getExistingAttachmentFileInfo(attachment.attachment_id).isLoading">
               <div class="loading-spinner">
-                <i class="bi bi-hourglass-split"></i>
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
               </div>
               <div class="loading-text">Analyzing file...</div>
             </div>
             
-            <!-- ✅ Image Preview -->
+            <!-- ✅ FIXED: Image Preview - แบบเดียวกับ Ticket Detail -->
             <div class="attachment-preview" 
                  *ngIf="isExistingAttachmentImage(attachment) && !getExistingAttachmentFileInfo(attachment.attachment_id).isLoading">
               
-              <div class="image-container">
-                <img [src]="attachment.path" 
-                     [alt]="getExistingAttachmentDisplayName(attachment)"
-                     (error)="onExistingAttachmentImageError(attachment.attachment_id)"
-                     (load)="onExistingAttachmentImageLoad(attachment.attachment_id)"
-                     loading="lazy"
-                     class="attachment-image">
-              </div>
-              
-              <!-- File info overlay for images -->
-              <div class="file-info-overlay">
-                <div class="file-name-small">{{ getExistingAttachmentDisplayName(attachment) }}</div>
-                <div class="file-size" *ngIf="formatExistingAttachmentSize(attachment)">
-                  {{ formatExistingAttachmentSize(attachment) }}
-                </div>
-              </div>
-              
-              <!-- Image type indicator -->
-              <div class="file-type-badge image-badge">
-                <i class="bi bi-image-fill"></i>
-              </div>
+              <img [src]="attachment.path" 
+                   [alt]="getExistingAttachmentDisplayName(attachment)"
+                   (error)="onExistingAttachmentImageError(attachment.attachment_id)"
+                   (load)="onExistingAttachmentImageLoad(attachment.attachment_id)"
+                   loading="lazy"
+                   class="attachment-image">
             </div>
             
-            <!-- ✅ File Icon (Non-Image Files) -->
+            <!-- ✅ FIXED: File Icon (Non-Image Files) - แบบเดียวกับ Ticket Detail -->
             <div class="attachment-file" 
                  *ngIf="!isExistingAttachmentImage(attachment) && !getExistingAttachmentFileInfo(attachment.attachment_id).isLoading">
               
               <!-- File Icon Container -->
-              <div class="file-icon-container" 
-                   [ngClass]="'file-type-' + getExistingAttachmentFileInfo(attachment.attachment_id).type">
+              <div class="file-icon-container">
                 <i [class]="getExistingAttachmentIcon(attachment)" 
                    class="file-icon-large"></i>
               </div>
@@ -316,37 +303,17 @@
                      [title]="getExistingAttachmentDisplayName(attachment)">
                   {{ getExistingAttachmentDisplayName(attachment) }}
                 </div>
-                
-                <div class="file-meta">
-                  <span class="file-type">
-                    {{ getExistingAttachmentFileInfo(attachment.attachment_id).type.toUpperCase() }}
-                  </span>
-                  <span class="file-extension" 
-                        *ngIf="getExistingAttachmentFileInfo(attachment.attachment_id).extension">
-                    .{{ getExistingAttachmentFileInfo(attachment.attachment_id).extension }}
-                  </span>
-                  <span class="file-size" 
-                        *ngIf="formatExistingAttachmentSize(attachment)">
-                    {{ formatExistingAttachmentSize(attachment) }}
-                  </span>
-                </div>
-              </div>
-              
-              <!-- File type badge for non-images -->
-              <div class="file-type-badge" 
-                   [ngClass]="getExistingAttachmentFileInfo(attachment.attachment_id).type + '-badge'">
-                <i [class]="getExistingAttachmentIcon(attachment)"></i>
               </div>
             </div>
             
-            <!-- ✅ Action Buttons -->
+            <!-- ✅ FIXED: Action Buttons - Hidden by default, show on hover -->
             <div class="attachment-actions">
               <!-- Download Button -->
               <button 
                 type="button" 
                 class="btn-download" 
                 (click)="downloadExistingAttachment(attachment)"
-                title="Download file"
+                title="Download {{ getExistingAttachmentDisplayName(attachment) }}"
                 [disabled]="isAttachmentDeleting(attachment.attachment_id)">
                 <i class="bi bi-download"></i>
               </button>
@@ -356,7 +323,7 @@
                 type="button" 
                 class="btn-remove" 
                 (click)="removeExistingAttachment(i, attachment)"
-                title="Remove file"
+                title="Remove {{ getExistingAttachmentDisplayName(attachment) }}"
                 [disabled]="isAttachmentDeleting(attachment.attachment_id)">
                 
                 <!-- Loading state -->
@@ -369,26 +336,26 @@
               </button>
             </div>
             
-            <!-- ✅ Deleting Overlay -->
+            <!-- ✅ FIXED: Deleting Overlay -->
             <div class="deleting-overlay" 
                  *ngIf="isAttachmentDeleting(attachment.attachment_id)">
               <div class="deleting-spinner">
                 <div class="spinner-border text-danger" role="status">
                   <span class="visually-hidden">Deleting...</span>
                 </div>
-                <small class="text-danger mt-1">Removing file...</small>
+                <small class="text-danger mt-2 fw-bold">Removing file...</small>
               </div>
             </div>
           </div>
         </div>
         
-        <!-- ✅ Bulk Actions (Optional) -->
+        <!-- ✅ FIXED: Bulk Actions - เหมือน Ticket Detail -->
         <div class="bulk-actions" *ngIf="existingAttachments.length > 1">
           <div class="form-check">
             <input class="form-check-input" 
                    type="checkbox" 
                    id="selectAllAttachments"
-                   [checked]="selectedAttachmentCount === existingAttachments.length"
+                   [checked]="selectedAttachmentCount === existingAttachments.length && existingAttachments.length > 0"
                    [indeterminate]="selectedAttachmentCount > 0 && selectedAttachmentCount < existingAttachments.length"
                    (change)="selectedAttachmentCount === existingAttachments.length ? clearAttachmentSelection() : selectAllAttachments()">
             <label class="form-check-label" for="selectAllAttachments">
@@ -405,6 +372,14 @@
             <i class="bi bi-trash me-1"></i>
             Remove Selected ({{ selectedAttachmentCount }})
           </button>
+        </div>
+        
+        <!-- ✅ FIXED: No Attachments State -->
+        <div class="no-attachments" *ngIf="existingAttachments.length === 0">
+          <div class="text-center py-4">
+            <i class="bi bi-paperclip fs-1 text-muted"></i>
+            <p class="text-muted mt-2 mb-0">No current attachments</p>
+          </div>
         </div>
       </div>
 
