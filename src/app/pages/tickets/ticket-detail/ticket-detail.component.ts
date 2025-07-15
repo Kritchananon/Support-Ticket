@@ -4,16 +4,18 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 
-// ✅ Import จาก API Service ที่สะอาด
+// ✅ Import API Services with satisfaction
 import { 
   ApiService, 
   TicketHistoryResponse, 
   TicketStatusHistory,
-  GetTicketDataRequest 
+  GetTicketDataRequest,
+  satisfactionResponse
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 
-// ✅ Interfaces สำหรับ Component
+// ===== INTERFACES ===== ✅
+
 interface HistoryDisplayItem {
   status_id: number;
   status_name: string;
@@ -68,6 +70,8 @@ interface TicketData {
   }>;
 }
 
+// ===== COMPONENT ===== ✅
+
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
@@ -76,32 +80,38 @@ interface TicketData {
   styleUrls: ['./ticket-detail.component.css']
 })
 export class TicketDetailComponent implements OnInit {
+  
+  // ===== DEPENDENCY INJECTION ===== ✅
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
 
-  // ===== Component Properties ===== ✅
+  // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
   isLoading = false;
   error = '';
   ticket_no: string = '';
-  
-  // Rating properties
+
+  // ===== SATISFACTION PROPERTIES ===== ✅ NEW
   currentRating = 0;
   hoverRating = 0;
+  isSavingRating = false;
+  hasExistingSatisfaction = false;
+  satisfactionMessage = '';
+  canEvaluate = false;
 
-  // Edit/Delete properties
+  // ===== ACTION PROPERTIES ===== ✅
   isUpdating = false;
   isDeleting = false;
   isEditing = false;
 
-  // ✅ History properties
+  // ===== HISTORY PROPERTIES ===== ✅
   ticketHistory: TicketStatusHistory[] = [];
   displayHistory: HistoryDisplayItem[] = [];
   isLoadingHistory = false;
 
-  // ✅ Status management properties - UPDATED to use cache
+  // ===== STATUS PROPERTIES ===== ✅
   currentStatusInfo: {
     status_id: number;
     status_name: string;
@@ -109,13 +119,19 @@ export class TicketDetailComponent implements OnInit {
   } | null = null;
   isLoadingStatus = false;
   statusError = '';
-
-  // ✅ NEW: Status cache properties (เหมือน Ticket List)
   statusCacheLoaded = false;
   isLoadingStatuses = false;
   statusCacheError = '';
 
-  // ✅ UPDATED: Status workflow definition - เก็บไว้สำหรับ icon และ workflow order
+  // ===== ATTACHMENT PROPERTIES ===== ✅
+  attachmentTypes: { [key: number]: {
+    type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
+    extension: string;
+    filename: string;
+    isLoading?: boolean;
+  } } = {};
+
+  // ===== CONSTANTS ===== ✅
   private readonly STATUS_WORKFLOW = [
     { id: 1, name: 'Created', icon: 'bi-plus-circle' },
     { id: 2, name: 'Open Ticket', icon: 'bi-clock' },
@@ -125,18 +141,12 @@ export class TicketDetailComponent implements OnInit {
     { id: 6, name: 'Cancel', icon: 'bi-x-circle' }
   ];
 
-  attachmentTypes: { [key: number]: {
-    type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
-    extension: string;
-    filename: string;
-    isLoading?: boolean;
-  } } = {};
+  // ===== LIFECYCLE ===== ✅
 
   ngOnInit(): void {
     this.ticket_no = this.route.snapshot.params['ticket_no'];
     
     if (this.ticket_no) {
-      // ✅ NEW: โหลด status cache ก่อน
       this.loadStatusCache();
       this.loadTicketDetail();
     } else {
@@ -144,11 +154,11 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ NEW: โหลด status cache (เหมือน Ticket List)
+  // ===== INITIALIZATION METHODS ===== ✅
+
   private loadStatusCache(): void {
     console.log('=== Loading Status Cache ===');
     
-    // ตรวจสอบว่า cache โหลดแล้วหรือยัง
     if (this.apiService.isStatusCacheLoaded()) {
       this.statusCacheLoaded = true;
       console.log('✅ Status cache already loaded');
@@ -164,7 +174,6 @@ export class TicketDetailComponent implements OnInit {
           this.statusCacheLoaded = true;
           console.log('✅ Status cache loaded successfully');
           
-          // ✅ ถ้าโหลด ticket data แล้ว ให้ update status name
           if (this.ticketData?.ticket) {
             this.updateStatusFromCache();
           }
@@ -182,38 +191,30 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  // ✅ NEW: อัพเดท status จาก cache
   private updateStatusFromCache(): void {
     if (!this.ticketData?.ticket || !this.statusCacheLoaded) return;
 
     const statusId = this.ticketData.ticket.status_id;
     const statusName = this.apiService.getCachedStatusName(statusId);
     
-    // อัพเดท currentStatusInfo
     this.currentStatusInfo = {
       status_id: statusId,
       status_name: statusName,
       language_id: 'th'
     };
     
-    // อัพเดท ticket data
     this.ticketData.ticket.status_name = statusName;
-    
-    // อัพเดท display history
     this.buildDisplayHistory();
+    this.updateEvaluationStatus();
     
     console.log('✅ Status updated from cache:', {
       statusId,
       statusName,
+      canEvaluate: this.canEvaluate,
       currentStatusInfo: this.currentStatusInfo
     });
   }
 
-  // ===== LOAD TICKET METHODS ===== ✅
-
-  /**
-   * ✅ Main load method - simplified
-   */
   private async loadTicketDetail(): Promise<void> {
     console.log('=== loadTicketDetail START ===');
     
@@ -221,7 +222,6 @@ export class TicketDetailComponent implements OnInit {
     this.error = '';
 
     try {
-      // Step 1: โหลดข้อมูล ticket ก่อน
       await this.getTicketByTicketNo(this.ticket_no);
       
       if (!this.ticketData?.ticket) {
@@ -229,10 +229,7 @@ export class TicketDetailComponent implements OnInit {
         return;
       }
 
-      // Step 2: ใช้ข้อมูลจาก ticketData (ถ้า cache โหลดแล้ว จะใช้จาก cache)
       this.useTicketDataStatus();
-      
-      // Step 3: สร้าง history
       await this.loadTicketHistory();
       
       console.log('✅ loadTicketDetail completed successfully');
@@ -245,15 +242,11 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ UPDATED: ใช้ status จาก cache หรือ ticketData
-   */
   private useTicketDataStatus(): void {
     if (!this.ticketData?.ticket) return;
 
     const statusId = this.ticketData.ticket.status_id || 5;
     
-    // ✅ NEW: ใช้ status name จาก cache ถ้ามี
     const statusName = this.statusCacheLoaded 
       ? this.apiService.getCachedStatusName(statusId)
       : (this.ticketData.ticket.status_name || this.getDefaultStatusName(statusId));
@@ -266,18 +259,143 @@ export class TicketDetailComponent implements OnInit {
     
     this.ticketData.ticket.status_id = statusId;
     this.ticketData.ticket.status_name = statusName;
+    this.updateEvaluationStatus();
     
     console.log('✅ Using status:', {
       statusId,
       statusName,
+      canEvaluate: this.canEvaluate,
       fromCache: this.statusCacheLoaded,
       currentStatusInfo: this.currentStatusInfo
     });
   }
 
+  // ===== SATISFACTION METHODS ===== ✅ NEW
+
   /**
-   * ✅ โหลด history ด้วย mock data
+   * ✅ อัพเดทสถานะการประเมิน
    */
+  private updateEvaluationStatus(): void {
+    const statusId = this.getCurrentStatusId();
+    
+    this.canEvaluate = this.apiService.canEvaluateTicket(statusId);
+    this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
+    
+    console.log('✅ Evaluation status updated:', {
+      statusId,
+      canEvaluate: this.canEvaluate,
+      message: this.satisfactionMessage
+    });
+  }
+
+  /**
+   * ✅ ตั้งค่าคะแนนความพึงพอใจและบันทึก
+   */
+  setRating(rating: number): void {
+    if (!this.canEvaluate) {
+      console.log('Cannot evaluate this ticket:', this.satisfactionMessage);
+      return;
+    }
+
+    if (this.hasExistingSatisfaction) {
+      console.log('Ticket already has satisfaction rating');
+      return;
+    }
+
+    this.currentRating = rating;
+    this.satisfaction(rating);
+    console.log('Rating set to:', rating);
+  }
+
+  /**
+   * ✅ บันทึกคะแนนความพึงพอใจ
+   */
+  private satisfaction(rating: number): void {
+    if (!this.ticket_no || this.isSavingRating) {
+      return;
+    }
+
+    this.isSavingRating = true;
+    
+    this.apiService.satisfaction(this.ticket_no, rating).subscribe({
+      next: (response: satisfactionResponse) => {
+        if (response.success) {
+          console.log('✅ Satisfaction saved successfully:', response.data);
+          this.hasExistingSatisfaction = true;
+          this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
+          alert('บันทึกคะแนนความพึงพอใจสำเร็จ');
+        } else {
+          console.error('❌ Failed to save satisfaction:', response.error);
+          this.currentRating = 0;
+          alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
+        }
+        this.isSavingRating = false;
+      },
+      error: (error) => {
+        console.error('❌ Error saving satisfaction:', error);
+        this.currentRating = 0;
+        this.isSavingRating = false;
+        alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
+      }
+    });
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่
+   */
+  canClickStar(): boolean {
+    return this.canEvaluate && !this.hasExistingSatisfaction && !this.isSavingRating;
+  }
+
+  /**
+   * ✅ ได้รับคลาส CSS สำหรับดาว
+   */
+  getStarClass(starIndex: number): string {
+    const baseClass = 'star';
+    
+    if (!this.canClickStar()) {
+      return baseClass + ' disabled';
+    }
+    
+    if (this.hoverRating > 0) {
+      return baseClass + (starIndex <= this.hoverRating ? ' hover' : '');
+    }
+    
+    return baseClass + (starIndex <= this.currentRating ? ' filled' : '');
+  }
+
+  /**
+   * ✅ จัดการ mouse events บนดาว
+   */
+  onStarMouseEnter(rating: number): void {
+    if (this.canClickStar()) {
+      this.hoverRating = rating;
+    }
+  }
+
+  onStarMouseLeave(): void {
+    if (this.canClickStar()) {
+      this.hoverRating = 0;
+    }
+  }
+
+  /**
+   * ✅ ได้รับข้อความสำหรับแสดงสถานะการประเมิน
+   */
+  getEvaluationMessage(): string {
+    if (this.hasExistingSatisfaction) {
+      return 'คุณได้ประเมินความพึงพอใจแล้ว';
+    }
+    
+    if (!this.canEvaluate) {
+      return this.satisfactionMessage;
+    }
+    
+    return 'กรุณาประเมินความพึงพอใจ';
+  }
+
+  // ===== HISTORY METHODS ===== ✅
+
   private async loadTicketHistory(): Promise<void> {
     if (!this.ticketData?.ticket?.id) {
       this.buildHistoryFromExistingData();
@@ -304,16 +422,11 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ FIXED: สร้าง history จาก database จริง - ไม่สร้างเวลา mock
-   */
   private getMockTicketHistory(ticketId: number): Observable<TicketHistoryResponse> {
-    // ✅ ใช้ข้อมูลจาก status_history ที่มีอยู่แล้วใน ticketData
     const existingHistory = this.ticketData?.status_history || [];
     
-    // ✅ แปลง existing history เป็น format ที่ต้องการ
     const historyFromDatabase: TicketStatusHistory[] = existingHistory
-      .filter(h => h.create_date) // ✅ เอาเฉพาะที่มีวันที่จริงๆ
+      .filter(h => h.create_date)
       .map((historyItem, index) => ({
         id: index + 1,
         ticket_id: ticketId,
@@ -332,7 +445,7 @@ export class TicketDetailComponent implements OnInit {
       data: historyFromDatabase
     };
 
-    console.log('✅ Using real database history (no mock dates):', historyFromDatabase);
+    console.log('✅ Using real database history:', historyFromDatabase);
     return new Observable<TicketHistoryResponse>((observer) => {
       setTimeout(() => {
         observer.next(mockResponse);
@@ -341,67 +454,13 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  private getTicketByTicketNo(ticket_no: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!ticket_no || ticket_no.trim() === '') {
-        this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
-        reject(new Error('Invalid ticket number'));
-        return;
-      }
-
-      const requestData: GetTicketDataRequest = { ticket_no: ticket_no };
-      
-      this.apiService.getTicketData(requestData).subscribe({
-        next: (response: any) => {
-          if (response && response.code === 1) {
-            if (response.data && this.isValidTicketData(response.data)) {
-              this.ticketData = response.data as TicketData;
-              this.analyzeAllAttachments();
-              resolve();
-            } else {
-              this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
-              this.loadMockData();
-              resolve();
-            }
-          } else {
-            this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
-            this.loadMockData();
-            resolve();
-          }
-        },
-        error: (error: any) => {
-          console.error('API Error:', error);
-          this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-          this.loadMockData();
-          resolve();
-        }
-      });
-    });
-  }
-
-  private isValidTicketData(data: any): boolean {
-    const hasTicket = data.ticket && typeof data.ticket === 'object';
-    const hasIssueAttachment = Array.isArray(data.issue_attachment);
-    const hasFixAttachment = Array.isArray(data.fix_attachment);
-    const hasStatusHistory = Array.isArray(data.status_history);
-
-    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
-  }
-
-  // ===== HISTORY METHODS ===== ✅
-
-  /**
-   * ✅ UPDATED: สร้าง display history จากข้อมูล API - ใช้ status name จาก cache
-   */
   private buildDisplayHistory(): void {
     if (!this.ticketData?.ticket) return;
 
     const currentStatusId = this.getCurrentStatusId();
     console.log('Building display history for current status:', currentStatusId);
     
-    // ✅ สร้างรายการ status ทั้งหมดตาม workflow
     this.displayHistory = this.STATUS_WORKFLOW.map((workflowStatus) => {
-      // หาข้อมูล history ที่ตรงกับ status นี้
       const historyItem = this.ticketHistory.find(h => h.status_id === workflowStatus.id);
       
       const currentPosition = this.getStatusPosition(currentStatusId);
@@ -410,53 +469,29 @@ export class TicketDetailComponent implements OnInit {
       const isActive = workflowStatus.id === currentStatusId;
       const isCompleted = thisPosition < currentPosition && thisPosition !== -1;
       
-      // ✅ NEW: ใช้ status name จาก cache ถ้ามี
       const statusName = this.statusCacheLoaded 
         ? this.apiService.getCachedStatusName(workflowStatus.id)
         : workflowStatus.name;
       
-      const historyDisplayItem: HistoryDisplayItem = {
+      return {
         status_id: workflowStatus.id,
-        status_name: statusName, // ✅ ใช้จาก cache
-        // ✅ ใช้เวลาจริงจาก database - ไม่สร้าง mock
+        status_name: statusName,
         create_date: historyItem?.create_date || '',
         is_active: isActive,
         is_completed: isCompleted
       };
-
-      console.log(`Status ${statusName}:`, {
-        position: thisPosition,
-        currentPosition,
-        isActive,
-        isCompleted,
-        hasDate: !!historyItem?.create_date,
-        actualDate: historyItem?.create_date || 'No date',
-        fromCache: this.statusCacheLoaded
-      });
-
-      return historyDisplayItem;
     });
 
     console.log('Built display history with status from cache:', this.displayHistory);
   }
 
-  /**
-   * ✅ UPDATED: Fallback history - ใช้ status name จาก cache
-   */
   private buildHistoryFromExistingData(): void {
     if (!this.ticketData?.ticket) return;
 
     const currentStatusId = this.getCurrentStatusId();
     const existingHistory = this.ticketData.status_history || [];
     
-    console.log('Building fallback history with real database dates:', {
-      currentStatusId,
-      existingHistoryCount: existingHistory.length,
-      existingHistory: existingHistory
-    });
-    
     this.displayHistory = this.STATUS_WORKFLOW.map((workflowStatus) => {
-      // หาข้อมูลจาก existing history
       const existingItem = existingHistory.find(h => h.status_id === workflowStatus.id);
       
       const currentPosition = this.getStatusPosition(currentStatusId);
@@ -465,47 +500,27 @@ export class TicketDetailComponent implements OnInit {
       const isActive = workflowStatus.id === currentStatusId;
       const isCompleted = thisPosition < currentPosition && thisPosition !== -1;
       
-      // ✅ NEW: ใช้ status name จาก cache ถ้ามี
       const statusName = this.statusCacheLoaded 
         ? this.apiService.getCachedStatusName(workflowStatus.id)
         : workflowStatus.name;
       
-      const historyDisplayItem: HistoryDisplayItem = {
+      return {
         status_id: workflowStatus.id,
-        status_name: statusName, // ✅ ใช้จาก cache
-        // ✅ ใช้เวลาจริงจาก database เท่านั้น - ไม่สร้างเวลา fake
+        status_name: statusName,
         create_date: existingItem?.create_date || '',
         is_active: isActive,
         is_completed: isCompleted
       };
-
-      console.log(`Fallback status ${statusName}:`, {
-        position: thisPosition,
-        currentPosition,
-        isActive,
-        isCompleted,
-        hasDate: !!existingItem?.create_date,
-        actualDate: existingItem?.create_date || 'No date from database',
-        fromCache: this.statusCacheLoaded
-      });
-
-      return historyDisplayItem;
     });
 
     console.log('Built fallback history with status from cache:', this.displayHistory);
   }
 
-  /**
-   * ✅ หาลำดับของ status ใน workflow
-   */
   private getStatusPosition(statusId: number): number {
     const index = this.STATUS_WORKFLOW.findIndex(s => s.id === statusId);
     return index !== -1 ? index : 0;
   }
 
-  /**
-   * ✅ ได้รับคลาส CSS สำหรับ history badge
-   */
   getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
     if (historyItem.is_active) {
       return 'badge-current';
@@ -516,9 +531,6 @@ export class TicketDetailComponent implements OnInit {
     return 'badge-pending';
   }
 
-  /**
-   * ✅ ได้รับไอคอนสำหรับ history
-   */
   getHistoryIcon(statusName: string): string {
     const workflowItem = this.STATUS_WORKFLOW.find(s => 
       s.name.toLowerCase() === statusName.toLowerCase()
@@ -526,19 +538,13 @@ export class TicketDetailComponent implements OnInit {
     return workflowItem?.icon || 'bi-clock';
   }
 
-  /**
-   * ✅ ตรวจสอบว่า history item มีวันที่หรือไม่
-   */
   hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
     return !!historyItem.create_date && historyItem.create_date.trim() !== '';
   }
 
-  /**
-   * ✅ FIXED: Format วันที่สำหรับ history - แสดง "-" ถ้าไม่มีวันที่
-   */
   formatHistoryDate(dateString: string): string {
     if (!dateString || dateString.trim() === '') {
-      return '-'; // ✅ แสดง "-" สำหรับ status ที่ยังไม่ถึง
+      return '-';
     }
     
     try {
@@ -552,43 +558,30 @@ export class TicketDetailComponent implements OnInit {
       });
     } catch (error) {
       console.error('Error formatting date:', error);
-      return '-'; // ✅ แสดง "-" ถ้า format ไม่ได้
+      return '-';
     }
   }
 
   // ===== STATUS METHODS ===== ✅
 
-  /**
-   * ✅ UPDATED: ได้รับ status name ปัจจุบัน - ใช้ cache ถ้ามี
-   */
   getCurrentStatusName(): string {
     const statusId = this.getCurrentStatusId();
     
-    // ✅ NEW: ใช้ status name จาก cache ถ้ามี
     if (this.statusCacheLoaded) {
       return this.apiService.getCachedStatusName(statusId);
     }
     
-    // Fallback เดิม
-    const statusName = this.currentStatusInfo?.status_name || 
-                       this.ticketData?.ticket?.status_name || 
-                       this.getDefaultStatusName(statusId);
-    return statusName;
+    return this.currentStatusInfo?.status_name || 
+           this.ticketData?.ticket?.status_name || 
+           this.getDefaultStatusName(statusId);
   }
 
-  /**
-   * ✅ ได้รับ status ID ปัจจุบัน
-   */
   getCurrentStatusId(): number {
-    const statusId = this.currentStatusInfo?.status_id || 
-                     this.ticketData?.ticket?.status_id || 
-                     1;
-    return statusId;
+    return this.currentStatusInfo?.status_id || 
+           this.ticketData?.ticket?.status_id || 
+           1;
   }
 
-  /**
-   * ✅ ได้รับ default status name (fallback)
-   */
   private getDefaultStatusName(statusId: number): string {
     switch (statusId) {
       case 1: return 'Created';
@@ -601,29 +594,36 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ NEW: Method สำหรับ reload status cache
-  reloadStatusCache(): void {
-    console.log('Reloading status cache...');
-    this.apiService.clearStatusCache();
-    this.statusCacheLoaded = false;
-    this.loadStatusCache();
+  getStatusBadgeClass(statusId?: number): string {
+    const currentStatusId = statusId || this.getCurrentStatusId();
+    
+    switch (currentStatusId) {
+      case 1: return 'badge-pending';
+      case 2: return 'badge-in-progress';
+      case 3: return 'badge-hold';
+      case 4: return 'badge-resolved';
+      case 5: return 'badge-complete';
+      case 6: return 'badge-cancel';
+      default: return 'badge-pending';
+    }
   }
 
-  // ✅ NEW: ตรวจสอบสถานะ cache
-  getStatusCacheInfo(): any {
-    return {
-      loaded: this.statusCacheLoaded,
-      loading: this.isLoadingStatuses,
-      error: this.statusCacheError,
-      apiCacheLoaded: this.apiService.isStatusCacheLoaded()
-    };
+  getStatusIcon(statusId?: number): string {
+    const currentStatusId = statusId || this.getCurrentStatusId();
+    
+    switch (currentStatusId) {
+      case 1: return 'bi-plus-circle';
+      case 2: return 'bi-clock';
+      case 3: return 'bi-play-circle';
+      case 4: return 'bi-clipboard-check';
+      case 5: return 'bi-check-circle';
+      case 6: return 'bi-x-circle';
+      default: return 'bi-clock';
+    }
   }
 
-  // ===== EDIT METHODS ===== ✅
+  // ===== EDIT/DELETE METHODS ===== ✅
 
-  /**
-   * ✅ จัดการการแก้ไข ticket
-   */
   onEditTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
       console.error('No ticket number available for edit');
@@ -646,56 +646,6 @@ export class TicketDetailComponent implements OnInit {
     this.router.navigate(['/tickets/edit', this.ticketData.ticket.ticket_no]);
   }
 
-  /**
-   * ✅ บันทึกข้อมูล ticket สำหรับการแก้ไข
-   */
-  private saveTicketDataForEdit(): void {
-    if (!this.ticketData?.ticket) return;
-
-    const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id || currentUser?.user_id;
-    
-    if (!currentUserId) {
-      console.error('No current user ID found');
-      return;
-    }
-
-    const editTicketData = {
-      userId: currentUserId,
-      ticketId: this.ticketData.ticket.id,
-      ticket_no: this.ticketData.ticket.ticket_no,
-      isEditMode: true,
-      isTicketCreated: true,
-      formData: {
-        projectId: this.ticketData.ticket.project_id,
-        categoryId: this.ticketData.ticket.categories_id,
-        issueDescription: this.ticketData.ticket.issue_description
-      },
-      selectedProject: {
-        id: this.ticketData.ticket.project_id,
-        projectName: this.ticketData.ticket.project_name
-      },
-      selectedCategory: {
-        id: this.ticketData.ticket.categories_id,
-        categoryName: this.ticketData.ticket.categories_name
-      },
-      existingAttachments: this.ticketData.issue_attachment.map(attachment => ({
-        attachment_id: attachment.attachment_id,
-        path: attachment.path,
-        filename: attachment.filename,
-        file_type: attachment.file_type,
-        file_size: attachment.file_size
-      })),
-      timestamp: new Date().getTime()
-    };
-    
-    const storageKey = `editTicket_${currentUserId}_${this.ticketData.ticket.ticket_no}`;
-    localStorage.setItem(storageKey, JSON.stringify(editTicketData));
-  }
-
-  /**
-   * ✅ จัดการการลบ ticket
-   */
   onDeleteTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
       console.error('No ticket number available for deletion');
@@ -710,50 +660,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ ลบ ticket จริง
-   */
-  private deleteTicket(ticket_no: string): void {
-    this.isDeleting = true;
-    
-    this.apiService.deleteTicketByTicketNo(ticket_no).subscribe({
-      next: (response: any) => {
-        if (response.code === 1) {
-          alert('ลบ ticket สำเร็จแล้ว');
-          this.clearLocalStorageData();
-          this.backToList();
-        } else {
-          alert(`ไม่สามารถลบ ticket ได้: ${response.message}`);
-        }
-        this.isDeleting = false;
-      },
-      error: (error: any) => {
-        console.error('Delete ticket error:', error);
-        alert(`เกิดข้อผิดพลาดในการลบ ticket: ${error}`);
-        this.isDeleting = false;
-      }
-    });
-  }
-
-  /**
-   * ✅ ลบข้อมูลใน localStorage
-   */
-  private clearLocalStorageData(): void {
-    const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id || currentUser?.user_id;
-    
-    if (currentUserId) {
-      const incompleteKey = `incompleteTicket_${currentUserId}`;
-      const editKey = `editTicket_${currentUserId}_${this.ticket_no}`;
-      
-      localStorage.removeItem(incompleteKey);
-      localStorage.removeItem(editKey);
-    }
-  }
-
-  /**
-   * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่
-   */
   canEdit(): boolean {
     if (!this.ticketData?.ticket) return false;
     
@@ -761,9 +667,6 @@ export class TicketDetailComponent implements OnInit {
     return [1, 2, 3, 4].includes(status);
   }
 
-  /**
-   * ✅ ตรวจสอบว่าสามารถลบได้หรือไม่
-   */
   canDelete(): boolean {
     if (!this.ticketData?.ticket) return false;
     
@@ -771,9 +674,6 @@ export class TicketDetailComponent implements OnInit {
     return ![5, 6].includes(status);
   }
 
-  /**
-   * ✅ ได้รับข้อความสำหรับปุ่ม Edit
-   */
   getEditButtonText(): string {
     if (!this.ticketData?.ticket) return 'Edit';
     
@@ -786,72 +686,15 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ ได้รับคลาส CSS สำหรับปุ่ม Edit
-   */
   getEditButtonClass(): string {
     return this.canEdit() ? 'btn-edit' : 'btn-edit disabled';
   }
 
-  /**
-   * ✅ ได้รับคลาส CSS สำหรับปุ่ม Delete
-   */
   getDeleteButtonClass(): string {
     return this.canDelete() ? 'btn-delete' : 'btn-delete disabled';
   }
 
-  // ===== UTILITY METHODS ===== ✅
-
-  /**
-   * ✅ ได้รับคลาส CSS สำหรับ status badge
-   */
-  getStatusBadgeClass(statusId?: number): string {
-    const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'badge-pending';
-      case 2: return 'badge-in-progress';
-      case 3: return 'badge-hold';
-      case 4: return 'badge-resolved';
-      case 5: return 'badge-complete';
-      case 6: return 'badge-cancel';
-      default: return 'badge-pending';
-    }
-  }
-
-  /**
-   * ✅ UPDATED: ได้รับไอคอนสำหรับ status - ให้ตรงกับ history
-   */
-  getStatusIcon(statusId?: number): string {
-    const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'bi-plus-circle';      // Created - ตรงกับ history
-      case 2: return 'bi-clock';            // Open Ticket - ตรงกับ history  
-      case 3: return 'bi-play-circle';      // In Progress - ตรงกับ history
-      case 4: return 'bi-clipboard-check';  // Resolved - ตรงกับ history
-      case 5: return 'bi-check-circle';     // Completed - ตรงกับ history
-      case 6: return 'bi-x-circle';         // Cancel - ตรงกับ history
-      default: return 'bi-clock';
-    }
-  }
-
-  formatDate(dateString: string): string {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleDateString('th-TH', {
-        day: '2-digit',
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
-  }
-
-  // ===== ATTACHMENT METHODS ===== ✅ ครบถ้วน
+  // ===== ATTACHMENT METHODS ===== ✅
 
   private analyzeAllAttachments(): void {
     if (!this.ticketData) return;
@@ -890,12 +733,7 @@ export class TicketDetailComponent implements OnInit {
         isLoading: false
       };
       
-      console.log(`File analyzed from API data:`, {
-        id: attachmentId,
-        filename,
-        fileType,
-        category: this.attachmentTypes[attachmentId].type
-      });
+      console.log(`File analyzed from API data:`, { id: attachmentId, filename, fileType, category: this.attachmentTypes[attachmentId].type });
       return;
     }
 
@@ -910,12 +748,7 @@ export class TicketDetailComponent implements OnInit {
         isLoading: false
       };
       
-      console.log(`File analyzed from path:`, {
-        id: attachmentId,
-        filename,
-        extension,
-        category: this.attachmentTypes[attachmentId].type
-      });
+      console.log(`File analyzed from path:`, { id: attachmentId, filename, extension, category: this.attachmentTypes[attachmentId].type });
       return;
     }
 
@@ -928,11 +761,7 @@ export class TicketDetailComponent implements OnInit {
         isLoading: false
       };
       
-      console.log(`File analyzed from data URL:`, {
-        id: attachmentId,
-        mimeType,
-        category: this.attachmentTypes[attachmentId].type
-      });
+      console.log(`File analyzed from data URL:`, { id: attachmentId, mimeType, category: this.attachmentTypes[attachmentId].type });
       return;
     }
 
@@ -1108,12 +937,7 @@ export class TicketDetailComponent implements OnInit {
           isLoading: false
         };
         
-        console.log(`File analyzed from HTTP headers:`, {
-          id: attachmentId,
-          contentType,
-          filename,
-          category: this.attachmentTypes[attachmentId].type
-        });
+        console.log(`File analyzed from HTTP headers:`, { id: attachmentId, contentType, filename, category: this.attachmentTypes[attachmentId].type });
       } else {
         this.attachmentTypes[attachmentId] = {
           type: 'file',
@@ -1155,6 +979,8 @@ export class TicketDetailComponent implements OnInit {
     img.crossOrigin = 'anonymous';
     img.src = url;
   }
+
+  // ===== ATTACHMENT PUBLIC METHODS ===== ✅
 
   isImageFile(path: string, attachmentId?: number): boolean {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
@@ -1229,13 +1055,7 @@ export class TicketDetailComponent implements OnInit {
     return this.extractFilenameFromPath(path);
   }
 
-  getFileInfo(attachmentId: number): {
-    type: string;
-    extension: string;
-    filename: string;
-    isLoading: boolean;
-    icon: string;
-  } {
+  getFileInfo(attachmentId: number): { type: string; extension: string; filename: string; isLoading: boolean; icon: string; } {
     const fileInfo = this.attachmentTypes[attachmentId];
     
     if (fileInfo) {
@@ -1280,12 +1100,7 @@ export class TicketDetailComponent implements OnInit {
       window.open(path, '_blank');
     }
     
-    console.log(`Downloading attachment:`, {
-      id: attachmentId,
-      filename: fileInfo.filename,
-      type: fileInfo.type,
-      path: path
-    });
+    console.log(`Downloading attachment:`, { id: attachmentId, filename: fileInfo.filename, type: fileInfo.type, path: path });
   }
 
   onImageError(attachmentId: number): void {
@@ -1302,7 +1117,150 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ===== MOCK DATA ===== ✅
+  // ===== UTILITY METHODS ===== ✅
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('th-TH', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  }
+
+  // ===== PRIVATE HELPER METHODS ===== ✅
+
+  private saveTicketDataForEdit(): void {
+    if (!this.ticketData?.ticket) return;
+
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id || currentUser?.user_id;
+    
+    if (!currentUserId) {
+      console.error('No current user ID found');
+      return;
+    }
+
+    const editTicketData = {
+      userId: currentUserId,
+      ticketId: this.ticketData.ticket.id,
+      ticket_no: this.ticketData.ticket.ticket_no,
+      isEditMode: true,
+      isTicketCreated: true,
+      formData: {
+        projectId: this.ticketData.ticket.project_id,
+        categoryId: this.ticketData.ticket.categories_id,
+        issueDescription: this.ticketData.ticket.issue_description
+      },
+      selectedProject: {
+        id: this.ticketData.ticket.project_id,
+        projectName: this.ticketData.ticket.project_name
+      },
+      selectedCategory: {
+        id: this.ticketData.ticket.categories_id,
+        categoryName: this.ticketData.ticket.categories_name
+      },
+      existingAttachments: this.ticketData.issue_attachment.map(attachment => ({
+        attachment_id: attachment.attachment_id,
+        path: attachment.path,
+        filename: attachment.filename,
+        file_type: attachment.file_type,
+        file_size: attachment.file_size
+      })),
+      timestamp: new Date().getTime()
+    };
+    
+    const storageKey = `editTicket_${currentUserId}_${this.ticketData.ticket.ticket_no}`;
+    localStorage.setItem(storageKey, JSON.stringify(editTicketData));
+  }
+
+  private deleteTicket(ticket_no: string): void {
+    this.isDeleting = true;
+    
+    this.apiService.deleteTicketByTicketNo(ticket_no).subscribe({
+      next: (response: any) => {
+        if (response.code === 1) {
+          alert('ลบ ticket สำเร็จแล้ว');
+          this.clearLocalStorageData();
+          this.backToList();
+        } else {
+          alert(`ไม่สามารถลบ ticket ได้: ${response.message}`);
+        }
+        this.isDeleting = false;
+      },
+      error: (error: any) => {
+        console.error('Delete ticket error:', error);
+        alert(`เกิดข้อผิดพลาดในการลบ ticket: ${error}`);
+        this.isDeleting = false;
+      }
+    });
+  }
+
+  private clearLocalStorageData(): void {
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id || currentUser?.user_id;
+    
+    if (currentUserId) {
+      const incompleteKey = `incompleteTicket_${currentUserId}`;
+      const editKey = `editTicket_${currentUserId}_${this.ticket_no}`;
+      
+      localStorage.removeItem(incompleteKey);
+      localStorage.removeItem(editKey);
+    }
+  }
+
+  private getTicketByTicketNo(ticket_no: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!ticket_no || ticket_no.trim() === '') {
+        this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
+        reject(new Error('Invalid ticket number'));
+        return;
+      }
+
+      const requestData: GetTicketDataRequest = { ticket_no: ticket_no };
+      
+      this.apiService.getTicketData(requestData).subscribe({
+        next: (response: any) => {
+          if (response && response.code === 1) {
+            if (response.data && this.isValidTicketData(response.data)) {
+              this.ticketData = response.data as TicketData;
+              this.analyzeAllAttachments();
+              resolve();
+            } else {
+              this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
+              this.loadMockData();
+              resolve();
+            }
+          } else {
+            this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
+            this.loadMockData();
+            resolve();
+          }
+        },
+        error: (error: any) => {
+          console.error('API Error:', error);
+          this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+          this.loadMockData();
+          resolve();
+        }
+      });
+    });
+  }
+
+  private isValidTicketData(data: any): boolean {
+    const hasTicket = data.ticket && typeof data.ticket === 'object';
+    const hasIssueAttachment = Array.isArray(data.issue_attachment);
+    const hasFixAttachment = Array.isArray(data.fix_attachment);
+    const hasStatusHistory = Array.isArray(data.status_history);
+
+    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
+  }
 
   private loadMockData(): void {
     this.ticketData = {
@@ -1385,10 +1343,5 @@ export class TicketDetailComponent implements OnInit {
 
   backToList(): void {
     this.router.navigate(['/tickets']);
-  }
-
-  setRating(rating: number): void {
-    this.currentRating = rating;
-    console.log('Rating set to:', rating);
   }
 }

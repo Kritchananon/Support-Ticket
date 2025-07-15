@@ -1,4 +1,4 @@
-<!-- ✅ COMPLETE UPDATED FILE: ticket-detail.component.html -->
+<!-- ✅ COMPLETE: ticket-detail.component.html with satisfaction integration -->
 
 <!-- Loading State -->
 <div *ngIf="isLoading" class="loading-container">
@@ -34,17 +34,6 @@
     </nav>
   </div>
 
-  <!-- ✅ NEW: แสดง debug info สำหรับ status (สำหรับ development) -->
-  <div *ngIf="currentStatusInfo && !isLoadingStatus" class="debug-status-info d-none">
-    <div class="alert alert-info">
-      <strong>Status Debug:</strong><br>
-      ID: {{ currentStatusInfo.status_id }}<br>
-      Name: {{ currentStatusInfo.status_name }}<br>
-      Language: {{ currentStatusInfo.language_id }}<br>
-      <span *ngIf="statusError" class="text-warning">Error: {{ statusError }}</span>
-    </div>
-  </div>
-
   <!-- Layout Container -->
   <div class="layout-container">
     <!-- Main Content Area -->
@@ -57,16 +46,11 @@
             <div class="ticket-title-container">
               <h1 class="ticket-title">Ticket</h1>
               
-              <!-- ✅ UPDATED: ใช้ getCurrentStatusId() และ getCurrentStatusName() -->
+              <!-- Status Badge -->
               <div class="status-badge" [ngClass]="getStatusBadgeClass()">
-                <!-- ✅ NEW: แสดง loading spinner เมื่อกำลังโหลด status -->
                 <span *ngIf="isLoadingStatus" class="spinner-border spinner-border-sm me-1" role="status"></span>
-                
-                <!-- ✅ UPDATED: ใช้ method ใหม่ -->
                 <i class="status-icon" [ngClass]="getStatusIcon()" *ngIf="!isLoadingStatus"></i>
                 <span class="status-text">{{ getCurrentStatusName() }}</span>
-                
-                <!-- ✅ NEW: แสดง error ถ้าโหลด status ไม่ได้ -->
                 <i class="bi bi-exclamation-triangle text-warning ms-1" 
                    *ngIf="statusError && !isLoadingStatus"
                    [title]="statusError"></i>
@@ -74,30 +58,28 @@
             </div>
           </div>
           
-          <!-- ✅ UPDATED: Changed Resolved Button to Edit Button -->
+          <!-- Action Buttons -->
           <div class="ticket-header-right">
             <div class="action-buttons">
-              <!-- ปุ่ม Delete - คงเดิม -->
+              <!-- Delete Button -->
               <button 
                 [class]="getDeleteButtonClass()" 
                 (click)="onDeleteTicket()"
                 [disabled]="!canDelete() || isDeleting"
                 [title]="canDelete() ? 'ลบ ticket นี้' : 'ไม่สามารถลบ ticket ในสถานะนี้ได้'">
                 
-                <!-- แสดง loading spinner เมื่อกำลังลบ -->
                 <span *ngIf="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <span *ngIf="!isDeleting">Delete</span>
                 <span *ngIf="isDeleting">Deleting...</span>
               </button>
               
-              <!-- ✅ UPDATED: ปุ่ม Edit - เปลี่ยนจาก Resolved -->
+              <!-- Edit Button -->
               <button 
                 [class]="getEditButtonClass()" 
                 (click)="onEditTicket()"
                 [disabled]="!canEdit() || isEditing"
                 [title]="canEdit() ? 'แก้ไข ticket นี้' : 'ไม่สามารถแก้ไขในสถานะนี้ได้'">
                 
-                <!-- แสดง loading spinner เมื่อกำลังไปหน้าแก้ไข -->
                 <span *ngIf="isEditing" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-pencil" *ngIf="!isEditing"></i>
                 <span>{{ getEditButtonText() }}</span>
@@ -170,7 +152,7 @@
                 <div class="loading-text">Analyzing...</div>
               </div>
               
-              <!-- แสดงรูปภาพ preview โดยใช้ข้อมูลที่วิเคราะห์แล้ว -->
+              <!-- Image Preview -->
               <div class="attachment-preview" 
                    *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
                 <img [src]="attachment.path" 
@@ -180,24 +162,21 @@
                      loading="lazy"
                      style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
                 
-                <!-- File info overlay -->
                 <div class="file-info-overlay">
                   <div class="file-name-small">{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</div>
                   <div class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</div>
                 </div>
               </div>
               
-              <!-- แสดง file icon สำหรับไฟล์ที่ไม่ใช่รูปภาพ -->
+              <!-- File Icon -->
               <div class="attachment-file" 
                    *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
                 
-                <!-- File Icon -->
                 <div class="file-icon-container">
                   <i [class]="getFileIcon(attachment.path, attachment.attachment_id)" 
                      [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
                 </div>
                 
-                <!-- File Details -->
                 <div class="file-details">
                   <div class="file-name" [title]="getDisplayFileName(attachment.path, attachment.attachment_id)">
                     {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
@@ -209,14 +188,13 @@
                   </div>
                 </div>
                 
-                <!-- Download Indicator -->
                 <div class="download-indicator">
                   <i class="bi bi-download"></i>
                 </div>
               </div>
             </div>
             
-            <!-- Show placeholder if no attachments -->
+            <!-- No attachments -->
             <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
               <i class="bi bi-paperclip"></i>
               <span class="text-muted">No attachments</span>
@@ -241,17 +219,53 @@
             </div>
           </div>
           
+          <!-- ✅ UPDATED: Evaluation Section with satisfaction logic -->
           <div class="evaluation-section">
             <div class="evaluation-label">Evaluation</div>
+            
+            <!-- ✅ NEW: Evaluation Status Message -->
+            <div class="evaluation-status" 
+                 *ngIf="!canEvaluate || hasExistingSatisfaction"
+                 [ngClass]="{
+                   'text-success': hasExistingSatisfaction,
+                   'text-muted': !canEvaluate && !hasExistingSatisfaction
+                 }">
+              <small>{{ getEvaluationMessage() }}</small>
+            </div>
+            
+            <!-- ✅ UPDATED: Star Rating with satisfaction logic -->
             <div class="star-rating">
-              <div class="star" *ngFor="let i of [1,2,3,4,5]" 
-                   [class.filled]="i <= currentRating"
-                   (click)="setRating(i)"
-                   (mouseenter)="hoverRating = i"
-                   (mouseleave)="hoverRating = 0">
-                <i class="bi bi-star-fill" *ngIf="(hoverRating > 0 ? hoverRating : currentRating) >= i"></i>
-                <i class="bi bi-star" *ngIf="(hoverRating > 0 ? hoverRating : currentRating) < i"></i>
+              <div class="star" 
+                   *ngFor="let i of [1,2,3,4,5]" 
+                   [ngClass]="getStarClass(i)"
+                   (click)="canClickStar() ? setRating(i) : null"
+                   (mouseenter)="onStarMouseEnter(i)"
+                   (mouseleave)="onStarMouseLeave()"
+                   [title]="canClickStar() ? 'ให้คะแนน ' + i + ' ดาว' : getEvaluationMessage()">
+                
+                <!-- ✅ Loading spinner เมื่อกำลังบันทึก -->
+                <span *ngIf="isSavingRating && i === currentRating" 
+                      class="spinner-border spinner-border-sm" 
+                      role="status"></span>
+                
+                <!-- ✅ Star icons -->
+                <i *ngIf="!isSavingRating || i !== currentRating"
+                   class="bi"
+                   [ngClass]="{
+                     'bi-star-fill': (hoverRating > 0 ? hoverRating : currentRating) >= i,
+                     'bi-star': (hoverRating > 0 ? hoverRating : currentRating) < i
+                   }"></i>
               </div>
+            </div>
+            
+            <!-- ✅ NEW: Rating confirmation message -->
+            <div class="rating-confirmation" 
+                 *ngIf="hasExistingSatisfaction && currentRating > 0"
+                 class="text-success">
+              <small>
+                <i class="bi bi-check-circle me-1"></i>
+                คุณให้คะแนน {{ currentRating }} ดาว
+              </small>
             </div>
           </div>
         </div>
@@ -263,13 +277,11 @@
           <h2 class="support-title">Support Information</h2>
         </div>
         
-        <!-- Progress Bar -->
         <div class="support-progress-bar">
           <div class="support-progress-fill"></div>
           <div class="support-progress-remaining"></div>
         </div>
 
-        <!-- Support Details Grid -->
         <div class="support-details">
           <div class="support-row">
             <div class="support-item">
@@ -346,18 +358,17 @@
       </div>
     </div>
 
-    <!-- ✅ UPDATED: History Card (Sidebar) - แทนที่ส่วน History เดิม -->
+    <!-- History Card (Sidebar) -->
     <div class="history-card">
       <div class="history-header">
         <h2 class="history-title">History</h2>
-        <!-- Progress Bar -->
         <div class="history-progress-bar">
           <div class="history-progress-fill"></div>
           <div class="history-progress-remaining"></div>
         </div>
       </div>
 
-      <!-- ✅ NEW: Loading State for History -->
+      <!-- Loading State for History -->
       <div *ngIf="isLoadingHistory" class="history-loading">
         <div class="loading-spinner-small">
           <span class="spinner-border spinner-border-sm"></span>
@@ -365,7 +376,7 @@
         </div>
       </div>
 
-      <!-- ✅ UPDATED: Status History Timeline - ใช้ displayHistory แทน status_history -->
+      <!-- Status History Timeline -->
       <div *ngIf="!isLoadingHistory && displayHistory && displayHistory.length > 0" class="history-timeline">
         <div *ngFor="let historyItem of displayHistory; let i = index" 
              class="history-item"
@@ -373,23 +384,19 @@
              [class.completed-status]="historyItem.is_completed"
              [class.pending-status]="!historyItem.is_active && !historyItem.is_completed">
           
-          <!-- ✅ UPDATED: History Badge with new logic -->
           <div class="history-badge" [ngClass]="getHistoryBadgeClass(historyItem)">
             <i [class]="getHistoryIcon(historyItem.status_name)"></i>
           </div>
           
-          <!-- ✅ UPDATED: History Content -->
           <div class="history-content">
             <div class="history-status" [class.active-status]="historyItem.is_active">
               {{ historyItem.status_name }}
             </div>
             
-            <!-- ✅ NEW: แสดงวันที่เฉพาะเมื่อมีการเปลี่ยนแปลงสถานะ -->
             <div class="history-date" *ngIf="hasHistoryDate(historyItem)">
               {{ formatHistoryDate(historyItem.create_date) }}
             </div>
             
-            <!-- ✅ NEW: แสดงข้อความ "Pending" เมื่อยังไม่มีวันที่ -->
             <div class="history-date pending" *ngIf="!hasHistoryDate(historyItem) && !historyItem.is_completed">
               <span class="text-muted">-</span>
             </div>
@@ -397,7 +404,7 @@
         </div>
       </div>
 
-      <!-- ✅ NEW: Fallback เมื่อไม่มีข้อมูล history -->
+      <!-- No History -->
       <div *ngIf="!isLoadingHistory && (!displayHistory || displayHistory.length === 0)" class="no-history">
         <div class="text-center text-muted py-3">
           <i class="bi bi-clock-history fs-4"></i>

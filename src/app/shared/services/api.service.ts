@@ -339,6 +339,27 @@ export interface AllTicketStatusesResponse {
   }[] | null;
 }
 
+// ✅ NEW: Interfaces สำหรับ satisfaction API
+export interface satisfactionRequest {
+  rating: number;
+}
+
+export interface satisfactionResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    ticket_no: string;
+    ticket_id: number;
+    satisfaction: {
+      id: number;
+      rating: number;
+      create_by: number;
+      create_date: string;
+    };
+  };
+  error?: string;
+}
+
 export interface ProjectData {
   id: number;
   name: string;
@@ -446,6 +467,85 @@ export class ApiService {
     }
     
     return throwError(() => errorMessage);
+  }
+
+  // ===== NEW: satisfaction API ===== ✅
+  
+  /**
+   * ✅ NEW: บันทึกคะแนนความพึงพอใจสำหรับ ticket
+   * @param ticket_no - หมายเลข ticket
+   * @param rating - คะแนนความพึงพอใจ (1-5)
+   * @returns Observable<satisfactionResponse>
+   */
+  satisfaction(ticket_no: string, rating: number): Observable<satisfactionResponse> {
+    console.log('Calling satisfaction API with:', { ticket_no, rating });
+    
+    const requestBody: satisfactionRequest = {
+      rating: rating
+    };
+    
+    return this.http.post<satisfactionResponse>(
+      `${this.apiUrl}/satisfaction/${ticket_no}`, 
+      requestBody,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('satisfaction API response:', response);
+        if (response.success) {
+          console.log('✅ Satisfaction saved successfully:', response.data);
+        } else {
+          console.warn('⚠️ Satisfaction save failed:', response.error);
+        }
+      }),
+      catchError((error: HttpErrorResponse) => {
+        console.error('❌ satisfaction API error:', error);
+        
+        // จัดการ error messages ตาม API spec
+        let errorMessage = 'ไม่สามารถบันทึกการประเมินได้';
+        
+        if (error.status === 403) {
+          errorMessage = 'ไม่มีสิทธิ์ในการประเมินความพึงพอใจ';
+        } else if (error.error?.error) {
+          errorMessage = error.error.error;
+        } else if (error.error?.message) {
+          errorMessage = error.error.message;
+        }
+        
+        // ส่งกลับ error response ในรูปแบบที่คาดหวัง
+        const errorResponse: satisfactionResponse = {
+          success: false,
+          message: errorMessage,
+          error: errorMessage
+        };
+        
+        return of(errorResponse);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า ticket สามารถประเมินความพึงพอใจได้หรือไม่
+   * @param statusId - ID ของ status
+   * @returns boolean
+   */
+  canEvaluateTicket(statusId: number): boolean {
+    // ตาม API spec: สามารถประเมินได้เฉพาะ ticket ที่เสร็จสิ้นแล้ว (status_id = 5)
+    return statusId === 5;
+  }
+
+  /**
+   * ✅ NEW: ได้รับข้อความแสดงสถานะการประเมิน
+   * @param statusId - ID ของ status
+   * @returns string
+   */
+  getEvaluationStatusMessage(statusId: number): string {
+    if (statusId === 5) {
+      return 'สามารถประเมินความพึงพอใจได้';
+    } else if (statusId === 6) {
+      return 'Ticket ถูกยกเลิกแล้ว ไม่สามารถประเมินได้';
+    } else {
+      return 'สามารถประเมินความพึงพอใจได้เฉพาะ ticket ที่เสร็จสิ้นแล้วเท่านั้น';
+    }
   }
 
   // ===== NEW: Get Ticket Status APIs ===== ✅ แก้ไขแล้ว
