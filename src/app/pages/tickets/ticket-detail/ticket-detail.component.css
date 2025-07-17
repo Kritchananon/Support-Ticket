@@ -1,4 +1,249 @@
-/* Main Container */
+/* ===== GLOBAL MODAL OVERRIDE ===== */
+
+/* Modal positioning and z-index */
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-open .modal {
+  z-index: 99999 !important;
+}
+
+.modal-open .modal-backdrop {
+  z-index: 99998 !important;
+}
+
+.ticket-detail-page.modal-open {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ===== SUCCESS MODAL STYLES ===== */
+
+/* Modal Base Styles */
+.modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 99999 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  outline: 0;
+  display: block !important;
+}
+
+.modal.fade {
+  transition: opacity 0.15s linear;
+}
+
+.modal.show {
+  opacity: 1 !important;
+}
+
+.modal-dialog {
+  position: relative;
+  width: auto;
+  margin: 0.5rem;
+  pointer-events: none;
+  z-index: 100000 !important;
+}
+
+.modal-dialog-centered {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: calc(100% - 1rem) !important;
+}
+
+/* Success Modal Content */
+.success-modal .modal-content {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  pointer-events: auto !important;
+  background-color: #FFFFFF !important;
+  background-clip: padding-box;
+  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+  outline: 0;
+  animation: modalSlideIn 0.3s ease-out;
+  z-index: 100001 !important;
+}
+
+.success-modal .modal-body {
+  position: relative;
+  flex: 1 1 auto;
+  padding: 3rem 2.5rem 2.5rem !important;
+  text-align: center !important;
+}
+
+/* Success Icon */
+.success-icon-container {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.success-star {
+  width: 80px !important;
+  height: 80px !important;
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  animation: starPulse 0.6s ease-out;
+  box-shadow: 0 8px 30px rgba(255, 215, 0, 0.4) !important;
+}
+
+.success-star i {
+  font-size: 40px !important;
+  color: #FFFFFF !important;
+  animation: starRotate 0.8s ease-out 0.2s both;
+}
+
+/* Modal Text Styles */
+.success-title {
+  font-weight: 600 !important;
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+  color: #212121 !important;
+  margin-bottom: 0.75rem !important;
+  animation: textSlideUp 0.4s ease-out 0.3s both;
+}
+
+.success-ticket-info {
+  font-weight: 500 !important;
+  font-size: 16px !important;
+  color: #5873F8 !important;
+  margin-bottom: 1rem !important;
+  animation: textSlideUp 0.4s ease-out 0.4s both;
+}
+
+.success-message {
+  font-weight: 400 !important;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  color: #737373 !important;
+  margin-bottom: 2.5rem !important;
+  animation: textSlideUp 0.4s ease-out 0.5s both;
+}
+
+/* Modal Button */
+.success-btn {
+  background: #5873F8 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  padding: 14px 36px !important;
+  min-width: 140px !important;
+  transition: all 0.2s ease !important;
+  animation: buttonSlideUp 0.4s ease-out 0.6s both;
+  cursor: pointer !important;
+}
+
+.success-btn:hover {
+  background: #4A63E8 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(88, 115, 248, 0.3) !important;
+}
+
+.success-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 10px rgba(88, 115, 248, 0.2) !important;
+}
+
+/* Modal Backdrop */
+.modal-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 99998 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+.modal-backdrop.fade {
+  opacity: 0;
+  transition: opacity 0.15s linear;
+}
+
+.modal-backdrop.show {
+  opacity: 1 !important;
+}
+
+/* ===== MODAL ANIMATIONS ===== */
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes starPulse {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes starRotate {
+  from {
+    transform: rotate(-180deg) scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes textSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes buttonSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== MAIN CONTAINER ===== */
+
 .ticket-detail-page {
   padding: 0 !important;
   background-color: #F5F5F9 !important;
@@ -8,7 +253,8 @@
   max-width: none !important;
 }
 
-/* Loading State */
+/* ===== LOADING & ERROR STATES ===== */
+
 .loading-container {
   display: flex;
   justify-content: center;
@@ -34,7 +280,6 @@
   border-top-color: #5873F8;
 }
 
-/* Error State */
 .error-container {
   display: flex;
   justify-content: center;
@@ -54,7 +299,8 @@
   margin-bottom: 1rem;
 }
 
-/* Breadcrumb */
+/* ===== BREADCRUMB ===== */
+
 .breadcrumb-container {
   box-sizing: border-box;
   display: flex;
@@ -111,7 +357,8 @@
   font-size: 24px;
 }
 
-/* Layout Container */
+/* ===== LAYOUT ===== */
+
 .layout-container {
   display: flex;
   gap: 20px;
@@ -126,7 +373,8 @@
   gap: 20px;
 }
 
-/* Main Ticket Card */
+/* ===== TICKET CARD ===== */
+
 .ticket-card {
   display: flex;
   flex-direction: column;
@@ -193,6 +441,7 @@
   gap: 12px;
 }
 
+/* Action Buttons */
 .btn-delete {
   display: flex;
   flex-direction: row;
@@ -250,7 +499,8 @@
   opacity: 0.6;
 }
 
-/* Status Badge */
+/* ===== STATUS BADGE ===== */
+
 .status-badge {
   display: flex;
   flex-direction: row;
@@ -258,7 +508,6 @@
   align-items: center;
   padding: 5px 12px;
   gap: 4px;
-  /* width: 100px; */
   height: 24px;
   border-radius: 6px;
 }
@@ -269,8 +518,8 @@
 }
 
 i.status-icon {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 
 .status-text {
@@ -334,7 +583,8 @@ i.status-icon {
   color: #F5F5F9;
 }
 
-/* Progress Bar */
+/* ===== PROGRESS BAR ===== */
+
 .progress-bar {
   display: flex;
   flex-direction: row;
@@ -357,7 +607,8 @@ i.status-icon {
   flex: 1;
 }
 
-/* Ticket Details */
+/* ===== TICKET DETAILS ===== */
+
 .ticket-details {
   display: flex;
   flex-direction: row;
@@ -404,7 +655,8 @@ i.status-icon {
   transform: rotate(90deg);
 }
 
-/* Issue Section */
+/* ===== ISSUE SECTION ===== */
+
 .issue-section {
   display: flex;
   flex-direction: row;
@@ -464,7 +716,8 @@ i.status-icon {
   color: #212121;
 }
 
-/* Attachments Section */
+/* ===== ATTACHMENTS SECTION ===== */
+
 .attachments-section {
   display: flex;
   flex-direction: column;
@@ -516,7 +769,7 @@ i.status-icon {
   outline-offset: 2px;
 }
 
-/* Loading State for Attachments */
+/* Attachment Loading State */
 .attachment-loading {
   display: flex;
   flex-direction: column;
@@ -561,7 +814,7 @@ i.status-icon {
   object-fit: cover;
 }
 
-/* File Info Overlay for Images */
+/* File Info Overlay */
 .file-info-overlay {
   position: absolute;
   bottom: 0;
@@ -591,7 +844,7 @@ i.status-icon {
   opacity: 0.8;
 }
 
-/* Enhanced File Display */
+/* File Display */
 .attachment-file {
   display: flex;
   flex-direction: column;
@@ -629,42 +882,16 @@ i.status-icon {
   transform: scale(1.1);
 }
 
-/* File Type Specific Icon Colors */
-.file-icon-pdf {
-  color: #DC3545 !important;
-}
-
-.file-icon-excel {
-  color: #28A745 !important;
-}
-
-.file-icon-word {
-  color: #2B5CE6 !important;
-}
-
-.file-icon-image {
-  color: #FF6B35 !important;
-}
-
-.file-icon-text {
-  color: #6C757D !important;
-}
-
-.file-icon-archive {
-  color: #FFC107 !important;
-}
-
-.file-icon-video {
-  color: #E91E63 !important;
-}
-
-.file-icon-audio {
-  color: #9C27B0 !important;
-}
-
-.file-icon-file {
-  color: #6C757D !important;
-}
+/* File Type Icon Colors */
+.file-icon-pdf { color: #DC3545 !important; }
+.file-icon-excel { color: #28A745 !important; }
+.file-icon-word { color: #2B5CE6 !important; }
+.file-icon-image { color: #FF6B35 !important; }
+.file-icon-text { color: #6C757D !important; }
+.file-icon-archive { color: #FFC107 !important; }
+.file-icon-video { color: #E91E63 !important; }
+.file-icon-audio { color: #9C27B0 !important; }
+.file-icon-file { color: #6C757D !important; }
 
 /* File Details */
 .file-details {
@@ -756,7 +983,8 @@ i.status-icon {
   opacity: 0.5;
 }
 
-/* Ticket Footer */
+/* ===== TICKET FOOTER ===== */
+
 .ticket-footer {
   display: flex;
   flex-direction: row;
@@ -803,6 +1031,8 @@ i.status-icon {
   color: #212121;
 }
 
+/* ===== EVALUATION SECTION ===== */
+
 .evaluation-section {
   display: flex;
   flex-direction: column;
@@ -824,6 +1054,34 @@ i.status-icon {
   width: 160px;
   height: 19px;
 }
+
+.evaluation-status {
+  font-size: 12px;
+  margin: 4px 0;
+  text-align: center;
+  min-height: 16px;
+  line-height: 1.2;
+}
+
+.evaluation-status.text-success {
+  color: #28A745;
+}
+
+.evaluation-status.text-muted {
+  color: #6C757D;
+}
+
+.rating-confirmation {
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: center;
+}
+
+.rating-confirmation.text-success {
+  color: #28A745;
+}
+
+/* ===== STAR RATING SYSTEM ===== */
 
 .star-rating {
   display: flex;
@@ -847,7 +1105,8 @@ i.status-icon {
   border: none;
 }
 
-.star:hover {
+/* Star Hover Effects */
+.star:not(.disabled):not(.permanent-rating):hover {
   transform: scale(1.2);
 }
 
@@ -857,19 +1116,101 @@ i.status-icon {
   transition: all 0.2s ease;
 }
 
-.star:hover i {
-  color: #FFA500;
-}
-
+/* Empty Stars */
 .star .bi-star {
   color: #B3B3B3;
 }
 
-.star:hover .bi-star {
+/* Hover States */
+.star:not(.disabled):not(.permanent-rating):hover .bi-star {
   color: #FFD700;
 }
 
-/* Support Information Card */
+.star:not(.disabled):not(.permanent-rating):hover i {
+  color: #FFA500;
+}
+
+/* Filled Stars (Active/Selected) */
+.star.filled i {
+  color: #FFD700 !important;
+}
+
+.star.hover i {
+  color: #FFA500 !important;
+}
+
+/* Disabled Stars */
+.star.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.star.disabled:hover {
+  transform: none;
+}
+
+.star.disabled i {
+  color: #B3B3B3 !important;
+}
+
+/* Permanent Rating (After Submission) */
+.star.permanent-rating {
+  cursor: default;
+}
+
+.star.permanent-rating:hover {
+  transform: none;
+}
+
+.star.permanent-rating i {
+  color: #FFD700 !important;
+}
+
+.star.permanent-rating.filled i {
+  color: #FFD700 !important;
+  animation: starGlow 0.3s ease-out;
+}
+
+/* Saving State */
+.star.saving {
+  cursor: wait;
+}
+
+.star.saving i {
+  color: #FFD700 !important;
+  animation: pulse 1s infinite;
+}
+
+/* Star Rating Animations */
+@keyframes starGlow {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.1);
+    filter: brightness(1.3);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ===== SUPPORT INFORMATION CARD ===== */
+
 .support-info-card {
   display: flex;
   flex-direction: column;
@@ -972,7 +1313,7 @@ i.status-icon {
   transform: rotate(90deg);
 }
 
-/* Fix Attachments in Support Information */
+/* Fix Attachments */
 .fix-attachment-item {
   display: flex;
   align-items: center;
@@ -1003,9 +1344,8 @@ i.status-icon {
   max-width: 120px;
 }
 
-/* ===== UPDATED HISTORY SECTION ===== */
+/* ===== HISTORY SECTION ===== */
 
-/* History Card */
 .history-card {
   display: flex;
   flex-direction: column;
@@ -1060,7 +1400,7 @@ i.status-icon {
   flex: 1;
 }
 
-/* ✅ NEW: History Loading State */
+/* History Loading */
 .history-loading {
   padding: 1rem;
   text-align: center;
@@ -1074,7 +1414,7 @@ i.status-icon {
   color: #737373;
 }
 
-/* ✅ UPDATED: History Timeline */
+/* History Timeline */
 .history-timeline {
   display: flex;
   flex-direction: column;
@@ -1096,7 +1436,7 @@ i.status-icon {
   transition: all 0.3s ease;
 }
 
-/* ✅ NEW: Timeline connector line */
+/* Timeline Connector Lines */
 .history-item:not(:last-child)::after {
   content: '';
   position: absolute;
@@ -1116,7 +1456,7 @@ i.status-icon {
   background: linear-gradient(to bottom, #5873F8 50%, #E0E0E0 50%);
 }
 
-/* ✅ UPDATED: History Badge Styles */
+/* History Badges */
 .history-badge {
   display: flex;
   flex-direction: row;
@@ -1133,13 +1473,12 @@ i.status-icon {
   border: 2px solid;
 }
 
-/* ✅ NEW: Updated badge classes for better visual hierarchy */
 .badge-current {
   background: #5873F8;
   border-color: #5873F8;
   color: #FFFFFF;
   box-shadow: 0 0 0 4px rgba(88, 115, 248, 0.2);
-  animation: pulse 2s infinite;
+  animation: pulseBadge 2s infinite;
 }
 
 .badge-completed {
@@ -1154,7 +1493,6 @@ i.status-icon {
   color: #6C757D;
 }
 
-/* ✅ LEGACY: Keep existing badge-history for backward compatibility */
 .badge-history {
   background: #B5B5B5;
   border-color: #B5B5B5;
@@ -1168,7 +1506,7 @@ i.status-icon {
   font-size: 14px;
 }
 
-/* ✅ UPDATED: History Content */
+/* History Content */
 .history-content {
   display: flex;
   flex-direction: column;
@@ -1184,20 +1522,20 @@ i.status-icon {
   font-weight: 500;
   font-size: 16px;
   line-height: 120%;
-  color: #212121; /* เปลี่ยนเป็นสีดำเสมอ */
+  color: #212121;
   transition: color 0.3s ease;
 }
 
 .history-status.active-status {
-  color: #212121; /* ไม่เปลี่ยนสีแม้จะเป็น active */
-  font-weight: 500; /* เปลี่ยนจาก 600 เป็น 500 เหมือนปกติ */
+  color: #212121;
+  font-weight: 500;
 }
 
 .history-date {
   font-weight: 400;
   font-size: 14px;
   line-height: 100%;
-  color: #737373; /* สีเทาอ่อนเหมือนในรูป */
+  color: #737373;
   transition: color 0.3s ease;
 }
 
@@ -1206,38 +1544,38 @@ i.status-icon {
   opacity: 0.7;
 }
 
-/* ✅ NEW: Current Status Highlighting - ปรับให้ข้อความเป็นสีดำ */
+/* Current Status Highlighting */
 .current-status .history-status {
-  color: #212121; /* เปลี่ยนเป็นสีดำ */
-  font-weight: 500; /* เปลี่ยนจาก 600 เป็น 500 เหมือนปกติ */
+  color: #212121;
+  font-weight: 500;
 }
 
 .current-status .history-date {
-  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
-  font-weight: 400; /* เปลี่ยนจาก 500 เป็น 400 เหมือนปกติ */
+  color: #737373;
+  font-weight: 400;
 }
 
-/* ✅ NEW: Completed Status Styling - ปรับให้ข้อความเป็นสีดำ */
+/* Completed Status Styling */
 .completed-status .history-status {
-  color: #212121; /* เปลี่ยนเป็นสีดำ */
+  color: #212121;
   font-weight: 500;
 }
 
 .completed-status .history-date {
-  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
+  color: #737373;
 }
 
-/* ✅ NEW: Pending Status Styling - ปรับให้ข้อความเป็นสีดำ */
+/* Pending Status Styling */
 .pending-status .history-status {
-  color: #212121; /* เปลี่ยนเป็นสีดำ */
+  color: #212121;
   opacity: 0.8;
 }
 
 .pending-status .history-date {
-  color: #737373; /* เปลี่ยนเป็นสีเทาอ่อนเหมือนปกติ */
+  color: #737373;
 }
 
-/* ✅ NEW: No History State */
+/* No History State */
 .no-history {
   padding: 2rem 1rem;
   text-align: center;
@@ -1254,8 +1592,9 @@ i.status-icon {
   margin-bottom: 8px;
 }
 
-/* ✅ NEW: Pulse Animation for Current Status */
-@keyframes pulse {
+/* ===== ANIMATIONS ===== */
+
+@keyframes pulseBadge {
   0% {
     box-shadow: 0 0 0 0 rgba(88, 115, 248, 0.4);
   }
@@ -1265,13 +1604,6 @@ i.status-icon {
   100% {
     box-shadow: 0 0 0 0 rgba(88, 115, 248, 0);
   }
-}
-
-/* Animation */
-.ticket-card,
-.support-info-card,
-.history-card {
-  animation: fadeInUp 0.3s ease-out;
 }
 
 @keyframes fadeInUp {
@@ -1296,7 +1628,95 @@ i.status-icon {
   }
 }
 
-/* Responsive Design */
+/* Card Animations */
+.ticket-card,
+.support-info-card,
+.history-card {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+/* Modal Responsive */
+@media (min-width: 576px) {
+  .modal-dialog {
+    max-width: 500px;
+    margin: 1.75rem auto;
+  }
+  
+  .modal-dialog-centered {
+    min-height: calc(100% - 3.5rem);
+  }
+}
+
+@media (max-width: 575px) {
+  .success-modal .modal-body {
+    padding: 2rem 1.5rem 1.5rem;
+  }
+  
+  .success-star {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .success-star i {
+    font-size: 30px;
+  }
+  
+  .success-title {
+    font-size: 20px;
+  }
+  
+  .success-ticket-info {
+    font-size: 14px;
+  }
+  
+  .success-message {
+    font-size: 14px;
+  }
+  
+  .success-btn {
+    font-size: 14px;
+    padding: 10px 24px;
+  }
+}
+
+/* Star Rating Responsive */
+@media (max-width: 768px) {
+  .star-rating {
+    gap: 8px;
+    width: 140px;
+    height: 28px;
+  }
+  
+  .star {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .star i {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 576px) {
+  .star-rating {
+    gap: 6px;
+    width: 120px;
+    height: 24px;
+  }
+  
+  .star {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .star i {
+    font-size: 18px;
+  }
+}
+
+/* Main Layout Responsive */
 @media (max-width: 1200px) {
   .layout-container {
     flex-direction: column;
@@ -1426,7 +1846,7 @@ i.status-icon {
     max-width: 100px;
   }
 
-  /* ✅ NEW: Mobile History Adjustments */
+  /* Mobile History */
   .history-item {
     margin-bottom: 1rem;
   }
@@ -1561,7 +1981,7 @@ i.status-icon {
     max-width: 80px;
   }
 
-  /* ✅ NEW: Extra Small Screen History Adjustments */
+  /* Extra Small History */
   .history-timeline {
     padding: 0.5rem 0;
     gap: 16px;
@@ -1582,10 +2002,6 @@ i.status-icon {
   
   .history-date {
     font-size: 11px;
-  }
-  
-  .current-status {
-    /* ลบ padding และ margin ที่ทำให้เกิดสีพื้นหลัง */
   }
   
   .history-item:not(:last-child)::after {

@@ -1,6 +1,52 @@
-<!-- ✅ COMPLETE: ticket-detail.component.html with satisfaction integration -->
+<!-- ===== SUCCESS MODAL ===== ✅ -->
+<div class="modal fade" 
+     [class.show]="showSuccessModal" 
+     [style.display]="showSuccessModal ? 'block' : 'none'" 
+     [style.z-index]="showSuccessModal ? '99999' : 'auto'"
+     tabindex="-1" 
+     role="dialog" 
+     aria-labelledby="successModalLabel" 
+     aria-hidden="!showSuccessModal" 
+     *ngIf="showSuccessModal">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content success-modal">
+      <div class="modal-body text-center">
+        <!-- Success Icon -->
+        <div class="success-icon-container">
+          <div class="success-star">
+            <i class="bi bi-star-fill"></i>
+          </div>
+        </div>
+        
+        <!-- Modal Title -->
+        <h4 class="success-title">{{ modalTitle }}</h4>
+        
+        <!-- Ticket Number -->
+        <p class="success-ticket-info">Ticket ID : {{ modalTicketNo }}</p>
+        
+        <!-- Success Message -->
+        <p class="success-message">{{ modalMessage }}</p>
+        
+        <!-- Close Button -->
+        <button type="button" 
+                class="btn btn-primary success-btn" 
+                (click)="closeSuccessModal()"
+                autofocus>
+          ตกลง
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
-<!-- Loading State -->
+<!-- Modal Backdrop -->
+<div class="modal-backdrop fade" 
+     [class.show]="showSuccessModal" 
+     [style.z-index]="showSuccessModal ? '99998' : 'auto'"
+     *ngIf="showSuccessModal" 
+     (click)="closeSuccessModal()"></div>
+
+<!-- ===== LOADING STATE ===== ✅ -->
 <div *ngIf="isLoading" class="loading-container">
   <div class="loading-spinner">
     <span class="spinner-border spinner-border-lg"></span>
@@ -8,7 +54,7 @@
   </div>
 </div>
 
-<!-- Error State -->
+<!-- ===== ERROR STATE ===== ✅ -->
 <div *ngIf="error && !isLoading" class="error-container">
   <div class="error-content">
     <i class="bi bi-exclamation-triangle error-icon"></i>
@@ -20,9 +66,10 @@
   </div>
 </div>
 
-<!-- Main Content -->
+<!-- ===== MAIN CONTENT ===== ✅ -->
 <div *ngIf="ticketData && !isLoading" class="ticket-detail-page">
-  <!-- Breadcrumb -->
+  
+  <!-- ===== BREADCRUMB ===== ✅ -->
   <div class="breadcrumb-container">
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
@@ -34,12 +81,15 @@
     </nav>
   </div>
 
-  <!-- Layout Container -->
+  <!-- ===== LAYOUT CONTAINER ===== ✅ -->
   <div class="layout-container">
-    <!-- Main Content Area -->
+    
+    <!-- ===== MAIN CONTENT AREA ===== ✅ -->
     <div class="main-content-area">
-      <!-- Main Ticket Information Card -->
+      
+      <!-- ===== TICKET INFORMATION CARD ===== ✅ -->
       <div class="ticket-card" [attr.data-updating]="isUpdating">
+        
         <!-- Ticket Header -->
         <div class="ticket-header">
           <div class="ticket-header-left">
@@ -141,6 +191,8 @@
         <div class="attachments-section">
           <div class="attachment-label">Attachment:</div>
           <div class="attachment-grid">
+            
+            <!-- Attachment Items -->
             <div *ngFor="let attachment of ticketData.issue_attachment" 
                  class="attachment-item"
                  (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
@@ -202,8 +254,10 @@
           </div>
         </div>
 
-        <!-- Ticket Information Footer -->
+        <!-- Ticket Footer -->
         <div class="ticket-footer">
+          
+          <!-- Reporter Information -->
           <div class="footer-section">
             <div class="footer-item">
               <div class="footer-label">Reporter:</div>
@@ -219,13 +273,13 @@
             </div>
           </div>
           
-          <!-- ✅ UPDATED: Evaluation Section with satisfaction logic -->
+          <!-- ✅ Updated Evaluation Section -->
           <div class="evaluation-section">
             <div class="evaluation-label">Evaluation</div>
             
-            <!-- ✅ NEW: Evaluation Status Message -->
+            <!-- Evaluation Status Message -->
             <div class="evaluation-status" 
-                 *ngIf="!canEvaluate || hasExistingSatisfaction"
+                 *ngIf="(!canEvaluate || hasExistingSatisfaction) && getEvaluationMessage()"
                  [ngClass]="{
                    'text-success': hasExistingSatisfaction,
                    'text-muted': !canEvaluate && !hasExistingSatisfaction
@@ -233,7 +287,7 @@
               <small>{{ getEvaluationMessage() }}</small>
             </div>
             
-            <!-- ✅ UPDATED: Star Rating with satisfaction logic -->
+            <!-- Star Rating -->
             <div class="star-rating">
               <div class="star" 
                    *ngFor="let i of [1,2,3,4,5]" 
@@ -241,38 +295,32 @@
                    (click)="canClickStar() ? setRating(i) : null"
                    (mouseenter)="onStarMouseEnter(i)"
                    (mouseleave)="onStarMouseLeave()"
-                   [title]="canClickStar() ? 'ให้คะแนน ' + i + ' ดาว' : getEvaluationMessage()">
+                   [title]="getStarTooltip(i)">
                 
-                <!-- ✅ Loading spinner เมื่อกำลังบันทึก -->
+                <!-- Loading spinner เมื่อกำลังบันทึก -->
                 <span *ngIf="isSavingRating && i === currentRating" 
                       class="spinner-border spinner-border-sm" 
                       role="status"></span>
                 
-                <!-- ✅ Star icons -->
+                <!-- Star icons -->
                 <i *ngIf="!isSavingRating || i !== currentRating"
                    class="bi"
                    [ngClass]="{
-                     'bi-star-fill': (hoverRating > 0 ? hoverRating : currentRating) >= i,
-                     'bi-star': (hoverRating > 0 ? hoverRating : currentRating) < i
+                     'bi-star-fill': isStarFilled(i),
+                     'bi-star': !isStarFilled(i)
                    }"></i>
               </div>
             </div>
             
-            <!-- ✅ NEW: Rating confirmation message -->
-            <div class="rating-confirmation" 
-                 *ngIf="hasExistingSatisfaction && currentRating > 0"
-                 class="text-success">
-              <small>
-                <i class="bi bi-check-circle me-1"></i>
-                คุณให้คะแนน {{ currentRating }} ดาว
-              </small>
-            </div>
+
           </div>
         </div>
       </div>
 
-      <!-- Support Information Card -->
+      <!-- ===== SUPPORT INFORMATION CARD ===== ✅ -->
       <div class="support-info-card">
+        
+        <!-- Support Header -->
         <div class="support-header">
           <h2 class="support-title">Support Information</h2>
         </div>
@@ -282,7 +330,10 @@
           <div class="support-progress-remaining"></div>
         </div>
 
+        <!-- Support Details -->
         <div class="support-details">
+          
+          <!-- Row 1: Time Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Close Estimate:</div>
@@ -311,6 +362,7 @@
             </div>
           </div>
           
+          <!-- Row 2: Team Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Assignee / Support Team:</div>
@@ -325,6 +377,7 @@
             </div>
           </div>
           
+          <!-- Row 3: Additional Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Change Request:</div>
@@ -339,6 +392,8 @@
             <div class="support-item">
               <div class="support-label">Attachment:</div>
               <div class="support-value">
+                
+                <!-- Fix Attachments -->
                 <div *ngIf="ticketData.fix_attachment.length > 0; else noFixAttachments">
                   <div *ngFor="let attachment of ticketData.fix_attachment" 
                        class="fix-attachment-item"
@@ -348,6 +403,8 @@
                     <span>{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</span>
                   </div>
                 </div>
+                
+                <!-- No Fix Attachments -->
                 <ng-template #noFixAttachments>
                   <span>-</span>
                 </ng-template>
@@ -358,8 +415,10 @@
       </div>
     </div>
 
-    <!-- History Card (Sidebar) -->
+    <!-- ===== HISTORY SIDEBAR ===== ✅ -->
     <div class="history-card">
+      
+      <!-- History Header -->
       <div class="history-header">
         <h2 class="history-title">History</h2>
         <div class="history-progress-bar">
@@ -384,10 +443,12 @@
              [class.completed-status]="historyItem.is_completed"
              [class.pending-status]="!historyItem.is_active && !historyItem.is_completed">
           
+          <!-- History Badge -->
           <div class="history-badge" [ngClass]="getHistoryBadgeClass(historyItem)">
             <i [class]="getHistoryIcon(historyItem.status_name)"></i>
           </div>
           
+          <!-- History Content -->
           <div class="history-content">
             <div class="history-status" [class.active-status]="historyItem.is_active">
               {{ historyItem.status_name }}
@@ -404,7 +465,7 @@
         </div>
       </div>
 
-      <!-- No History -->
+      <!-- No History State -->
       <div *ngIf="!isLoadingHistory && (!displayHistory || displayHistory.length === 0)" class="no-history">
         <div class="text-center text-muted py-3">
           <i class="bi bi-clock-history fs-4"></i>

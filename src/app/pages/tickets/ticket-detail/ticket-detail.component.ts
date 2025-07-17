@@ -93,13 +93,19 @@ export class TicketDetailComponent implements OnInit {
   error = '';
   ticket_no: string = '';
 
-  // ===== SATISFACTION PROPERTIES ===== ✅ NEW
+  // ===== SATISFACTION PROPERTIES ===== ✅
   currentRating = 0;
   hoverRating = 0;
   isSavingRating = false;
   hasExistingSatisfaction = false;
   satisfactionMessage = '';
   canEvaluate = false;
+  
+  // ✅ Modal Properties
+  showSuccessModal = false;
+  modalTitle = '';
+  modalMessage = '';
+  modalTicketNo = '';
 
   // ===== ACTION PROPERTIES ===== ✅
   isUpdating = false;
@@ -232,6 +238,9 @@ export class TicketDetailComponent implements OnInit {
       this.useTicketDataStatus();
       await this.loadTicketHistory();
       
+      // ✅ โหลดข้อมูลการประเมินเดิม (ถ้ามี)
+      this.loadExistingSatisfaction();
+      
       console.log('✅ loadTicketDetail completed successfully');
       
     } catch (error) {
@@ -270,7 +279,7 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  // ===== SATISFACTION METHODS ===== ✅ NEW
+  // ===== SATISFACTION METHODS ===== ✅
 
   /**
    * ✅ อัพเดทสถานะการประเมิน
@@ -302,13 +311,14 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
+    // ✅ ตั้งค่า rating ทันทีเพื่อให้ดาวเปลี่ยนสี
     this.currentRating = rating;
     this.satisfaction(rating);
     console.log('Rating set to:', rating);
   }
 
   /**
-   * ✅ บันทึกคะแนนความพึงพอใจ
+   * ✅ บันทึกคะแนนความพึงพอใจ - แสดง Modal แทน Alert + จัดการ body class
    */
   private satisfaction(rating: number): void {
     if (!this.ticket_no || this.isSavingRating) {
@@ -321,19 +331,42 @@ export class TicketDetailComponent implements OnInit {
       next: (response: satisfactionResponse) => {
         if (response.success) {
           console.log('✅ Satisfaction saved successfully:', response.data);
+          
+          // ✅ เก็บสถานะการให้คะแนนอย่างถาวร
           this.hasExistingSatisfaction = true;
           this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
-          alert('บันทึกคะแนนความพึงพอใจสำเร็จ');
+          
+          // ✅ ให้แน่ใจว่า currentRating ยังคงมีค่าที่ถูกต้อง
+          this.currentRating = rating;
+          
+          // ✅ บันทึกลง localStorage เป็น backup
+          this.saveSatisfactionToStorage(rating);
+          
+          // ✅ แสดง Success Modal แทน Alert + จัดการ body class
+          this.showSuccessModal = true;
+          this.modalTitle = 'Assessment Success';
+          this.modalMessage = 'ขอบคุณสำหรับการประเมินความพึงพอใจ';
+          this.modalTicketNo = this.ticket_no;
+          
+          // ✅ เพิ่ม body class เพื่อป้องกัน scroll
+          document.body.classList.add('modal-open');
+          
         } else {
           console.error('❌ Failed to save satisfaction:', response.error);
+          
+          // ✅ ถ้าล้มเหลว ให้ reset rating
           this.currentRating = 0;
+          this.hasExistingSatisfaction = false;
           alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
         }
         this.isSavingRating = false;
       },
       error: (error) => {
         console.error('❌ Error saving satisfaction:', error);
+        
+        // ✅ ถ้า error ให้ reset rating
         this.currentRating = 0;
+        this.hasExistingSatisfaction = false;
         this.isSavingRating = false;
         alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
       }
@@ -348,43 +381,105 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ได้รับคลาส CSS สำหรับดาว
+   * ✅ ได้รับคลาส CSS สำหรับดาว - แก้ไขเพื่อแสดงสีเหลืองหลังให้คะแนนแล้ว
    */
   getStarClass(starIndex: number): string {
     const baseClass = 'star';
     
+    // ✅ ถ้าให้คะแนนแล้ว ให้แสดงดาวเป็นสีเหลือง (filled) ตามจำนวนที่ให้
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return baseClass + (starIndex <= this.currentRating ? ' filled permanent-rating' : ' disabled');
+    }
+    
+    // ✅ ถ้าไม่สามารถคลิกได้
     if (!this.canClickStar()) {
       return baseClass + ' disabled';
     }
     
+    // ✅ ถ้ากำลังบันทึก และเป็นดาวที่ให้คะแนน
+    if (this.isSavingRating && starIndex === this.currentRating) {
+      return baseClass + ' saving';
+    }
+    
+    // ✅ ถ้ากำลัง hover
     if (this.hoverRating > 0) {
       return baseClass + (starIndex <= this.hoverRating ? ' hover' : '');
     }
     
+    // ✅ แสดงตามคะแนนปัจจุบัน (ระหว่างการให้คะแนน)
     return baseClass + (starIndex <= this.currentRating ? ' filled' : '');
   }
 
   /**
-   * ✅ จัดการ mouse events บนดาว
+   * ✅ ตรวจสอบว่าดาวควรจะเต็ม (สีเหลือง) หรือไม่
+   */
+  isStarFilled(starIndex: number): boolean {
+    // ✅ ถ้าให้คะแนนแล้ว ให้แสดงตามคะแนนที่ให้
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return starIndex <= this.currentRating;
+    }
+    
+    // ✅ ถ้ากำลัง hover
+    if (this.hoverRating > 0 && this.canClickStar()) {
+      return starIndex <= this.hoverRating;
+    }
+    
+    // ✅ ถ้ากำลังเลือกคะแนน (ก่อนบันทึก)
+    if (this.currentRating > 0 && !this.hasExistingSatisfaction) {
+      return starIndex <= this.currentRating;
+    }
+    
+    return false;
+  }
+
+  /**
+   * ✅ จัดการ mouse events บนดาว - ป้องกันการ hover หลังให้คะแนนแล้ว
    */
   onStarMouseEnter(rating: number): void {
-    if (this.canClickStar()) {
+    if (this.canClickStar() && !this.hasExistingSatisfaction) {
       this.hoverRating = rating;
     }
   }
 
   onStarMouseLeave(): void {
-    if (this.canClickStar()) {
+    if (this.canClickStar() && !this.hasExistingSatisfaction) {
       this.hoverRating = 0;
     }
+  }
+
+  /**
+   * ✅ ได้รับ tooltip สำหรับดาว
+   */
+  getStarTooltip(starIndex: number): string {
+    if (this.hasExistingSatisfaction) {
+      if (starIndex <= this.currentRating) {
+        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
+      } else {
+        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
+      }
+    }
+    
+    if (!this.canEvaluate) {
+      return this.satisfactionMessage;
+    }
+    
+    if (this.canClickStar()) {
+      return `ให้คะแนน ${starIndex} ดาว`;
+    }
+    
+    return this.getEvaluationMessage();
   }
 
   /**
    * ✅ ได้รับข้อความสำหรับแสดงสถานะการประเมิน
    */
   getEvaluationMessage(): string {
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return ''; // ✅ ไม่แสดงข้อความเมื่อประเมินแล้ว
+    }
+    
     if (this.hasExistingSatisfaction) {
-      return 'คุณได้ประเมินความพึงพอใจแล้ว';
+      return ''; // ✅ ไม่แสดงข้อความเมื่อประเมินแล้ว
     }
     
     if (!this.canEvaluate) {
@@ -392,6 +487,67 @@ export class TicketDetailComponent implements OnInit {
     }
     
     return 'กรุณาประเมินความพึงพอใจ';
+  }
+
+  /**
+   * ✅ ปิด Success Modal + จัดการ body class + รีเซ็ตสถานะ
+   */
+  closeSuccessModal(): void {
+    this.showSuccessModal = false;
+    this.modalTitle = '';
+    this.modalMessage = '';
+    this.modalTicketNo = '';
+    
+    // ✅ ลบ body class เพื่ออนุญาต scroll
+    document.body.classList.remove('modal-open');
+    
+    // ✅ ให้แน่ใจว่าสถานะ rating ยังคงอยู่
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      console.log('Rating confirmed:', this.currentRating, 'stars');
+    }
+  }
+
+  /**
+   * ✅ รีเซ็ตสถานะการประเมิน (ใช้เมื่อต้องการล้างข้อมูล)
+   */
+  private resetSatisfactionState(): void {
+    this.currentRating = 0;
+    this.hoverRating = 0;
+    this.hasExistingSatisfaction = false;
+    this.isSavingRating = false;
+    this.satisfactionMessage = '';
+  }
+
+  /**
+   * ✅ โหลดสถานะการประเมินจากข้อมูล ticket (ถ้ามี)
+   */
+  private loadExistingSatisfaction(): void {
+    // ✅ ตรวจสอบว่ามีข้อมูลการประเมินแล้วหรือไม่
+    // ในการใช้งานจริง อาจจะดึงจาก API หรือ localStorage
+    
+    const savedRating = localStorage.getItem(`satisfaction_${this.ticket_no}`);
+    if (savedRating) {
+      const rating = parseInt(savedRating, 10);
+      if (rating >= 1 && rating <= 5) {
+        this.currentRating = rating;
+        this.hasExistingSatisfaction = true;
+        this.satisfactionMessage = `คุณได้ให้คะแนน ${rating} ดาวแล้ว`;
+        console.log('Loaded existing satisfaction:', rating, 'stars');
+      }
+    }
+  }
+
+  /**
+   * ✅ บันทึกสถานะการประเมินลง localStorage (เป็น backup)
+   */
+  private saveSatisfactionToStorage(rating: number): void {
+    try {
+      localStorage.setItem(`satisfaction_${this.ticket_no}`, rating.toString());
+      localStorage.setItem(`satisfaction_${this.ticket_no}_timestamp`, new Date().toISOString());
+      console.log('Satisfaction saved to localStorage:', rating);
+    } catch (error) {
+      console.warn('Could not save satisfaction to localStorage:', error);
+    }
   }
 
   // ===== HISTORY METHODS ===== ✅
