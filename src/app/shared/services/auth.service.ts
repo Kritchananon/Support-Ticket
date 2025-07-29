@@ -105,7 +105,7 @@ export class AuthService {
     }
     
     this.tokenSubject.next(tokenData.access_token);
-    console.log('Tokens saved successfully');
+    console.log('✅ Tokens saved successfully');
   }
 
   getToken(): string | null {
@@ -143,9 +143,21 @@ export class AuthService {
     }
   }
 
+  // ✅ ปรับปรุง hasValidToken method
   hasValidToken(): boolean {
     const token = this.getToken();
-    return token !== null && !this.isTokenExpired();
+    if (!token) {
+      console.log('❌ No token found');
+      return false;
+    }
+
+    if (this.isTokenExpired()) {
+      console.log('❌ Token is expired');
+      return false;
+    }
+
+    console.log('✅ Token is valid');
+    return true;
   }
 
   // ✅ Refresh Token Method
@@ -253,7 +265,7 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
-  // ✅ เข้าสู่ระบบแบบ Promise (สำหรับ login component เดิม)
+  // ✅ ปรับปรุง login method
   async login(username: string, password: string, language: string = 'th'): Promise<LoginResponse> {
     try {
       const headers = new HttpHeaders({
@@ -266,16 +278,16 @@ export class AuthService {
         password
       };
 
-      console.log('Login attempt:', { username, apiUrl: this.apiUrl });
+      console.log('🔄 Login API call:', { username, apiUrl: this.apiUrl });
 
       const response = await firstValueFrom(
         this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, body, { headers })
           .pipe(catchError(this.handleError))
       );
 
-      console.log('Login response:', response);
+      console.log('📥 Login API response:', response);
 
-      // รองรับ response format หลายแบบ
+      // ✅ รองรับ response format หลายแบบ
       const isSuccess = response.code === '2' || 
                        response.code === 2 || 
                        response.status === true || 
@@ -283,40 +295,50 @@ export class AuthService {
                        (response.message && response.message.toLowerCase().includes('success'));
 
       if (isSuccess) {
-        // ดึง token และ user data จาก response อย่างปลอดภัย
+        // ✅ ดึง token และ user data จาก response
         let accessToken = '';
         let refreshToken = '';
         let userData = null;
 
         if (response.data) {
-          accessToken = response.data.access_token;
-          refreshToken = response.data.refresh_token;
+          accessToken = response.data.access_token || '';
+          refreshToken = response.data.refresh_token || '';
           userData = response.data.user;
         } else {
+          // รองรับ format เก่า
           accessToken = response.access_token || '';
           refreshToken = response.refresh_token || '';
           userData = response.user;
         }
 
-        if (accessToken && refreshToken) {
-          // ✅ บันทึก tokens ใหม่
+        console.log('🔑 Extracted tokens:', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          hasUserData: !!userData
+        });
+
+        if (accessToken && userData) {
+          // ✅ บันทึก tokens และ user data
           this.setTokens({
             access_token: accessToken,
             refresh_token: refreshToken
           });
 
-          if (userData) {
-            localStorage.setItem('user', JSON.stringify(userData));
-            this.currentUserSubject.next(userData);
-          }
+          // ✅ บันทึก user data
+          localStorage.setItem('user', JSON.stringify(userData));
+          this.currentUserSubject.next(userData);
 
-          console.log('Login successful, tokens saved');
+          console.log('✅ Login data saved successfully');
+          console.log('👤 User data:', userData);
+        } else {
+          console.error('❌ Missing token or user data in response');
+          throw new Error('Invalid login response: missing required data');
         }
       }
 
       return response;
     } catch (error: any) {
-      console.error('Login catch error:', error);
+      console.error('❌ Login catch error:', error);
       if (error.error?.message) {
         throw new Error(error.error.message);
       }
@@ -357,12 +379,43 @@ export class AuthService {
     return this.hasValidToken();
   }
 
+  // ✅ ปรับปรุง isAuthenticated method
   isAuthenticated(): boolean {
-    return this.hasValidToken();
+    const token = this.getToken();
+    const user = this.getCurrentUser();
+    
+    console.log('🔍 Checking authentication:');
+    console.log('- Token exists:', !!token);
+    console.log('- User exists:', !!user);
+    console.log('- Token expired:', token ? this.isTokenExpired() : 'No token');
+    
+    // ✅ ตรวจสอบแบบง่าย: มี token และ user และ token ยังไม่หมดอายุ
+    const isAuth = !!(token && user && !this.isTokenExpired());
+    console.log('- Is authenticated:', isAuth);
+    
+    return isAuth;
   }
 
+  // ✅ ปรับปรุง getCurrentUser method
   getCurrentUser(): any {
-    return this.currentUserSubject.value;
+    if (this.currentUserSubject.value) {
+      return this.currentUserSubject.value;
+    }
+
+    // ลองดึงจาก localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const userData = JSON.parse(userStr);
+        this.currentUserSubject.next(userData);
+        return userData;
+      } catch (error) {
+        console.error('Error parsing user data from localStorage:', error);
+        localStorage.removeItem('user');
+      }
+    }
+
+    return null;
   }
 
   setAuthData(token: string, userData: any): void {
@@ -384,6 +437,61 @@ export class AuthService {
   // ✅ Manual refresh สำหรับ UI
   manualRefresh(): Observable<TokenData> {
     return this.refreshAccessToken();
+  }
+
+  // ✅ Debug method สำหรับตรวจสอบสถานะ authentication
+  debugAuthStatus(): void {
+    console.group('🔍 Authentication Debug Info');
+    
+    const token = this.getToken();
+    const refreshToken = this.getRefreshToken();
+    const user = this.getCurrentUser();
+    
+    console.log('📋 Basic Info:');
+    console.log('- Token exists:', !!token);
+    console.log('- Refresh token exists:', !!refreshToken);
+    console.log('- User data exists:', !!user);
+    
+    if (token) {
+      console.log('🔑 Token Info:');
+      console.log('- Token length:', token.length);
+      console.log('- Token preview:', token.substring(0, 50) + '...');
+      console.log('- Is expired:', this.isTokenExpired());
+      console.log('- Is expiring soon:', this.isTokenExpiring());
+      
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log('- Token payload:', {
+          user_id: payload.sub || payload.user_id,
+          username: payload.username,
+          expires_at: new Date(payload.exp * 1000).toISOString(),
+          issued_at: new Date(payload.iat * 1000).toISOString()
+        });
+      } catch (error) {
+        console.error('- Cannot decode token:', error);
+      }
+    }
+    
+    if (user) {
+      console.log('👤 User Info:');
+      console.log('- User ID:', user.id);
+      console.log('- Username:', user.username);
+      console.log('- Full name:', `${user.firstname} ${user.lastname}`);
+      console.log('- Email:', user.email);
+    }
+    
+    console.log('🔐 Auth Methods:');
+    console.log('- isAuthenticated():', this.isAuthenticated());
+    console.log('- hasValidToken():', this.hasValidToken());
+    console.log('- isLoggedIn():', this.isLoggedIn());
+    
+    console.log('💾 LocalStorage:');
+    console.log('- access_token:', !!localStorage.getItem('access_token'));
+    console.log('- refresh_token:', !!localStorage.getItem('refresh_token'));
+    console.log('- user:', !!localStorage.getItem('user'));
+    console.log('- remember_me:', localStorage.getItem('remember_me'));
+    
+    console.groupEnd();
   }
 
   // ✅ Debug method

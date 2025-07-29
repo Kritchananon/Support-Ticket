@@ -6,23 +6,21 @@ export const authGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  console.log('Auth Guard checking authentication...');
+  console.log('🔐 Auth Guard checking authentication...');
+  console.log('Current route:', state.url);
   console.log('Token exists:', !!authService.getToken());
-  console.log('Token valid:', authService.hasValidToken());
+  console.log('Is authenticated:', authService.isAuthenticated());
 
-  if (authService.hasValidToken()) {
-    console.log('Authentication successful, allowing access');
+  // ✅ ตรวจสอบการ authenticate แบบง่าย
+  if (authService.isAuthenticated()) {
+    console.log('✅ Authentication successful, allowing access to:', state.url);
     return true;
   }
 
-  // ถ้า token หมดอายุแต่มี refresh token ให้ลอง refresh
-  const refreshToken = authService.getRefreshToken();
-  if (refreshToken) {
-    console.log('Token expired but refresh token available, allowing access');
-    return true; // ให้ interceptor จัดการ refresh
-  }
-
-  console.log('No valid token, redirecting to login');
-  authService.clearTokensAndRedirect();
+  // ❌ ไม่ authenticated - redirect ไป login
+  console.log('❌ Not authenticated, redirecting to login');
+  router.navigate(['/login'], { 
+    queryParams: { returnUrl: state.url } 
+  });
   return false;
 };
