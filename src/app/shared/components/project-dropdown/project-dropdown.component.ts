@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { ProjectService } from '../../services/project.service';
-import { ProjectDDL } from '../../models/project.model';
+import { ProjectDDL, ProjectStatus, isProjectStatus } from '../../models/project.model';
 
 @Component({
   selector: 'app-project-dropdown',
@@ -51,7 +51,10 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     this.error = '';
     this.hasError = false;
 
-    this.projectService.getProjectDDL({ status: this.status })
+    // ✅ Fix: Type guard เพื่อให้แน่ใจว่า status เป็น ProjectStatus
+    const statusValue: ProjectStatus = isProjectStatus(this.status) ? this.status : 'active';
+
+    this.projectService.getProjectDDLWithCache({ status: statusValue })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -66,12 +69,46 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
           this.loading = false;
         },
         error: (err) => {
-          this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-          this.projects = [];
-          this.loading = false;
           console.error('Error loading projects:', err);
+          
+          // ✅ PWA: ลองใช้ cached data ถ้า API ล้มเหลว
+          this.projectService.getCachedProjects(statusValue)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (cachedData) => {
+                if (cachedData && cachedData.length > 0) {
+                  console.log('✅ Using cached projects:', cachedData.length);
+                  this.projects = cachedData;
+                  this.error = ''; // Clear error ถ้ามี cached data
+                  this.showOfflineIndicator();
+                } else {
+                  this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+                  this.projects = [];
+                }
+                this.loading = false;
+              },
+              error: () => {
+                this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+                this.projects = [];
+                this.loading = false;
+              }
+            });
         }
       });
+  }
+
+  private showOfflineIndicator(): void {
+    // แสดง indicator ว่าใช้ cached data
+    const offlineMsg = 'ใช้ข้อมูลที่เก็บไว้ (ออฟไลน์)';
+    console.log('📱 PWA:', offlineMsg);
+    
+    // อาจจะแสดง toast notification หรือ indicator ใน UI
+    setTimeout(() => {
+      const event = new CustomEvent('pwa-offline-data', {
+        detail: { component: 'project-dropdown', message: offlineMsg }
+      });
+      window.dispatchEvent(event);
+    }, 100);
   }
 
   onSelectionChange(event: Event): void {
@@ -109,7 +146,7 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  getProjectDisplayName(project: any): string {
+  getProjectDisplayName(project: ProjectDDL): string {
     // รองรับทั้ง format จาก API ใหม่ (projectName) และ API เก่า (name)
     return project.projectName || project.name || 'Unknown Project';
   }

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CategoryService } from '../../services/category.service';
-import { CategoryDDL } from '../../models/category.model';
+import { CategoryDDL, CategoryStatus, isCategoryStatus } from '../../models/category.model';
 
 @Component({
   selector: 'app-category-dropdown',
@@ -51,7 +51,10 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
     this.error = '';
     this.hasError = false;
 
-    this.categoryService.getCategoriesDDL({ status: this.status })
+    // ✅ Fix: Type guard เพื่อให้แน่ใจว่า status เป็น CategoryStatus
+    const statusValue: CategoryStatus = isCategoryStatus(this.status) ? this.status : 'active';
+
+    this.categoryService.getCategoriesDDLWithCache({ status: statusValue })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -66,12 +69,46 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
           this.loading = false;
         },
         error: (err) => {
-          this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-          this.categories = [];
-          this.loading = false;
           console.error('Error loading categories:', err);
+          
+          // ✅ PWA: ลองใช้ cached data ถ้า API ล้มเหลว
+          this.categoryService.getCachedCategories(statusValue)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (cachedData) => {
+                if (cachedData && cachedData.length > 0) {
+                  console.log('✅ Using cached categories:', cachedData.length);
+                  this.categories = cachedData;
+                  this.error = ''; // Clear error ถ้ามี cached data
+                  this.showOfflineIndicator();
+                } else {
+                  this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+                  this.categories = [];
+                }
+                this.loading = false;
+              },
+              error: () => {
+                this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+                this.categories = [];
+                this.loading = false;
+              }
+            });
         }
       });
+  }
+
+  private showOfflineIndicator(): void {
+    // แสดง indicator ว่าใช้ cached data
+    const offlineMsg = 'ใช้ข้อมูลที่เก็บไว้ (ออฟไลน์)';
+    console.log('📱 PWA:', offlineMsg);
+    
+    // อาจจะแสดง toast notification หรือ indicator ใน UI
+    setTimeout(() => {
+      const event = new CustomEvent('pwa-offline-data', {
+        detail: { component: 'category-dropdown', message: offlineMsg }
+      });
+      window.dispatchEvent(event);
+    }, 100);
   }
 
   onSelectionChange(event: Event): void {
@@ -109,7 +146,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  getCategoryDisplayName(category: any): string {
+  getCategoryDisplayName(category: CategoryDDL): string {
     // รองรับทั้ง format จาก API ใหม่ (categoryName) และ API เก่า (name)
     return category.categoryName || category.name || 'Unknown Category';
   }
