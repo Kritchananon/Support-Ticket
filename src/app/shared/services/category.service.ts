@@ -6,8 +6,7 @@ import {
   CategoryDDL, 
   CategoryStatus, 
   CategoryDDLRequest, 
-  CategoryDDLResponse,
-  MOCK_CATEGORIES 
+  CategoryDDLResponse
 } from '../models/category.model';
 import { environment } from '../../../environments/environment';
 
@@ -176,13 +175,8 @@ export class CategoryService {
           });
         }
         
-        // ✅ 5. สุดท้าย ใช้ mock data
-        return of({
-          code: 1,
-          message: 'Mock data (offline)',
-          data: MOCK_CATEGORIES,
-          success: true
-        });
+        // ✅ 5. สุดท้าย ส่งกลับ error
+        return throwError(() => error);
       })
     );
   }
@@ -195,15 +189,8 @@ export class CategoryService {
       return of(cachedData);
     }
     
-    // ✅ Fallback ไป mock data
-    const mockData = MOCK_CATEGORIES.filter(cat => {
-      if (status === 'all') return true;
-      if (status === 'active') return cat.status === 'active' && cat.isenabled !== false;
-      if (status === 'inactive') return cat.status === 'inactive' || cat.isenabled === false;
-      return true;
-    });
-    
-    return of(mockData);
+    // ✅ ถ้าไม่มี cache ให้ส่งกลับ empty array
+    return of([]);
   }
 
   // ✅ PWA: บังคับ refresh cache

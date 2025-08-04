@@ -6,8 +6,7 @@ import {
   ProjectDDL, 
   ProjectStatus, 
   ProjectDDLRequest, 
-  ProjectDDLResponse,
-  MOCK_PROJECTS 
+  ProjectDDLResponse
 } from '../models/project.model';
 import { environment } from '../../../environments/environment';
 
@@ -176,13 +175,8 @@ export class ProjectService {
           });
         }
         
-        // ✅ 5. สุดท้าย ใช้ mock data
-        return of({
-          code: 1,
-          message: 'Mock data (offline)',
-          data: MOCK_PROJECTS,
-          success: true
-        });
+        // ✅ 5. สุดท้าย ส่งกลับ error
+        return throwError(() => error);
       })
     );
   }
@@ -195,15 +189,8 @@ export class ProjectService {
       return of(cachedData);
     }
     
-    // ✅ Fallback ไป mock data
-    const mockData = MOCK_PROJECTS.filter(proj => {
-      if (status === 'all') return true;
-      if (status === 'active') return proj.status === 'active' && proj.isenabled !== false;
-      if (status === 'inactive') return proj.status === 'inactive' || proj.isenabled === false;
-      return true;
-    });
-    
-    return of(mockData);
+    // ✅ ถ้าไม่มี cache ให้ส่งกลับ empty array
+    return of([]);
   }
 
   // ✅ PWA: บังคับ refresh cache

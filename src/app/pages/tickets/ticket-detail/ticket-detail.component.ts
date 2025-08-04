@@ -1390,20 +1390,17 @@ export class TicketDetailComponent implements OnInit {
               resolve();
             } else {
               this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
-              this.loadMockData();
-              resolve();
+              reject(new Error('Invalid ticket data'));
             }
           } else {
             this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
-            this.loadMockData();
-            resolve();
+            reject(new Error(this.error));
           }
         },
         error: (error: any) => {
           console.error('API Error:', error);
           this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-          this.loadMockData();
-          resolve();
+          reject(error);
         }
       });
     });
@@ -1416,83 +1413,6 @@ export class TicketDetailComponent implements OnInit {
     const hasStatusHistory = Array.isArray(data.status_history);
 
     return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
-  }
-
-  private loadMockData(): void {
-    this.ticketData = {
-      ticket: {
-        id: 1,
-        ticket_no: this.ticket_no,
-        categories_id: 1,
-        categories_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        fix_issue_description: '',
-        status_id: 5,
-        status_name: 'Completed',
-        close_estimate: '',
-        estimate_time: '0 H',
-        due_date: '',
-        lead_time: '0 H',
-        related_ticket_id: null,
-        change_request: '0 Mandays',
-        create_date: '2025-06-25T16:36:00.000Z',
-        create_by: 'Wasan Rungsavang',
-        update_date: '2025-06-25T16:36:00.000Z',
-        update_by: 'Wasan Rungsavang',
-        isenabled: true,
-        priority: 'High'
-      },
-      issue_attachment: [
-        {
-          attachment_id: 1,
-          path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-          filename: 'screenshot.png',
-          file_type: 'image/png'
-        },
-        {
-          attachment_id: 2,
-          path: '/api/attachments/download/72',
-          filename: 'document.pdf',
-          file_type: 'application/pdf'
-        }
-      ],
-      fix_attachment: [],
-      status_history: [
-        {
-          status_id: 1,
-          status_name: 'Created',
-          create_date: '2025-06-25T16:36:00.000Z'
-        },
-        {
-          status_id: 2,
-          status_name: 'Open Ticket',
-          create_date: '2025-06-25T16:41:00.000Z'
-        },
-        {
-          status_id: 3,
-          status_name: 'In Progress',
-          create_date: '2025-06-25T16:46:00.000Z'
-        },
-        {
-          status_id: 4,
-          status_name: 'Resolved',
-          create_date: '2025-06-25T17:06:00.000Z'
-        },
-        {
-          status_id: 5,
-          status_name: 'Completed',
-          create_date: '2025-06-25T17:11:00.000Z'
-        },
-        {
-          status_id: 6,
-          status_name: 'Cancel',
-          create_date: ''
-        }
-      ]
-    };
-    this.isLoading = false;
   }
 
   // ===== NAVIGATION ===== ✅

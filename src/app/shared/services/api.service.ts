@@ -1372,11 +1372,7 @@ export class ApiService {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => console.log('getTickets response:', response)),
-      catchError((error) => {
-        console.error('getTickets error:', error);
-        // ส่งกลับ mock data ถ้า API ล้มเหลว
-        return this.getMockTicketsResponse();
-      })
+      catchError(this.handleError)
     );
   }
 
@@ -1405,47 +1401,8 @@ export class ApiService {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => console.log('getTicketsPost response:', response)),
-      catchError((error) => {
-        console.error('getTicketsPost error:', error);
-        return this.getMockTicketsResponse();
-      })
+      catchError(this.handleError)
     );
-  }
-
-  private getMockTicketsResponse(): Observable<ApiResponse<TicketData[]>> {
-    const mockTickets: TicketData[] = [
-      {
-        id: 1,
-        ticket_no: '#68050001',
-        categories_id: 1,
-        project_id: 1,
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 1,
-        hour_estimate: 4,
-        estimate_time: '2025-06-15T10:00:00Z',
-        due_date: '2025-06-20T17:00:00Z',
-        lead_time: 2,
-        change_request: false,
-        create_date: '2025-06-10T09:00:00Z',
-        create_by: 1,
-        update_date: '2025-06-10T09:00:00Z',
-        update_by: 1,
-        isenabled: true
-      }
-    ];
-
-    const mockResponse: ApiResponse<TicketData[]> = {
-      code: '2',
-      status: 1,
-      message: 'success',
-      data: mockTickets
-    };
-
-    console.log('Returning mock tickets response');
-    return new Observable(observer => {
-      observer.next(mockResponse);
-      observer.complete();
-    });
   }
 
   getTicketByTicketNo(ticket_no: string): Observable<ApiResponse<TicketData>> {

@@ -141,12 +141,7 @@ export class TicketListComponent implements OnInit {
         console.error('❌ Error loading tickets:', error);
         this.ticketsError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
         this.isLoading = false;
-        
-        // ✅ Fallback: ใช้ mock data เพื่อให้ระบบยังใช้งานได้
-        console.log('🔄 Using fallback mock data');
-        this.tickets = this.generateMockTickets();
-        this.filteredTickets = [...this.tickets];
-        this.applyFilters();
+        this.noTicketsFound = true;
       }
     });
   }
@@ -166,7 +161,6 @@ export class TicketListComponent implements OnInit {
           console.log('Projects loaded:', this.projects.length);
         } else {
           this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
-          this.loadMockFilterData();
         }
         
         this.loadingFilters = false;
@@ -174,25 +168,9 @@ export class TicketListComponent implements OnInit {
       error: (error) => {
         console.error('Error loading master filters:', error);
         this.filterError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
-        this.loadMockFilterData();
         this.loadingFilters = false;
       }
     });
-  }
-
-  private loadMockFilterData(): void {
-    this.categories = [
-      { id: 1, name: 'ระบบล่ม/ใช้งานไม่ได้' },
-      { id: 2, name: 'หน้าจอ Error' },
-      { id: 3, name: 'ต้องการพัฒนาเพิ่ม' }
-    ];
-    
-    this.projects = [
-      { id: 1, name: 'Human Resource Management System (HRMS)' },
-      { id: 2, name: 'ระบบจัดการงานขาย' }
-    ];
-    
-    console.log('Using mock filter data');
   }
 
   // ✅ UPDATED: ปรับปรุง getStatusText ให้ใช้ cache
@@ -211,96 +189,6 @@ export class TicketListComponent implements OnInit {
       case 6: return 'Cancel';
       default: return 'Unknown';
     }
-  }
-
-  // ✅ UPDATED: ปรับปรุง generateMockTickets ให้ใช้ status name จาก cache
-  generateMockTickets(): AllTicketData[] {
-    const mockTickets = [
-      {
-        ticket_no: '#68050001',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 1,
-        priority: 'high',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      },
-      {
-        ticket_no: '#68050002',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
-        issue_description: 'ระบบแสดงข้อผิดพลาดเมื่อพยายามบันทึกข้อมูลการลา พนักงานไม่สามารถยื่นใบลาได้',
-        status_id: 2,
-        priority: 'medium',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      },
-      {
-        ticket_no: '#68050003',
-        categories_id: 2,
-        category_name: 'หน้าจอ Error',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 3,
-        priority: 'low',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      },
-      {
-        ticket_no: '#68050004',
-        categories_id: 3,
-        category_name: 'ต้องการพัฒนาเพิ่ม',
-        project_id: 2,
-        project_name: 'ระบบจัดการงานขาย',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 4,
-        priority: 'high',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      },
-      {
-        ticket_no: '#68050005',
-        categories_id: 1,
-        category_name: 'ระบบล่ม/ใช้งานไม่ได้',
-        project_id: 2,
-        project_name: 'ระบบจัดการงานขาย',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 5,
-        priority: 'medium',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      },
-      {
-        ticket_no: '#68050006',
-        categories_id: 2,
-        category_name: 'หน้าจอ Error',
-        project_id: 1,
-        project_name: 'Human Resource Management System ( HRMS )',
-        issue_description: 'บันทึกข้อมูลใบลาไม่ได้',
-        status_id: 6,
-        priority: 'low',
-        create_date: '2025-05-08T09:00:00Z',
-        create_by: 1,
-        user_name: 'Wasan Rungsavang'
-      }
-    ];
-
-    // ✅ NEW: เพิ่ม status_name ให้ mock tickets
-    return mockTickets.map(ticket => ({
-      ...ticket,
-      status_name: this.getStatusText(ticket.status_id)
-    }));
   }
 
   onSearchChange(): void {

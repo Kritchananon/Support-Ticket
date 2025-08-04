@@ -178,55 +178,6 @@ export function calculateProjectProgress(project: ProjectWithDetails): number {
   return Math.round(((project.completed_tickets || 0) / project.total_tickets) * 100);
 }
 
-// ===== Mock Data for Development =====
-export const MOCK_PROJECTS: ProjectDDL[] = [
-  {
-    id: 1,
-    projectName: 'ระบบบริหารงานบุคคล HR System',
-    name: 'ระบบบริหารงานบุคคล HR System',
-    status: 'active',
-    isenabled: true,
-    start_date: '2025-01-01',
-    end_date: '2025-12-31'
-  },
-  {
-    id: 2,
-    projectName: 'ระบบจัดการสินค้าคงคลัง Inventory',
-    name: 'ระบบจัดการสินค้าคงคลัง Inventory',
-    status: 'active',
-    isenabled: true,
-    start_date: '2025-02-01',
-    end_date: '2025-08-31'
-  },
-  {
-    id: 3,
-    projectName: 'ระบบบัญชีและการเงิน Accounting',
-    name: 'ระบบบัญชีและการเงิน Accounting',
-    status: 'active',
-    isenabled: true,
-    start_date: '2025-03-01',
-    end_date: '2025-09-30'
-  },
-  {
-    id: 4,
-    projectName: 'ระบบจัดซื้อจัดจ้าง Procurement',
-    name: 'ระบบจัดซื้อจัดจ้าง Procurement',
-    status: 'active',
-    isenabled: true,
-    start_date: '2025-04-01',
-    end_date: '2025-10-31'
-  },
-  {
-    id: 5,
-    projectName: 'Mobile Application',
-    name: 'Mobile Application',
-    status: 'active',
-    isenabled: true,
-    start_date: '2025-05-01',
-    end_date: '2025-11-30'
-  }
-];
-
 // ===== Project Validation Functions =====
 export function validateProjectForm(data: ProjectFormData): ProjectValidation {
   const errors: ProjectValidation['errors'] = {};
