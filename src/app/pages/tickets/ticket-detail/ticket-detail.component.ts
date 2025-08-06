@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 
@@ -13,6 +13,22 @@ import {
   satisfactionResponse
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
+
+// ✅ Import Ticket Service
+import { TicketService } from '../../../shared/services/ticket.service';
+
+// ✅ Import New Interfaces
+import { 
+  SaveSupporterFormData, 
+  SaveSupporterResponse, 
+  SupporterActionType,
+  ActionDropdownOption
+} from '../../../shared/models/ticket.model';
+import { 
+  SupporterFormState,
+  FileUploadProgress,
+  SupporterFormValidation
+} from '../../../shared/models/common.model';
 
 // ===== INTERFACES ===== ✅
 
@@ -75,7 +91,7 @@ interface TicketData {
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './ticket-detail.component.html',
   styleUrls: ['./ticket-detail.component.css']
 })
@@ -86,6 +102,8 @@ export class TicketDetailComponent implements OnInit {
   private router = inject(Router);
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
+  private ticketService = inject(TicketService); // ✅ เพิ่ม TicketService
+  private fb = inject(FormBuilder); // ✅ เพิ่ม FormBuilder
 
   // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
@@ -137,6 +155,49 @@ export class TicketDetailComponent implements OnInit {
     isLoading?: boolean;
   } } = {};
 
+  // ✅ ===== NEW: SUPPORTER PROPERTIES ===== 
+
+  // Supporter Form & State
+  supporterForm!: FormGroup;
+  supporterFormState: SupporterFormState = {
+    isVisible: false,
+    isLoading: false,
+    isSaving: false,
+    error: null,
+    successMessage: null
+  };
+
+  // User Permissions
+  isSupporterMode = false;
+  canUserSaveSupporter = false;
+
+  // Action Dropdown
+  actionDropdownOptions: ActionDropdownOption[] = [
+    { value: SupporterActionType.COMPLETE, label: 'Complete', statusId: 5 },
+    { value: SupporterActionType.PENDING, label: 'Pending', statusId: 1 },
+    { value: SupporterActionType.OPEN_TICKET, label: 'Open Ticket', statusId: 2 },
+    { value: SupporterActionType.IN_PROGRESS, label: 'In Progress', statusId: 3 },
+    { value: SupporterActionType.RESOLVED, label: 'Resolved', statusId: 4 },
+    { value: SupporterActionType.CANCEL, label: 'Cancel', statusId: 6 }
+  ];
+
+  // File Upload
+  selectedFiles: File[] = [];
+  fileUploadProgress: FileUploadProgress[] = [];
+  maxFiles = 5;
+  maxFileSize = 10 * 1024 * 1024; // 10MB
+
+  // Form Validation
+  supporterFormValidation: SupporterFormValidation = {
+    estimate_time: { isValid: true },
+    due_date: { isValid: true },
+    lead_time: { isValid: true },
+    close_estimate: { isValid: true },
+    fix_issue_description: { isValid: true },
+    related_ticket_id: { isValid: true },
+    attachments: { isValid: true }
+  };
+
   // ===== CONSTANTS ===== ✅
   private readonly STATUS_WORKFLOW = [
     { id: 1, name: 'Created', icon: 'bi-plus-circle' },
@@ -153,12 +214,449 @@ export class TicketDetailComponent implements OnInit {
     this.ticket_no = this.route.snapshot.params['ticket_no'];
     
     if (this.ticket_no) {
+      this.initializeSupporterForm();
+      this.checkUserPermissions();
       this.loadStatusCache();
       this.loadTicketDetail();
     } else {
       this.router.navigate(['/tickets']);
     }
   }
+
+  // ✅ ===== NEW: SUPPORTER INITIALIZATION ===== 
+
+  /**
+   * ✅ สร้าง Supporter Form
+   */
+  private initializeSupporterForm(): void {
+    this.supporterForm = this.fb.group({
+      action: ['', [Validators.required]],
+      estimate_time: [null, [Validators.min(0), Validators.max(1000)]],
+      due_date: [''],
+      lead_time: [null, [Validators.min(0), Validators.max(10000)]],
+      close_estimate: [''],
+      fix_issue_description: ['', [Validators.maxLength(5000)]],
+      related_ticket_id: ['']
+    });
+
+    // Listen to form changes for real-time validation
+    this.supporterForm.valueChanges.subscribe(() => {
+      this.validateSupporterForm();
+    });
+  }
+
+  /**
+   * ✅ ตรวจสอบสิทธิ์ของ User
+   */
+  private checkUserPermissions(): void {
+    this.canUserSaveSupporter = this.ticketService.canUserSaveSupporter();
+    this.isSupporterMode = this.canUserSaveSupporter;
+    
+    console.log('User permissions:', {
+      canUserSaveSupporter: this.canUserSaveSupporter,
+      isSupporterMode: this.isSupporterMode
+    });
+  }
+
+  /**
+   * ✅ แสดง/ซ่อน Supporter Form
+   */
+  toggleSupporterForm(): void {
+    this.supporterFormState.isVisible = !this.supporterFormState.isVisible;
+    
+    if (this.supporterFormState.isVisible && this.ticketData?.ticket) {
+      this.populateFormWithTicketData();
+    }
+  }
+
+  /**
+   * ✅ เติมข้อมูลใน Form จาก Ticket Data
+   */
+  private populateFormWithTicketData(): void {
+    if (!this.ticketData?.ticket) return;
+
+    const ticket = this.ticketData.ticket;
+    
+    this.supporterForm.patchValue({
+      estimate_time: ticket.estimate_time ? parseInt(ticket.estimate_time) : null,
+      due_date: ticket.due_date ? this.formatDateForInput(ticket.due_date) : '',
+      lead_time: ticket.lead_time ? parseInt(ticket.lead_time.toString()) : null,
+      close_estimate: ticket.close_estimate ? this.formatDateTimeForInput(ticket.close_estimate) : '',
+      fix_issue_description: ticket.fix_issue_description || '',
+      related_ticket_id: ticket.related_ticket_id?.toString() || ''
+    });
+  }
+
+  // ✅ ===== NEW: SUPPORTER FORM ACTIONS ===== 
+
+  /**
+   * ✅ บันทึกข้อมูล Supporter
+   */
+  onSaveSupporter(): void {
+    if (!this.supporterForm.valid || !this.ticketData?.ticket) {
+      this.markFormGroupTouched();
+      return;
+    }
+
+    const formData = this.createSupporterFormData();
+    const validation = this.ticketService.validateSupporterData(formData, this.selectedFiles);
+
+    if (!validation.isValid) {
+      this.supporterFormState.error = validation.errors.join(', ');
+      return;
+    }
+
+    this.supporterFormState.isSaving = true;
+    this.supporterFormState.error = null;
+
+    console.log('Saving supporter data:', formData);
+
+    this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
+      .subscribe({
+        next: (response: SaveSupporterResponse) => {
+          console.log('SaveSupporter response:', response);
+          
+          if (response.success) {
+            this.handleSaveSupporterSuccess(response);
+          } else {
+            this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูลได้';
+          }
+          this.supporterFormState.isSaving = false;
+        },
+        error: (error) => {
+          console.error('SaveSupporter error:', error);
+          this.supporterFormState.error = error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+          this.supporterFormState.isSaving = false;
+        }
+      });
+  }
+
+  /**
+   * ✅ จัดการเมื่อบันทึกสำเร็จ
+   */
+  private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
+    // อัพเดท ticket data
+    if (response.data.ticket) {
+      Object.assign(this.ticketData!.ticket, response.data.ticket);
+    }
+
+    // อัพเดท attachments
+    if (response.data.attachments && response.data.attachments.length > 0) {
+      this.ticketData!.fix_attachment.push(...response.data.attachments.map(att => ({
+        attachment_id: att.id,
+        path: `path/to/${att.filename}`, // ปรับตาม API response
+        filename: att.filename,
+        file_type: att.extension,
+        file_size: 0
+      })));
+    }
+
+    // แสดง Success Modal
+    this.showSuccessModal = true;
+    this.modalTitle = 'Supporter Data Saved';
+    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว';
+    this.modalTicketNo = this.ticket_no;
+
+    // ซ่อน form และรีเซ็ต
+    this.supporterFormState.isVisible = false;
+    this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จ';
+    this.resetSupporterForm();
+
+    // โหลดข้อมูล ticket ใหม่
+    this.loadTicketDetail();
+    
+    console.log('Supporter data saved successfully');
+  }
+
+  /**
+   * ✅ สร้าง FormData สำหรับส่ง API
+   */
+  private createSupporterFormData(): SaveSupporterFormData {
+    const formValue = this.supporterForm.value;
+    
+    const formData: SaveSupporterFormData = {};
+
+    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
+      formData.estimate_time = parseInt(formValue.estimate_time);
+    }
+
+    if (formValue.due_date) {
+      formData.due_date = formValue.due_date;
+    }
+
+    if (formValue.lead_time !== null && formValue.lead_time !== '') {
+      formData.lead_time = parseInt(formValue.lead_time);
+    }
+
+    if (formValue.close_estimate) {
+      formData.close_estimate = formValue.close_estimate;
+    }
+
+    if (formValue.fix_issue_description) {
+      formData.fix_issue_description = formValue.fix_issue_description;
+    }
+
+    if (formValue.related_ticket_id) {
+      formData.related_ticket_id = formValue.related_ticket_id;
+    }
+
+    // อัพเดท status ตาม action ที่เลือก
+    if (formValue.action) {
+      const selectedAction = this.actionDropdownOptions.find(
+        option => option.value === formValue.action
+      );
+      if (selectedAction) {
+        formData.status_id = selectedAction.statusId;
+      }
+    }
+
+    return formData;
+  }
+
+  /**
+   * ✅ รีเซ็ต Supporter Form
+   */
+  resetSupporterForm(): void {
+    this.supporterForm.reset();
+    this.selectedFiles = [];
+    this.fileUploadProgress = [];
+    this.supporterFormValidation = {
+      estimate_time: { isValid: true },
+      due_date: { isValid: true },
+      lead_time: { isValid: true },
+      close_estimate: { isValid: true },
+      fix_issue_description: { isValid: true },
+      related_ticket_id: { isValid: true },
+      attachments: { isValid: true }
+    };
+  }
+
+  /**
+   * ✅ Mark ทุก field ใน form ว่า touched
+   */
+  private markFormGroupTouched(): void {
+    Object.keys(this.supporterForm.controls).forEach(key => {
+      this.supporterForm.get(key)?.markAsTouched();
+    });
+  }
+
+  // ✅ ===== NEW: FILE UPLOAD METHODS ===== 
+
+  /**
+   * ✅ เลือกไฟล์
+   */
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const files = Array.from(input.files);
+    const validation = this.ticketService.validateFiles(files, this.maxFiles);
+
+    if (!validation.isValid) {
+      this.supporterFormState.error = validation.errors.join(', ');
+      return;
+    }
+
+    this.selectedFiles = validation.validFiles;
+    this.supporterFormState.error = null;
+
+    // สร้าง upload progress สำหรับแต่ละไฟล์
+    this.fileUploadProgress = this.selectedFiles.map(file => ({
+      filename: file.name,
+      progress: 0,
+      status: 'pending'
+    }));
+
+    console.log('Files selected:', this.selectedFiles.map(f => f.name));
+  }
+
+  /**
+   * ✅ ลบไฟล์ที่เลือก
+   */
+  removeSelectedFile(index: number): void {
+    this.selectedFiles.splice(index, 1);
+    this.fileUploadProgress.splice(index, 1);
+    
+    if (this.selectedFiles.length === 0) {
+      this.supporterFormState.error = null;
+    }
+  }
+
+  /**
+   * ✅ ล้างไฟล์ทั้งหมด
+   */
+  clearAllFiles(): void {
+    this.selectedFiles = [];
+    this.fileUploadProgress = [];
+    this.supporterFormState.error = null;
+  }
+
+  /**
+   * ✅ ได้รับข้อมูลไฟล์สำหรับแสดงผล
+   */
+  getFileDisplayInfo(file: File): { 
+    name: string; 
+    size: string; 
+    type: string; 
+    icon: string; 
+  } {
+    return {
+      name: file.name,
+      size: this.ticketService.formatFileSize(file.size),
+      type: file.type.split('/')[1]?.toUpperCase() || 'FILE',
+      icon: this.ticketService.getFileIcon(file.name)
+    };
+  }
+
+  // ✅ ===== NEW: FORM VALIDATION ===== 
+
+  /**
+   * ✅ Validate Supporter Form แบบ real-time
+   */
+  private validateSupporterForm(): void {
+    const formValue = this.supporterForm.value;
+    
+    // Reset validation
+    this.supporterFormValidation = {
+      estimate_time: { isValid: true },
+      due_date: { isValid: true },
+      lead_time: { isValid: true },
+      close_estimate: { isValid: true },
+      fix_issue_description: { isValid: true },
+      related_ticket_id: { isValid: true },
+      attachments: { isValid: true }
+    };
+
+    // Validate estimate_time
+    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
+      const estimateTime = parseInt(formValue.estimate_time);
+      if (isNaN(estimateTime) || estimateTime < 0 || estimateTime > 1000) {
+        this.supporterFormValidation.estimate_time = {
+          isValid: false,
+          error: 'เวลาประมาณการต้องอยู่ระหว่าง 0-1000 ชั่วโมง'
+        };
+      }
+    }
+
+    // Validate lead_time
+    if (formValue.lead_time !== null && formValue.lead_time !== '') {
+      const leadTime = parseInt(formValue.lead_time);
+      if (isNaN(leadTime) || leadTime < 0 || leadTime > 10000) {
+        this.supporterFormValidation.lead_time = {
+          isValid: false,
+          error: 'เวลาที่ใช้จริงต้องอยู่ระหว่าง 0-10000 ชั่วโมง'
+        };
+      }
+    }
+
+    // Validate due_date
+    if (formValue.due_date) {
+      const dueDate = new Date(formValue.due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (dueDate < today) {
+        this.supporterFormValidation.due_date = {
+          isValid: false,
+          error: 'วันครบกำหนดต้องไม่เป็นวันที่ผ่านมาแล้ว'
+        };
+      }
+    }
+
+    // Validate close_estimate
+    if (formValue.close_estimate) {
+      const closeDate = new Date(formValue.close_estimate);
+      const now = new Date();
+      
+      if (closeDate < now) {
+        this.supporterFormValidation.close_estimate = {
+          isValid: false,
+          error: 'เวลาประมาณการปิดต้องไม่เป็นเวลาที่ผ่านมาแล้ว'
+        };
+      }
+    }
+
+    // Validate fix_issue_description
+    if (formValue.fix_issue_description && formValue.fix_issue_description.length > 5000) {
+      this.supporterFormValidation.fix_issue_description = {
+        isValid: false,
+        error: 'รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร'
+      };
+    }
+
+    // Validate attachments
+    if (this.selectedFiles.length > this.maxFiles) {
+      this.supporterFormValidation.attachments = {
+        isValid: false,
+        error: `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`
+      };
+    }
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าฟิลด์มี error หรือไม่
+   */
+  hasFieldError(fieldName: keyof SupporterFormValidation): boolean {
+    return !this.supporterFormValidation[fieldName].isValid;
+  }
+
+  /**
+   * ✅ ดึงข้อความ error ของฟิลด์
+   */
+  getFieldError(fieldName: keyof SupporterFormValidation): string {
+    return this.supporterFormValidation[fieldName].error || '';
+  }
+
+  // ✅ ===== NEW: UTILITY METHODS ===== 
+
+  /**
+   * ✅ แปลงวันที่สำหรับ input type="date"
+   */
+  private formatDateForInput(dateString: string): string {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * ✅ แปลงวันที่และเวลาสำหรับ input type="datetime-local"
+   */
+  private formatDateTimeForInput(dateString: string): string {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().slice(0, 16);
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
+   */
+  canShowSupporterForm(): boolean {
+    return !!(this.isSupporterMode && 
+           this.canUserSaveSupporter && 
+           this.ticketData?.ticket && 
+           !this.isLoading);
+  }
+
+  /**
+   * ✅ ได้รับ CSS class สำหรับฟิลด์ที่มี error
+   */
+  getFieldClass(fieldName: keyof SupporterFormValidation): string {
+    const baseClass = 'form-control';
+    const errorClass = 'is-invalid';
+    
+    return this.hasFieldError(fieldName) ? `${baseClass} ${errorClass}` : baseClass;
+  }
+
+  // ===== EXISTING METHODS ===== ✅
+  // (เก็บ methods เดิมทั้งหมดไว้ - ไม่ขอแสดงเพื่อประหยัดพื้นที่)
 
   // ===== INITIALIZATION METHODS ===== ✅
 

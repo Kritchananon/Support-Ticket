@@ -311,8 +311,6 @@
                    }"></i>
               </div>
             </div>
-            
-
           </div>
         </div>
       </div>
@@ -323,11 +321,302 @@
         <!-- Support Header -->
         <div class="support-header">
           <h2 class="support-title">Support Information</h2>
+          
+          <!-- ✅ Supporter Action Button (ถ้ามีสิทธิ์) -->
+          <div *ngIf="canShowSupporterForm()" class="supporter-action">
+            <button type="button" 
+                    class="btn btn-outline-primary" 
+                    (click)="toggleSupporterForm()"
+                    [disabled]="supporterFormState.isSaving">
+              <i class="bi bi-gear-fill me-2"></i>
+              {{ supporterFormState.isVisible ? 'ซ่อนฟอร์ม' : 'จัดการ Supporter' }}
+            </button>
+          </div>
         </div>
         
         <div class="support-progress-bar">
           <div class="support-progress-fill"></div>
           <div class="support-progress-remaining"></div>
+        </div>
+
+        <!-- ✅ SUPPORTER FORM SECTION -->
+        <div *ngIf="canShowSupporterForm() && supporterFormState.isVisible" 
+             class="supporter-form-section">
+          
+          <!-- Form Header -->
+          <div class="supporter-form-header">
+            <h3 class="supporter-form-title">
+              <i class="bi bi-tools me-2"></i>
+              Supporter Actions
+            </h3>
+            
+            <!-- Loading Indicator -->
+            <div *ngIf="supporterFormState.isSaving" class="supporter-form-loading">
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              <span>กำลังบันทึก...</span>
+            </div>
+          </div>
+
+          <!-- Error Alert -->
+          <div *ngIf="supporterFormState.error" 
+               class="alert alert-danger alert-dismissible fade show" 
+               role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ supporterFormState.error }}
+            <button type="button" 
+                    class="btn-close" 
+                    (click)="supporterFormState.error = null"
+                    aria-label="Close"></button>
+          </div>
+
+          <!-- Success Alert -->
+          <div *ngIf="supporterFormState.successMessage" 
+               class="alert alert-success alert-dismissible fade show" 
+               role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            {{ supporterFormState.successMessage }}
+            <button type="button" 
+                    class="btn-close" 
+                    (click)="supporterFormState.successMessage = null"
+                    aria-label="Close"></button>
+          </div>
+
+          <!-- Supporter Form -->
+          <form [formGroup]="supporterForm" 
+                (ngSubmit)="onSaveSupporter()" 
+                class="supporter-form">
+            
+            <!-- Row 1: Action และ Estimate Time -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="action" class="form-label">
+                  <i class="bi bi-list-check me-1"></i>
+                  Action <span class="text-danger">*</span>
+                </label>
+                <select id="action" 
+                        class="form-select"
+                        formControlName="action"
+                        [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched">
+                  <option value="">เลือก Action...</option>
+                  <option *ngFor="let option of actionDropdownOptions" 
+                          [value]="option.value"
+                          [disabled]="option.disabled">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <div *ngIf="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched" 
+                     class="invalid-feedback">
+                  กรุณาเลือก Action
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="estimate_time" class="form-label">
+                  <i class="bi bi-clock me-1"></i>
+                  Estimate Time (ชั่วโมง)
+                </label>
+                <input type="number" 
+                       id="estimate_time" 
+                       class="form-control"
+                       formControlName="estimate_time"
+                       [class.is-invalid]="hasFieldError('estimate_time')"
+                       placeholder="เวลาประมาณการ (0-1000 ชั่วโมง)"
+                       min="0" 
+                       max="1000">
+                <div *ngIf="hasFieldError('estimate_time')" class="invalid-feedback">
+                  {{ getFieldError('estimate_time') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Due Date และ Lead Time -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="due_date" class="form-label">
+                  <i class="bi bi-calendar-date me-1"></i>
+                  Due Date
+                </label>
+                <input type="date" 
+                       id="due_date" 
+                       class="form-control"
+                       formControlName="due_date"
+                       [class.is-invalid]="hasFieldError('due_date')">
+                <div *ngIf="hasFieldError('due_date')" class="invalid-feedback">
+                  {{ getFieldError('due_date') }}
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="lead_time" class="form-label">
+                  <i class="bi bi-speedometer2 me-1"></i>
+                  Lead Time (ชั่วโมง)
+                </label>
+                <input type="number" 
+                       id="lead_time" 
+                       class="form-control"
+                       formControlName="lead_time"
+                       [class.is-invalid]="hasFieldError('lead_time')"
+                       placeholder="เวลาที่ใช้จริง (0-10000 ชั่วโมง)"
+                       min="0" 
+                       max="10000">
+                <div *ngIf="hasFieldError('lead_time')" class="invalid-feedback">
+                  {{ getFieldError('lead_time') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: Close Estimate -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="close_estimate" class="form-label">
+                  <i class="bi bi-calendar-check me-1"></i>
+                  Close Estimate
+                </label>
+                <input type="datetime-local" 
+                       id="close_estimate" 
+                       class="form-control"
+                       formControlName="close_estimate"
+                       [class.is-invalid]="hasFieldError('close_estimate')">
+                <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
+                  {{ getFieldError('close_estimate') }}
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="related_ticket_id" class="form-label">
+                  <i class="bi bi-link-45deg me-1"></i>
+                  Related Tickets
+                </label>
+                <input type="text" 
+                       id="related_ticket_id" 
+                       class="form-control"
+                       formControlName="related_ticket_id"
+                       [class.is-invalid]="hasFieldError('related_ticket_id')"
+                       placeholder="หมายเลข ticket ที่เกี่ยวข้อง">
+                <div *ngIf="hasFieldError('related_ticket_id')" class="invalid-feedback">
+                  {{ getFieldError('related_ticket_id') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 4: Fix Description -->
+            <div class="row mb-3">
+              <div class="col-12">
+                <label for="fix_issue_description" class="form-label">
+                  <i class="bi bi-chat-square-text me-1"></i>
+                  Fix Description
+                </label>
+                <textarea id="fix_issue_description" 
+                          class="form-control"
+                          formControlName="fix_issue_description"
+                          [class.is-invalid]="hasFieldError('fix_issue_description')"
+                          placeholder="อธิบายวิธีการแก้ไขปัญหา..."
+                          rows="4"
+                          maxlength="5000"></textarea>
+                <div *ngIf="hasFieldError('fix_issue_description')" class="invalid-feedback">
+                  {{ getFieldError('fix_issue_description') }}
+                </div>
+                <div class="form-text">
+                  <small>
+                    {{ supporterForm.get('fix_issue_description')?.value?.length || 0 }}/5000 ตัวอักษร
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 5: File Upload -->
+            <div class="row mb-3">
+              <div class="col-12">
+                <label for="attachments" class="form-label">
+                  <i class="bi bi-paperclip me-1"></i>
+                  Attachments
+                </label>
+                <input type="file" 
+                       id="attachments" 
+                       class="form-control"
+                       multiple
+                       accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                       (change)="onFileSelected($event)"
+                       [class.is-invalid]="hasFieldError('attachments')">
+                <div *ngIf="hasFieldError('attachments')" class="invalid-feedback">
+                  {{ getFieldError('attachments') }}
+                </div>
+                <div class="form-text">
+                  <small>
+                    <i class="bi bi-info-circle me-1"></i>
+                    รองรับไฟล์: JPG, PNG, PDF, DOC, XLS, TXT (สูงสุด {{ maxFiles }} ไฟล์, แต่ละไฟล์ไม่เกิน 10MB)
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Selected Files Preview -->
+            <div *ngIf="selectedFiles.length > 0" class="selected-files-preview mb-3">
+              <div class="selected-files-header">
+                <h6 class="mb-2">
+                  <i class="bi bi-files me-1"></i>
+                  ไฟล์ที่เลือก ({{ selectedFiles.length }}/{{ maxFiles }})
+                </h6>
+                <button type="button" 
+                        class="btn btn-outline-secondary btn-sm" 
+                        (click)="clearAllFiles()">
+                  <i class="bi bi-trash me-1"></i>
+                  ล้างทั้งหมด
+                </button>
+              </div>
+              
+              <div class="selected-files-list">
+                <div *ngFor="let file of selectedFiles; let i = index" 
+                     class="selected-file-item">
+                  <div class="file-info">
+                    <i [class]="getFileDisplayInfo(file).icon" 
+                       class="file-icon me-2"></i>
+                    <div class="file-details">
+                      <div class="file-name">{{ getFileDisplayInfo(file).name }}</div>
+                      <div class="file-meta">
+                        <span class="file-size">{{ getFileDisplayInfo(file).size }}</span>
+                        <span class="file-type">{{ getFileDisplayInfo(file).type }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" 
+                          class="btn btn-outline-danger btn-sm" 
+                          (click)="removeSelectedFile(i)"
+                          title="ลบไฟล์นี้">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="supporter-form-actions">
+              <button type="submit" 
+                      class="btn btn-primary"
+                      [disabled]="supporterForm.invalid || supporterFormState.isSaving">
+                <span *ngIf="supporterFormState.isSaving" 
+                      class="spinner-border spinner-border-sm me-2"></span>
+                <i *ngIf="!supporterFormState.isSaving" class="bi bi-check-lg me-2"></i>
+                {{ supporterFormState.isSaving ? 'กำลังบันทึก...' : 'บันทึก' }}
+              </button>
+              
+              <button type="button" 
+                      class="btn btn-outline-secondary ms-2" 
+                      (click)="toggleSupporterForm()"
+                      [disabled]="supporterFormState.isSaving">
+                <i class="bi bi-x-lg me-2"></i>
+                ยกเลิก
+              </button>
+              
+              <button type="button" 
+                      class="btn btn-outline-warning ms-2" 
+                      (click)="resetSupporterForm()"
+                      [disabled]="supporterFormState.isSaving">
+                <i class="bi bi-arrow-clockwise me-2"></i>
+                รีเซ็ต
+              </button>
+            </div>
+          </form>
         </div>
 
         <!-- Support Details -->

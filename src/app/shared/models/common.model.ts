@@ -211,6 +211,96 @@ export interface ApplicationError {
   action?: string;
 }
 
+// ✅ เพิ่ม Supporter-specific Interfaces =====
+
+// Interface สำหรับ Supporter Form State
+export interface SupporterFormState {
+  isVisible: boolean;
+  isLoading: boolean;
+  isSaving: boolean;
+  error: string | null;
+  successMessage: string | null;
+}
+
+// Interface สำหรับ File Upload Progress
+export interface FileUploadProgress {
+  filename: string;
+  progress: number;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  error?: string;
+}
+
+// Interface สำหรับ Supporter Validation
+export interface SupporterFormValidation {
+  estimate_time: {
+    isValid: boolean;
+    error?: string;
+  };
+  due_date: {
+    isValid: boolean;
+    error?: string;
+  };
+  lead_time: {
+    isValid: boolean;
+    error?: string;
+  };
+  close_estimate: {
+    isValid: boolean;
+    error?: string;
+  };
+  fix_issue_description: {
+    isValid: boolean;
+    error?: string;
+  };
+  related_ticket_id: {
+    isValid: boolean;
+    error?: string;
+  };
+  attachments: {
+    isValid: boolean;
+    error?: string;
+  };
+}
+
+// Interface สำหรับ Supporter Form Data
+export interface SupporterFormData {
+  action?: string;
+  estimate_time?: number;
+  due_date?: string;
+  lead_time?: number;
+  close_estimate?: string;
+  fix_issue_description?: string;
+  related_ticket_id?: string;
+  attachments?: File[];
+}
+
+// Interface สำหรับ Rich Text Editor Config
+export interface RichTextEditorConfig {
+  placeholder: string;
+  minHeight: number;
+  maxHeight: number;
+  modules: {
+    toolbar: any[][]; // ใช้ any[][] แทน string[][]
+  };
+  theme: string;
+}
+
+// Default Rich Text Editor Configuration
+export const DEFAULT_RICH_TEXT_CONFIG: RichTextEditorConfig = {
+  placeholder: 'อธิบายวิธีการแก้ไขปัญหา...',
+  minHeight: 120,
+  maxHeight: 300,
+  modules: {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link'],
+      ['clean']
+    ]
+  },
+  theme: 'snow'
+};
+
 // ===== Utility Functions =====
 export function createLoadingState<T>(initialData?: T): LoadingState {
   return {
@@ -255,12 +345,113 @@ export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
+  let timeout: any; // ✅ เปลี่ยนจาก NodeJS.Timeout เป็น any
   
   return (...args: Parameters<T>) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(null, args), wait);
   };
+}
+
+// ✅ เพิ่ม Supporter-specific Utility Functions
+
+export function createSupporterFormState(): SupporterFormState {
+  return {
+    isVisible: false,
+    isLoading: false,
+    isSaving: false,
+    error: null,
+    successMessage: null
+  };
+}
+
+export function validateSupporterForm(formData: SupporterFormData): SupporterFormValidation {
+  const validation: SupporterFormValidation = {
+    estimate_time: { isValid: true },
+    due_date: { isValid: true },
+    lead_time: { isValid: true },
+    close_estimate: { isValid: true },
+    fix_issue_description: { isValid: true },
+    related_ticket_id: { isValid: true },
+    attachments: { isValid: true }
+  };
+
+  // Validate estimate_time
+  if (formData.estimate_time !== undefined) {
+    if (formData.estimate_time < 0 || formData.estimate_time > 1000) {
+      validation.estimate_time = {
+        isValid: false,
+        error: 'เวลาประมาณการต้องอยู่ระหว่าง 0-1000 ชั่วโมง'
+      };
+    }
+  }
+
+  // Validate lead_time
+  if (formData.lead_time !== undefined) {
+    if (formData.lead_time < 0 || formData.lead_time > 10000) {
+      validation.lead_time = {
+        isValid: false,
+        error: 'เวลาที่ใช้จริงต้องอยู่ระหว่าง 0-10000 ชั่วโมง'
+      };
+    }
+  }
+
+  // Validate due_date
+  if (formData.due_date) {
+    const dueDate = new Date(formData.due_date);
+    const today = new Date();
+    if (dueDate < today) {
+      validation.due_date = {
+        isValid: false,
+        error: 'วันครบกำหนดต้องไม่เป็นวันที่ผ่านมาแล้ว'
+      };
+    }
+  }
+
+  // Validate close_estimate
+  if (formData.close_estimate) {
+    const closeDate = new Date(formData.close_estimate);
+    const today = new Date();
+    if (closeDate < today) {
+      validation.close_estimate = {
+        isValid: false,
+        error: 'เวลาประมาณการปิดต้องไม่เป็นเวลาที่ผ่านมาแล้ว'
+      };
+    }
+  }
+
+  // Validate fix_issue_description
+  if (formData.fix_issue_description && formData.fix_issue_description.length > 5000) {
+    validation.fix_issue_description = {
+      isValid: false,
+      error: 'รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร'
+    };
+  }
+
+  // Validate related_ticket_id
+  if (formData.related_ticket_id) {
+    const ticketId = formData.related_ticket_id.trim();
+    if (ticketId.length === 0) {
+      validation.related_ticket_id = {
+        isValid: false,
+        error: 'หมายเลข ticket ที่เกี่ยวข้องไม่ถูกต้อง'
+      };
+    }
+  }
+
+  // Validate attachments
+  if (formData.attachments && formData.attachments.length > 5) {
+    validation.attachments = {
+      isValid: false,
+      error: 'สามารถแนบไฟล์ได้สูงสุด 5 ไฟล์'
+    };
+  }
+
+  return validation;
+}
+
+export function isSupporterFormValid(validation: SupporterFormValidation): boolean {
+  return Object.values(validation).every(field => field.isValid);
 }
 
 // ===== Date Utilities =====

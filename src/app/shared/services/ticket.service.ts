@@ -4,6 +4,13 @@ import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
+// ✅ Import interfaces ใหม่
+import { 
+  SaveSupporterResponse, 
+  SaveSupporterFormData, 
+  TicketAttachment 
+} from '../models/ticket.model';
+
 export interface TicketAttachmentResponse {
   ticket: {
     id: number;
@@ -52,6 +59,16 @@ export class TicketService {
     });
   }
 
+  // ✅ Helper method สำหรับสร้าง headers สำหรับ JSON request
+  private getJsonHeaders(): HttpHeaders {
+    const token = localStorage.getItem('access_token');
+    return new HttpHeaders({
+      'Authorization': token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json',
+      'language': 'th' // ✅ เพิ่ม language header ตาม API spec
+    });
+  }
+
   // Helper method สำหรับจัดการ errors
   private handleError(error: HttpErrorResponse) {
     console.error('Ticket Service Error:', error);
@@ -91,6 +108,204 @@ export class TicketService {
     
     return throwError(() => errorMessage);
   }
+
+  // ✅ ============ NEW: saveSupporter Method ============
+
+  /**
+   * บันทึกข้อมูล supporter สำหรับ ticket
+   * @param ticketNo หมายเลข ticket
+   * @param formData ข้อมูลฟอร์ม supporter
+   * @param files ไฟล์แนบ (optional)
+   * @returns Observable ผลลัพธ์การบันทึก
+   */
+  saveSupporter(
+    ticketNo: string, 
+    formData: SaveSupporterFormData, 
+    files: File[] = []
+  ): Observable<SaveSupporterResponse> {
+    
+    console.log('=== saveSupporter called ===');
+    console.log('Ticket No:', ticketNo);
+    console.log('Form Data:', formData);
+    console.log('Files:', files.length);
+
+    // ✅ สร้าง FormData สำหรับส่งไปยัง API
+    const requestFormData = new FormData();
+
+    // ✅ เพิ่มข้อมูลพื้นฐาน
+    if (formData.estimate_time !== undefined) {
+      requestFormData.append('estimate_time', formData.estimate_time.toString());
+    }
+    
+    if (formData.lead_time !== undefined) {
+      requestFormData.append('lead_time', formData.lead_time.toString());
+    }
+    
+    if (formData.due_date) {
+      requestFormData.append('due_date', formData.due_date);
+    }
+    
+    if (formData.close_estimate) {
+      requestFormData.append('close_estimate', formData.close_estimate);
+    }
+    
+    if (formData.fix_issue_description) {
+      requestFormData.append('fix_issue_description', formData.fix_issue_description);
+    }
+    
+    if (formData.related_ticket_id) {
+      requestFormData.append('related_ticket_id', formData.related_ticket_id.toString());
+    }
+
+    // ✅ เพิ่มไฟล์แนบ (ถ้ามี)
+    if (files && files.length > 0) {
+      files.forEach((file, index) => {
+        requestFormData.append('attachments', file);
+        console.log(`Added file ${index + 1}: ${file.name}`);
+      });
+    }
+
+    // ✅ เพิ่ม user ID จาก localStorage
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (currentUser.id) {
+      requestFormData.append('user_id', currentUser.id.toString());
+    }
+
+    // ✅ Debug: แสดงข้อมูลใน FormData
+    console.log('FormData contents:');
+    requestFormData.forEach((value, key) => {
+      if (value instanceof File) {
+        console.log(`${key}: File(${value.name}, ${value.size} bytes)`);
+      } else {
+        console.log(`${key}: ${value}`);
+      }
+    });
+
+    // ✅ ส่ง request ไปยัง API
+    return this.http.post<SaveSupporterResponse>(
+      `${this.apiUrl}/saveSupporter/${ticketNo}`, 
+      requestFormData, 
+      { 
+        headers: this.getAuthHeaders() // ไม่ระบุ Content-Type ให้ browser ตั้งเอง
+      }
+    ).pipe(
+      catchError((error) => {
+        console.error('saveSupporter error:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * ✅ ตรวจสอบว่า user มีสิทธิ์ saveSupporter หรือไม่
+   * @returns boolean
+   */
+  canUserSaveSupporter(): boolean {
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    // ตรวจสอบ role หรือ permission
+    // ปรับตาม business logic ของแอพ
+    const allowedRoles = ['supporter', 'admin', 'lead'];
+    const userRole = currentUser.role?.toLowerCase();
+    
+    if (allowedRoles.includes(userRole)) {
+      return true;
+    }
+
+    // ตรวจสอบ permissions
+    const permissions = currentUser.permissions || [];
+    return permissions.includes('SOLVE_PROBLEM');
+  }
+
+  /**
+   * ✅ สร้าง FormData สำหรับ saveSupporter แบบง่าย
+   * @param ticketId ID ของ ticket (สำหรับ body parameter)
+   * @returns FormData
+   */
+  createBasicSupporterFormData(ticketId: number): FormData {
+    const formData = new FormData();
+    formData.append('ticket_id', ticketId.toString());
+    
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (currentUser.id) {
+      formData.append('user_id', currentUser.id.toString());
+    }
+    
+    return formData;
+  }
+
+  /**
+   * ✅ Validate ข้อมูลก่อนส่ง saveSupporter
+   * @param formData ข้อมูลที่ต้องการ validate
+   * @param files ไฟล์แนบ
+   * @returns object ผลการ validate
+   */
+  validateSupporterData(
+    formData: SaveSupporterFormData, 
+    files: File[] = []
+  ): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    // ตรวจสอบ estimate_time
+    if (formData.estimate_time !== undefined) {
+      if (formData.estimate_time < 0 || formData.estimate_time > 1000) {
+        errors.push('เวลาประมาณการต้องอยู่ระหว่าง 0-1000 ชั่วโมง');
+      }
+    }
+
+    // ตรวจสอบ lead_time
+    if (formData.lead_time !== undefined) {
+      if (formData.lead_time < 0 || formData.lead_time > 10000) {
+        errors.push('เวลาที่ใช้จริงต้องอยู่ระหว่าง 0-10000 ชั่วโมง');
+      }
+    }
+
+    // ตรวจสอบ due_date
+    if (formData.due_date) {
+      const dueDate = new Date(formData.due_date);
+      if (isNaN(dueDate.getTime())) {
+        errors.push('รูปแบบวันครบกำหนดไม่ถูกต้อง');
+      }
+    }
+
+    // ตรวจสอบ close_estimate
+    if (formData.close_estimate) {
+      const closeDate = new Date(formData.close_estimate);
+      if (isNaN(closeDate.getTime())) {
+        errors.push('รูปแบบเวลาประมาณการปิดไม่ถูกต้อง');
+      }
+    }
+
+    // ตรวจสอบ fix_issue_description
+    if (formData.fix_issue_description) {
+      if (formData.fix_issue_description.length > 5000) {
+        errors.push('รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร');
+      }
+    }
+
+    // ตรวจสอบไฟล์แนบ
+    if (files.length > 5) {
+      errors.push('สามารถแนบไฟล์ได้สูงสุด 5 ไฟล์');
+    }
+
+    // ตรวจสอบขนาดและประเภทไฟล์
+    for (const file of files) {
+      if (!this.isValidFileType(file)) {
+        errors.push(`ไฟล์ ${file.name} มีประเภทที่ไม่รองรับ`);
+      }
+      
+      if (!this.isValidFileSize(file)) {
+        errors.push(`ไฟล์ ${file.name} มีขนาดใหญ่เกิน 10MB`);
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  // ✅ ============ EXISTING METHODS ============
 
   /**
    * อัปโหลดไฟล์แนบสำหรับตั๋วใหม่
