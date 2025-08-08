@@ -188,6 +188,35 @@ export interface AllTicketData {
   status_name?: string; // ✅ เพิ่มสำหรับ status name จาก API
 }
 
+// ===== NEW: Ticket Cache Interfaces ===== ✅
+export interface CachedTicketData {
+  tickets: AllTicketData[];
+  timestamp: Date;
+  lastSync: Date;
+  totalCount: number;
+  filters?: {
+    search?: string;
+    status?: string;
+    project?: string;
+    category?: string;
+  };
+}
+
+export interface TicketCacheConfig {
+  maxAge: number; // milliseconds
+  maxSize: number; // max number of tickets
+  enableOffline: boolean;
+  autoRefresh: boolean;
+}
+
+export interface PendingTicketSync {
+  id: string;
+  type: 'create' | 'update' | 'delete' | 'refresh';
+  data: any;
+  timestamp: Date;
+  retryCount: number;
+}
+
 // ✅ เพิ่ม interfaces สำหรับ saveTicket API
 export interface SaveTicketRequest {
   ticket_id?: number;           
@@ -406,7 +435,351 @@ export class ApiService {
   // ✅ NEW: Status cache management
   private statusCache: Map<number, string> = new Map();
 
-  constructor(private http: HttpClient) { }
+  // ===== NEW: Ticket Cache Management ===== ✅
+  private ticketCache: CachedTicketData | null = null;
+  private ticketCacheConfig: TicketCacheConfig = {
+    maxAge: 2 * 60 * 1000, // 2 minutes
+    maxSize: 1000, // max 1000 tickets
+    enableOffline: true,
+    autoRefresh: true
+  };
+  private pendingSyncQueue: PendingTicketSync[] = [];
+  private ticketCacheKey = 'pwa_tickets_cache';
+  private syncQueueKey = 'pwa_tickets_sync_queue';
+
+  constructor(private http: HttpClient) {
+    // ✅ NEW: โหลด sync queue ที่ค้างอยู่
+    this.loadSyncQueue();
+    
+    // ลอง process sync queue เมื่อ online
+    if (navigator.onLine) {
+      setTimeout(() => this.processSyncQueue(), 1000);
+    }
+  }
+
+  // ===== NEW: Ticket Cache Methods ===== ✅
+
+  /**
+   * ✅ NEW: โหลด tickets พร้อม fallback cache
+   */
+  getAllTicketsWithCache(): Observable<AllTicketData[]> {
+    console.log('=== Getting Tickets with Cache Support ===');
+    
+    // ตรวจสอบ network status
+    const isOnline = navigator.onLine;
+    const cachedData = this.getCachedTickets();
+    
+    if (isOnline) {
+      // Online: พยายามโหลดจาก API ก่อน
+      return this.getAllTicketsWithDetails().pipe(
+        tap(tickets => {
+          console.log('✅ Online: Got fresh tickets, caching...');
+          this.cacheTickets(tickets);
+        }),
+        catchError(error => {
+          console.warn('⚠️ Online API failed, using cache:', error);
+          if (cachedData) {
+            this.addNotificationViaPWA('cache-used', 
+              'ใช้ข้อมูลที่เก็บไว้', 
+              'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้');
+            return of(cachedData);
+          }
+          return throwError(() => error);
+        })
+      );
+    } else {
+      // Offline: ใช้ cache เท่านั้น
+      console.log('📱 Offline mode: Using cached data');
+      if (cachedData) {
+        this.addNotificationViaPWA('offline', 
+          'โหมดออฟไลน์', 
+          'กำลังใช้ข้อมูลที่เก็บไว้ในเครื่อง');
+        return of(cachedData);
+      } else {
+        const error = 'ไม่มีข้อมูลที่เก็บไว้ กรุณาเชื่อมต่ออินเทอร์เน็ต';
+        console.error('❌ No cached data available offline');
+        return throwError(() => error);
+      }
+    }
+  }
+
+  /**
+   * ✅ NEW: บันทึก tickets ลง cache
+   */
+  private cacheTickets(tickets: AllTicketData[], filters?: any): void {
+    try {
+      const cacheData: CachedTicketData = {
+        tickets: tickets,
+        timestamp: new Date(),
+        lastSync: new Date(),
+        totalCount: tickets.length,
+        filters: filters
+      };
+
+      // บันทึกใน memory cache
+      this.ticketCache = cacheData;
+
+      // บันทึกใน localStorage สำหรับ persistence
+      localStorage.setItem(this.ticketCacheKey, JSON.stringify(cacheData));
+      
+      console.log('✅ Cached tickets:', {
+        count: tickets.length,
+        timestamp: cacheData.timestamp,
+        filters: filters
+      });
+
+    } catch (error) {
+      console.warn('⚠️ Failed to cache tickets:', error);
+    }
+  }
+
+  /**
+   * ✅ NEW: ดึง tickets จาก cache
+   */
+  private getCachedTickets(): AllTicketData[] | null {
+    try {
+      // ลอง memory cache ก่อน
+      if (this.ticketCache && !this.isTicketCacheStale(this.ticketCache)) {
+        console.log('📱 Using memory cache');
+        return this.ticketCache.tickets;
+      }
+
+      // ลอง localStorage cache
+      const cachedStr = localStorage.getItem(this.ticketCacheKey);
+      if (cachedStr) {
+        const cachedData: CachedTicketData = JSON.parse(cachedStr);
+        
+        // ตรวจสอบว่าข้อมูลยังไม่เก่าเกินไป
+        if (!this.isTicketCacheStale(cachedData)) {
+          this.ticketCache = cachedData; // โหลดกลับเข้า memory
+          console.log('📱 Using localStorage cache');
+          return cachedData.tickets;
+        } else {
+          console.log('📱 Cache is stale, will refresh');
+          // ถ้าข้อมูลเก่า แต่ offline ก็ยังใช้ได้
+          if (!navigator.onLine) {
+            console.log('📱 Offline: Using stale cache anyway');
+            return cachedData.tickets;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('⚠️ Error reading cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า cache เก่าแล้วหรือยัง
+   */
+  private isTicketCacheStale(cacheData: CachedTicketData): boolean {
+    if (!cacheData || !cacheData.timestamp) return true;
+    
+    const now = new Date().getTime();
+    const cacheTime = new Date(cacheData.timestamp).getTime();
+    const age = now - cacheTime;
+    
+    return age > this.ticketCacheConfig.maxAge;
+  }
+
+  /**
+   * ✅ NEW: ล้าง ticket cache
+   */
+  clearTicketCache(): void {
+    this.ticketCache = null;
+    localStorage.removeItem(this.ticketCacheKey);
+    console.log('🗑️ Ticket cache cleared');
+  }
+
+  /**
+   * ✅ NEW: ได้ข้อมูลสถานะ cache
+   */
+  getTicketCacheStatus(): {
+    hasCache: boolean;
+    isStale: boolean;
+    count: number;
+    lastSync: Date | null;
+    ageInMinutes: number;
+  } {
+    const cachedData = this.ticketCache || this.getStoredCacheData();
+    
+    if (!cachedData) {
+      return {
+        hasCache: false,
+        isStale: true,
+        count: 0,
+        lastSync: null,
+        ageInMinutes: 0
+      };
+    }
+
+    const now = new Date().getTime();
+    const cacheTime = new Date(cachedData.timestamp).getTime();
+    const ageInMinutes = Math.floor((now - cacheTime) / (1000 * 60));
+
+    return {
+      hasCache: true,
+      isStale: this.isTicketCacheStale(cachedData),
+      count: cachedData.tickets.length,
+      lastSync: cachedData.lastSync,
+      ageInMinutes: ageInMinutes
+    };
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมูล cache จาก localStorage
+   */
+  private getStoredCacheData(): CachedTicketData | null {
+    try {
+      const cachedStr = localStorage.getItem(this.ticketCacheKey);
+      return cachedStr ? JSON.parse(cachedStr) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * ✅ NEW: เพิ่ม item ลง sync queue
+   */
+  queueForSync(item: Omit<PendingTicketSync, 'id' | 'timestamp' | 'retryCount'>): void {
+    const syncItem: PendingTicketSync = {
+      ...item,
+      id: this.generateSyncId(),
+      timestamp: new Date(),
+      retryCount: 0
+    };
+
+    this.pendingSyncQueue.push(syncItem);
+    this.saveSyncQueue();
+    
+    console.log('📤 Queued for sync:', syncItem.type, syncItem.id);
+  }
+
+  /**
+   * ✅ NEW: ประมวลผล sync queue
+   */
+  async processSyncQueue(): Promise<boolean> {
+    if (this.pendingSyncQueue.length === 0) {
+      console.log('✅ Sync queue is empty');
+      return true;
+    }
+
+    console.log('🔄 Processing sync queue:', this.pendingSyncQueue.length, 'items');
+    
+    let successCount = 0;
+    const failedItems: PendingTicketSync[] = [];
+
+    for (const item of this.pendingSyncQueue) {
+      try {
+        await this.processSyncItem(item);
+        successCount++;
+        console.log('✅ Synced:', item.type, item.id);
+      } catch (error) {
+        console.warn('⚠️ Sync failed:', item.type, item.id, error);
+        item.retryCount++;
+        
+        // ลองใหม่ไม่เกิน 3 ครั้ง
+        if (item.retryCount < 3) {
+          failedItems.push(item);
+        } else {
+          console.error('❌ Sync failed permanently:', item.id);
+        }
+      }
+    }
+
+    // เก็บเฉพาะ items ที่ยังไม่สำเร็จ
+    this.pendingSyncQueue = failedItems;
+    this.saveSyncQueue();
+
+    const isFullSuccess = failedItems.length === 0;
+    console.log(`🎯 Sync completed: ${successCount} success, ${failedItems.length} failed`);
+    
+    return isFullSuccess;
+  }
+
+  /**
+   * ✅ NEW: ประมวลผล sync item เดียว
+   */
+  private async processSyncItem(item: PendingTicketSync): Promise<void> {
+    // ใช้ existing API methods ตาม type
+    switch (item.type) {
+      case 'refresh':
+        // Refresh data - จริงๆ แค่โหลดใหม่
+        await this.getAllTicketsWithDetails().toPromise();
+        break;
+        
+      case 'create':
+        // สร้าง ticket ใหม่ (ถ้ามี API)
+        if (item.data.ticketData) {
+          await this.saveTicket(item.data.ticketData).toPromise();
+        }
+        break;
+        
+      case 'update':
+        // อัปเดต ticket (ถ้ามี API)
+        if (item.data.ticket_no && item.data.updateData) {
+          await this.updateTicketByTicketNo(item.data.ticket_no, item.data.updateData).toPromise();
+        }
+        break;
+        
+      case 'delete':
+        // ลบ ticket (ถ้ามี API)
+        if (item.data.ticket_no) {
+          await this.deleteTicketByTicketNo(item.data.ticket_no).toPromise();
+        }
+        break;
+        
+      default:
+        throw new Error(`Unknown sync type: ${item.type}`);
+    }
+  }
+
+  /**
+   * ✅ NEW: บันทึก sync queue ลง localStorage
+   */
+  private saveSyncQueue(): void {
+    try {
+      localStorage.setItem(this.syncQueueKey, JSON.stringify(this.pendingSyncQueue));
+    } catch (error) {
+      console.warn('⚠️ Failed to save sync queue:', error);
+    }
+  }
+
+  /**
+   * ✅ NEW: โหลด sync queue จาก localStorage
+   */
+  private loadSyncQueue(): void {
+    try {
+      const queueStr = localStorage.getItem(this.syncQueueKey);
+      if (queueStr) {
+        this.pendingSyncQueue = JSON.parse(queueStr);
+        console.log('📤 Loaded sync queue:', this.pendingSyncQueue.length, 'items');
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load sync queue:', error);
+      this.pendingSyncQueue = [];
+    }
+  }
+
+  /**
+   * ✅ NEW: สร้าง unique ID สำหรับ sync
+   */
+  private generateSyncId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  }
+
+  /**
+   * ✅ NEW: ส่ง notification ผ่าน PWA service (ถ้ามี)
+   */
+  private addNotificationViaPWA(type: string, title: string, message: string): void {
+    // Dispatch custom event ให้ PWA service รับ
+    const event = new CustomEvent('pwa-api-notification', {
+      detail: { type, title, message }
+    });
+    window.dispatchEvent(event);
+  }
 
   // ✅ Helper method สำหรับสร้าง headers พร้อม token (อัตโนมัติ)
   private getAuthHeaders(): HttpHeaders {
@@ -920,7 +1293,7 @@ export class ApiService {
   }
 
   /**
-   * Fallback method ที่ใช้ข้อมูลจาก master filter มาช่วยเติมข้อมูล
+   * ✅ ENHANCED: Fallback method ที่ใช้ข้อมูลจาก master filter มาช่วยเติมข้อมูล
    */
   getAllTicketsWithDetails(): Observable<AllTicketData[]> {
     return this.getAllTickets().pipe(
@@ -935,24 +1308,44 @@ export class ApiService {
             const categories = masterResponse.data?.categories || [];
             const projects = masterResponse.data?.projects || [];
 
-            return ticketResponse.data!.map(ticket => ({
+            const enrichedTickets = ticketResponse.data!.map(ticket => ({
               ...ticket,
               category_name: categories.find(c => c.id === ticket.categories_id)?.name || 'Unknown Category',
               project_name: projects.find(p => p.id === ticket.project_id)?.name || 'Unknown Project',
-              user_name: 'Current User', // ในการใช้งานจริงอาจต้องดึงจาก user service
+              user_name: 'Current User',
               priority: ticket.priority || this.generateRandomPriority(),
-              status_name: this.getCachedStatusName(ticket.status_id) // ✅ เพิ่ม status_name
+              status_name: this.getCachedStatusName(ticket.status_id)
             }));
+
+            // ✅ Cache ข้อมูลที่ได้
+            this.cacheTickets(enrichedTickets);
+            
+            return enrichedTickets;
           }),
           catchError(error => {
             console.warn('Error loading master filter, using basic ticket data:', error);
-            // ถ้า master filter ล้มเหลว ให้ใช้ข้อมูลพื้นฐาน
-            return of(this.processTicketData(ticketResponse.data!));
+            const basicTickets = this.processTicketData(ticketResponse.data!);
+            
+            // ✅ Cache แม้จะเป็นข้อมูลพื้นฐาน
+            this.cacheTickets(basicTickets);
+            
+            return of(basicTickets);
           })
         );
       }),
       catchError(error => {
         console.error('Error in getAllTicketsWithDetails:', error);
+        
+        // ✅ ลอง fallback ไปที่ cache
+        const cachedTickets = this.getCachedTickets();
+        if (cachedTickets) {
+          console.log('📱 Using cached tickets as fallback');
+          this.addNotificationViaPWA('cache-used', 
+            'ใช้ข้อมูลที่เก็บไว้', 
+            'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้');
+          return of(cachedTickets);
+        }
+        
         return of([]);
       })
     );

@@ -155,11 +155,11 @@
     </div>
   </div>
 
-  <!-- Loading State -->
+  <!-- ✅ Loading State - แก้ไขให้ไม่หมุน -->
   <div *ngIf="isLoading" class="loading-container">
-    <div class="loading-spinner">
-      <span class="spinner-border spinner-border-lg"></span>
-      <p>Loading tickets...</p>
+    <div class="static-loading-indicator">
+      <div class="static-loading-circle"></div>
+      <p class="static-loading-text">Loading tickets...</p>
     </div>
   </div>
 

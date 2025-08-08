@@ -1,4 +1,4 @@
-<!-- ✅ PWA Floating Action Button -->
+<!-- ✅ PWA Floating Action Button (ใช้หน้าตาเก่า) -->
 <div class="pwa-fab" 
      [class.offline]="!isOnline"
      [class.has-notifications]="notifications.length > 0"
@@ -67,7 +67,7 @@
           'bi-wifi text-success': notification.type === 'online',
           'bi-database text-info': notification.type === 'cache-used',
           'bi-arrow-clockwise text-primary': notification.type === 'update-available',
-          'bi-exclamation-triangle text-danger': notification.type === 'error'
+          'bi-exclamation-triangle text-danger': notification.type === 'error' || notification.type === 'sync-failed'
         }"></i>
       </div>
       
@@ -78,15 +78,17 @@
         <div class="toast-time">
           <small class="text-muted">{{ formatTime(notification.timestamp) }}</small>
         </div>
+        
+        <!-- Metadata from new version -->
+        <div class="notification-metadata" *ngIf="notification.metadata">
+          <small *ngIf="notification.metadata.syncItemsCount">
+            ซิงค์: {{ notification.metadata.syncItemsCount }} รายการ
+          </small>
+          <small *ngIf="notification.metadata.cacheSize">
+            ขนาด: {{ notification.metadata.cacheSize }}
+          </small>
+        </div>
       </div>
-      
-      <!-- Action Button -->
-      <button 
-        class="btn btn-sm btn-outline-primary" 
-        *ngIf="notification.action"
-        (click)="notification.action!()">
-        ดำเนินการ
-      </button>
       
       <!-- Close Button -->
       <button 
@@ -99,7 +101,7 @@
   </div>
 </div>
 
-<!-- ✅ PWA Info Panel (แสดงเมื่อคลิก FAB) -->
+<!-- ✅ PWA Info Panel (แสดงเมื่อคลิก FAB) - รวม content ใหม่ -->
 <div class="pwa-info-panel" *ngIf="showInfoPanel" (click)="toggleInfoPanel()">
   <div class="info-panel-content" (click)="$event.stopPropagation()">
     <div class="panel-header">
@@ -124,6 +126,36 @@
           <span [class]="isOnline ? 'text-success' : 'text-warning'">
             {{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}
           </span>
+        </div>
+      </div>
+
+      <!-- Sync Status (ใหม่) -->
+      <div class="info-item" *ngIf="syncStatus">
+        <div class="info-label">
+          <i class="bi bi-arrow-repeat me-2"></i>
+          สถานะซิงค์:
+        </div>
+        <div class="info-value">
+          <span *ngIf="syncStatus.isSyncing" class="text-primary">
+            <i class="bi bi-arrow-clockwise me-1"></i>กำลังซิงค์...
+          </span>
+          <span *ngIf="!syncStatus.isSyncing && syncStatus.pendingCount > 0" class="text-warning">
+            <i class="bi bi-clock me-1"></i>{{ syncStatus.pendingCount }} รายการรอ
+          </span>
+          <span *ngIf="!syncStatus.isSyncing && syncStatus.pendingCount === 0" class="text-success">
+            <i class="bi bi-check-circle me-1"></i>ซิงค์เรียบร้อย
+          </span>
+        </div>
+      </div>
+
+      <!-- Last Sync Time (ใหม่) -->
+      <div class="info-item" *ngIf="syncStatus?.lastSyncTime && !syncStatus?.isSyncing">
+        <div class="info-label">
+          <i class="bi bi-clock-history me-2"></i>
+          ซิงค์ล่าสุด:
+        </div>
+        <div class="info-value">
+          <small class="text-muted">{{ formatLastSync(syncStatus?.lastSyncTime!) }}</small>
         </div>
       </div>
       
@@ -161,34 +193,40 @@
         </div>
       </div>
       
-      <!-- Cache Details -->
-      <div class="cache-details" *ngIf="cacheInfo && (cacheInfo.categories.hasCache || cacheInfo.projects.hasCache)">
+      <!-- Cache Details (รวมจาก version ใหม่) -->
+      <div class="cache-details" *ngIf="cacheInfo && showCacheDetails">
         <h6 class="cache-details-title">
           <i class="bi bi-info-circle me-2"></i>
           รายละเอียดแคช
         </h6>
         
-        <div class="cache-item" *ngIf="cacheInfo.categories.hasCache">
+        <div class="cache-item" *ngIf="cacheInfo.tickets">
+          <span class="cache-label">
+            <i class="bi bi-ticket me-1"></i>ตั๋ว:
+          </span>
+          <span class="cache-value">
+            {{ cacheInfo.tickets.dataCount }} รายการ
+            <span [class.cache-stale]="cacheInfo.tickets.isStale">
+              {{ cacheInfo.tickets.isStale ? '(เก่า)' : '(ใหม่)' }}
+            </span>
+          </span>
+        </div>
+        
+        <div class="cache-item" *ngIf="cacheInfo.categories">
           <span class="cache-label">
             <i class="bi bi-tags me-1"></i>หมวดหมู่:
           </span>
           <span class="cache-value">
             {{ cacheInfo.categories.dataCount }} รายการ
-            <small class="text-muted">
-              ({{ cacheInfo.categories.ageInMinutes }} นาทีที่แล้ว)
-            </small>
           </span>
         </div>
         
-        <div class="cache-item" *ngIf="cacheInfo.projects.hasCache">
+        <div class="cache-item" *ngIf="cacheInfo.projects">
           <span class="cache-label">
-            <i class="bi bi-folder me-1"></i>โปรเจค:
+            <i class="bi bi-folder me-1"></i>โครงการ:
           </span>
           <span class="cache-value">
             {{ cacheInfo.projects.dataCount }} รายการ
-            <small class="text-muted">
-              ({{ cacheInfo.projects.ageInMinutes }} นาทีที่แล้ว)
-            </small>
           </span>
         </div>
       </div>
@@ -210,19 +248,28 @@
           <i class="bi bi-arrow-clockwise me-2"></i>
           อัปเดต
         </button>
+
+        <button 
+          class="btn btn-sm btn-primary" 
+          (click)="refreshData()"
+          [disabled]="!isOnline || (syncStatus?.isSyncing)"
+          title="รีเฟรชข้อมูล">
+          <i class="bi bi-arrow-clockwise me-2" [class.spinning]="syncStatus?.isSyncing"></i>
+          รีเฟรชข้อมูล
+        </button>
+
+        <button 
+          class="btn btn-sm btn-outline-secondary" 
+          (click)="toggleCacheDetails()">
+          <i class="bi bi-info-circle me-2"></i>
+          {{ showCacheDetails ? 'ซ่อน' : 'แสดง' }}รายละเอียด
+        </button>
         
         <button 
           class="btn btn-sm btn-outline-danger" 
           (click)="clearAllCache()">
           <i class="bi bi-trash me-2"></i>
           ล้างแคช
-        </button>
-        
-        <button 
-          class="btn btn-sm btn-outline-info" 
-          (click)="refreshCacheInfo()">
-          <i class="bi bi-arrow-clockwise me-2"></i>
-          รีเฟรช
         </button>
       </div>
     </div>
