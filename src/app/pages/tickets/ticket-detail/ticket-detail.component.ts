@@ -1794,7 +1794,7 @@ export class TicketDetailComponent implements OnInit {
     if (!this.ticketData?.ticket) return;
 
     const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id || currentUser?.user_id;
+    const currentUserId = currentUser?.id;
     
     if (!currentUserId) {
       console.error('No current user ID found');
@@ -1858,7 +1858,7 @@ export class TicketDetailComponent implements OnInit {
 
   private clearLocalStorageData(): void {
     const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id || currentUser?.user_id;
+    const currentUserId = currentUser?.id;
     
     if (currentUserId) {
       const incompleteKey = `incompleteTicket_${currentUserId}`;

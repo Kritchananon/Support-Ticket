@@ -3,13 +3,16 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
     "build:pwa": "ng build --configuration=production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:pwa": "ng build --configuration=production && npx http-server dist/support-ticket-test -p 8080 -c-1",
-    "install:deps": "npm install --legacy-peer-deps"
+    "serve:prod": "ng serve --configuration production --proxy-config proxy.conf.json",
+    "install:deps": "npm install --legacy-peer-deps",
+    "lint": "ng lint",
+    "e2e": "ng e2e"
   },
   "private": true,
   "dependencies": {
