@@ -1,16 +1,25 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService, MasterFilterCategory, MasterFilterProject, AllTicketData } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
+
+// ✅ Import Permission Models
+import { permissionEnum, UserRole, ROLES } from '../../../shared/models/permission.model';
+import { UserWithPermissions } from '../../../shared/models/user.model';
+
+// ✅ Import Permission Directives
+import { HasPermissionDirective, HasRoleDirective } from '../../../shared/directives/permission.directive';
 
 @Component({
   selector: 'app-ticket-list',
   standalone: true,
   imports: [
     CommonModule, 
-    FormsModule
+    FormsModule,
+    HasPermissionDirective,  // ✅ Import permission directives
+    HasRoleDirective
   ],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css']
@@ -19,35 +28,50 @@ export class TicketListComponent implements OnInit {
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
-  // ✅ เปลี่ยนจาก any[] เป็น AllTicketData[]
+  // ✅ Permission Enums (for template usage)
+  readonly permissionEnum = permissionEnum;
+  readonly ROLES = ROLES;
+
+  // ✅ User and Permission Data
+  currentUser: UserWithPermissions | null = null;
+  userPermissions: permissionEnum[] = [];
+  userRoles: UserRole[] = [];
+
+  // ✅ View Mode Configuration
+  viewMode: 'all' | 'own-only' = 'all';
+  canViewAllTickets = false;
+  canViewOwnTickets = false;
+  canCreateTickets = false;
+  canManageTickets = false;
+
+  // ✅ Ticket Data
   tickets: AllTicketData[] = [];
   filteredTickets: AllTicketData[] = [];
   isLoading = false;
-  currentUser: any;
+  ticketsError = '';
+  noTicketsFound = false;
 
+  // ✅ Filter Data
   categories: MasterFilterCategory[] = [];
   projects: MasterFilterProject[] = [];
   loadingFilters = false;
   filterError = '';
 
-  // ✅ เพิ่ม error handling สำหรับ tickets
-  ticketsError = '';
-  noTicketsFound = false;
-
-  // ✅ NEW: Status management properties
+  // ✅ Status Management
   statusCacheLoaded = false;
   isLoadingStatuses = false;
   statusError = '';
 
-  // Filter states
+  // ✅ Filter States
   searchText = '';
   selectedPriority = '';
   selectedStatus = '';
   selectedProject = '';
   selectedCategory = '';
 
-  // Priority options
+  // ✅ Priority Options
   priorityOptions = [
     { value: '', label: 'All Priority' },
     { value: 'high', label: 'High' },
@@ -55,7 +79,7 @@ export class TicketListComponent implements OnInit {
     { value: 'low', label: 'Low' }
   ];
 
-  // Status options
+  // ✅ Status Options
   statusOptions = [
     { value: '', label: 'All Status' },
     { value: '1', label: 'Pending' },
@@ -67,22 +91,158 @@ export class TicketListComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.currentUser = this.authService.getCurrentUser();
-    console.log('Current user:', this.currentUser);
+    console.log('🎫 TicketListComponent initialized');
     
-    // ✅ NEW: โหลด status cache ก่อน
+    // ✅ Load user data and permissions
+    this.loadUserData();
+    
+    // ✅ Determine view mode from route data
+    this.determineViewMode();
+    
+    // ✅ Check permissions
+    this.checkPermissions();
+    
+    // ✅ Load data
     this.loadStatusCache();
-    
-    // โหลด master filters ก่อน แล้วค่อยโหลด tickets
     this.loadMasterFilters();
-    this.loadAllTickets();
+    this.loadTickets();
   }
 
-  // ✅ NEW: โหลด status cache
+  // ===== USER DATA & PERMISSIONS ===== ✅
+
+  private loadUserData(): void {
+    this.currentUser = this.authService.getCurrentUserWithPermissions();
+    this.userPermissions = this.authService.getUserPermissions();
+    this.userRoles = this.authService.getUserRoles();
+    
+    console.log('👤 User data loaded:', {
+      username: this.currentUser?.username,
+      permissions: this.userPermissions.length,
+      roles: this.userRoles,
+      primaryRole: this.authService.getPrimaryRole()
+    });
+  }
+
+  private determineViewMode(): void {
+    // ✅ Check route data for view mode
+    const routeViewMode = this.route.snapshot.data['viewMode'];
+    if (routeViewMode === 'own-only') {
+      this.viewMode = 'own-only';
+      console.log('📋 View mode set to: own-only (from route data)');
+    } else {
+      // ✅ Auto-determine based on permissions
+      if (this.authService.hasPermission(permissionEnum.VIEW_ALL_TICKETS)) {
+        this.viewMode = 'all';
+        console.log('📋 View mode set to: all (has VIEW_ALL_TICKETS permission)');
+      } else if (this.authService.hasPermission(permissionEnum.VIEW_OWN_TICKETS)) {
+        this.viewMode = 'own-only';
+        console.log('📋 View mode set to: own-only (has VIEW_OWN_TICKETS permission only)');
+      } else {
+        console.warn('⚠️ User has no ticket viewing permissions');
+        this.viewMode = 'own-only'; // Default fallback
+      }
+    }
+  }
+
+  private checkPermissions(): void {
+    this.canViewAllTickets = this.authService.hasPermission(permissionEnum.VIEW_ALL_TICKETS);
+    this.canViewOwnTickets = this.authService.hasPermission(permissionEnum.VIEW_OWN_TICKETS);
+    this.canCreateTickets = this.authService.hasPermission(permissionEnum.CREATE_TICKET);
+    this.canManageTickets = this.authService.canManageTickets();
+
+    console.log('🔐 Permission check results:', {
+      canViewAllTickets: this.canViewAllTickets,
+      canViewOwnTickets: this.canViewOwnTickets,
+      canCreateTickets: this.canCreateTickets,
+      canManageTickets: this.canManageTickets,
+      viewMode: this.viewMode
+    });
+
+    // ✅ Redirect if no permissions
+    if (!this.canViewAllTickets && !this.canViewOwnTickets) {
+      console.error('❌ User has no ticket viewing permissions, redirecting to dashboard');
+      this.router.navigate(['/dashboard']);
+      return;
+    }
+  }
+
+  // ===== PERMISSION HELPER METHODS ===== ✅
+
+  hasPermission(permission: permissionEnum): boolean {
+    return this.authService.hasPermission(permission);
+  }
+
+  hasRole(role: UserRole): boolean {
+    return this.authService.hasRole(role);
+  }
+
+  hasAnyRole(roles: UserRole[]): boolean {
+    return this.authService.hasAnyRole(roles);
+  }
+
+  canEditTicket(ticket: AllTicketData): boolean {
+    // ✅ Admin/Supporter can edit any ticket
+    if (this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER])) {
+      return this.hasPermission(permissionEnum.EDIT_TICKET) || 
+             this.hasPermission(permissionEnum.CHANGE_STATUS);
+    }
+    
+    // ✅ Users can edit their own tickets
+    if (this.hasRole(ROLES.USER)) {
+      return this.hasPermission(permissionEnum.EDIT_TICKET) && 
+             ticket.create_by === this.currentUser?.id;
+    }
+    
+    return false;
+  }
+
+  canDeleteTicket(ticket: AllTicketData): boolean {
+    // ✅ Admin can delete any ticket
+    if (this.hasRole(ROLES.ADMIN)) {
+      return this.hasPermission(permissionEnum.DELETE_TICKET);
+    }
+    
+    // ✅ Users can delete their own tickets (if not in progress)
+    if (this.hasRole(ROLES.USER)) {
+      return this.hasPermission(permissionEnum.DELETE_TICKET) && 
+             ticket.create_by === this.currentUser?.id &&
+             ticket.status_id === 1; // Only if status is "Created"
+    }
+    
+    return false;
+  }
+
+  canChangeStatus(ticket: AllTicketData): boolean {
+    return this.hasPermission(permissionEnum.CHANGE_STATUS) &&
+           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+  }
+
+  canAssignTicket(ticket: AllTicketData): boolean {
+    return this.hasPermission(permissionEnum.ASSIGNEE) &&
+           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+  }
+
+  canReplyToTicket(ticket: AllTicketData): boolean {
+    return this.hasPermission(permissionEnum.REPLY_TICKET) &&
+           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+  }
+
+  canSolveProblem(ticket: AllTicketData): boolean {
+    return this.hasPermission(permissionEnum.SOLVE_PROBLEM) &&
+           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+  }
+
+  canRateSatisfaction(ticket: AllTicketData): boolean {
+    return this.hasPermission(permissionEnum.SATISFACTION) &&
+           ticket.create_by === this.currentUser?.id &&
+           ticket.status_id === 5; // Completed status
+  }
+
+  // ===== DATA LOADING ===== ✅
+
   private loadStatusCache(): void {
     console.log('=== Loading Status Cache ===');
     
-    // ตรวจสอบว่า cache โหลดแล้วหรือยัง
     if (this.apiService.isStatusCacheLoaded()) {
       this.statusCacheLoaded = true;
       console.log('✅ Status cache already loaded');
@@ -111,31 +271,44 @@ export class TicketListComponent implements OnInit {
     });
   }
 
-  // ✅ ใหม่: Method สำหรับโหลด tickets จาก getAllTicket API
-  loadAllTickets(): void {
-    console.log('=== Loading All Tickets ===');
+  private loadTickets(): void {
+    console.log(`=== Loading Tickets (${this.viewMode} mode) ===`);
     this.isLoading = true;
     this.ticketsError = '';
     this.noTicketsFound = false;
 
-    // เรียกใช้ method ที่มีการ enrich ข้อมูล
-    this.apiService.getAllTicketsWithDetails().subscribe({
+    // ✅ Use different methods based on view mode
+    const ticketObservable = this.viewMode === 'all' 
+      ? this.apiService.getAllTicketsWithDetails()
+      : this.apiService.getAllTicketsWithDetails(); // TODO: Implement getOwnTickets() if needed
+
+    ticketObservable.subscribe({
       next: (tickets) => {
         console.log('✅ Tickets loaded successfully:', tickets.length);
-        console.log('Sample ticket:', tickets[0]);
         
-        if (tickets.length === 0) {
+        // ✅ Filter tickets based on view mode and permissions
+        const filteredTickets = this.filterTicketsByPermission(tickets);
+        
+        if (filteredTickets.length === 0) {
           this.noTicketsFound = true;
           this.tickets = [];
           this.filteredTickets = [];
         } else {
-          this.tickets = tickets;
+          this.tickets = filteredTickets;
           this.filteredTickets = [...this.tickets];
           this.applyFilters();
           this.noTicketsFound = false;
         }
         
         this.isLoading = false;
+        
+        console.log('📊 Ticket loading summary:', {
+          totalLoaded: tickets.length,
+          afterPermissionFilter: filteredTickets.length,
+          viewMode: this.viewMode,
+          userCanViewAll: this.canViewAllTickets,
+          userCanViewOwn: this.canViewOwnTickets
+        });
       },
       error: (error) => {
         console.error('❌ Error loading tickets:', error);
@@ -144,6 +317,20 @@ export class TicketListComponent implements OnInit {
         this.noTicketsFound = true;
       }
     });
+  }
+
+  private filterTicketsByPermission(tickets: AllTicketData[]): AllTicketData[] {
+    if (this.viewMode === 'all' && this.canViewAllTickets) {
+      // ✅ Can view all tickets
+      return tickets;
+    } else if (this.canViewOwnTickets && this.currentUser) {
+      // ✅ Can only view own tickets
+      return tickets.filter(ticket => ticket.create_by === this.currentUser!.id);
+    } else {
+      // ✅ No permission to view any tickets
+      console.warn('⚠️ User has no permission to view tickets');
+      return [];
+    }
   }
 
   loadMasterFilters(): void {
@@ -173,7 +360,8 @@ export class TicketListComponent implements OnInit {
     });
   }
 
-  // ✅ UPDATED: ปรับปรุง getStatusText ให้ใช้ cache
+  // ===== STATUS MANAGEMENT ===== ✅
+
   getStatusText(statusId: number): string {
     if (this.statusCacheLoaded) {
       return this.apiService.getCachedStatusName(statusId);
@@ -190,6 +378,32 @@ export class TicketListComponent implements OnInit {
       default: return 'Unknown';
     }
   }
+
+  getStatusBadgeClass(statusId: number): string {
+    switch (statusId) {
+      case 1: return 'badge-pending';
+      case 2: return 'badge-in-progress';
+      case 3: return 'badge-hold';
+      case 4: return 'badge-resolved';
+      case 5: return 'badge-complete';
+      case 6: return 'badge-cancel';
+      default: return 'badge-pending';
+    }
+  }
+
+  getStatusIcon(statusId: number): string {
+    switch (statusId) {
+      case 1: return 'bi-plus-circle';      // Created
+      case 2: return 'bi-clock';            // Open Ticket
+      case 3: return 'bi-play-circle';      // In Progress
+      case 4: return 'bi-clipboard-check';  // Resolved
+      case 5: return 'bi-check-circle';     // Completed
+      case 6: return 'bi-x-circle';         // Cancel
+      default: return 'bi-clock';
+    }
+  }
+
+  // ===== FILTER METHODS ===== ✅
 
   onSearchChange(): void {
     this.applyFilters();
@@ -264,32 +478,7 @@ export class TicketListComponent implements OnInit {
     this.filteredTickets = [...this.tickets];
   }
 
-  getStatusBadgeClass(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'badge-pending';
-      case 2: return 'badge-in-progress';
-      case 3: return 'badge-hold';
-      case 4: return 'badge-resolved';
-      case 5: return 'badge-complete';
-      case 6: return 'badge-cancel';
-      default: return 'badge-pending';
-    }
-  }
-
-  /**
-   * ✅ UPDATED: เปลี่ยนไอคอนให้ตรงกับ history
-   */
-  getStatusIcon(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'bi-plus-circle';      // Created - ตรงกับ history
-      case 2: return 'bi-clock';            // Open Ticket - ตรงกับ history
-      case 3: return 'bi-play-circle';      // In Progress - ตรงกับ history
-      case 4: return 'bi-clipboard-check';  // Resolved - ตรงกับ history
-      case 5: return 'bi-check-circle';     // Completed - ตรงกับ history
-      case 6: return 'bi-x-circle';         // Cancel - ตรงกับ history
-      default: return 'bi-clock';
-    }
-  }
+  // ===== STYLING METHODS ===== ✅
 
   getPriorityBadgeClass(priority: string): string {
     switch (priority?.toLowerCase()) {
@@ -315,22 +504,132 @@ export class TicketListComponent implements OnInit {
     }
   }
 
-  // ✅ แก้ไข: ใช้ ticket_no แทน ticket id สำหรับการ navigate
+  // ===== NAVIGATION METHODS ===== ✅
+
   viewTicket(ticket: AllTicketData): void {
     console.log('Viewing ticket:', ticket.ticket_no);
     this.router.navigate(['/tickets', ticket.ticket_no]);
   }
 
+  editTicket(ticket: AllTicketData): void {
+    if (!this.canEditTicket(ticket)) {
+      console.warn('User cannot edit this ticket');
+      return;
+    }
+    
+    console.log('Editing ticket:', ticket.ticket_no);
+    this.router.navigate(['/tickets/edit', ticket.ticket_no]);
+  }
+
   createNewTicket(): void {
+    if (!this.canCreateTickets) {
+      console.warn('User cannot create tickets');
+      return;
+    }
+    
+    console.log('Creating new ticket');
     this.router.navigate(['/tickets/new']);
   }
 
-  // ✅ NEW: ปรับปรุง getDebugInfo ให้แสดงข้อมูล status
+  // ===== TICKET ACTIONS ===== ✅
+
+  deleteTicket(ticket: AllTicketData): void {
+    if (!this.canDeleteTicket(ticket)) {
+      console.warn('User cannot delete this ticket');
+      return;
+    }
+
+    const confirmDelete = confirm(
+      `คุณต้องการลบตั๋ว ${ticket.ticket_no} หรือไม่?\n\nการดำเนินการนี้ไม่สามารถยกเลิกได้`
+    );
+
+    if (confirmDelete) {
+      console.log('Deleting ticket:', ticket.ticket_no);
+      
+      this.apiService.deleteTicketByTicketNo(ticket.ticket_no).subscribe({
+        next: (response) => {
+          if (response.code === 1) {
+            console.log('✅ Ticket deleted successfully');
+            // Reload tickets
+            this.loadTickets();
+          } else {
+            console.error('❌ Failed to delete ticket:', response.message);
+            alert('ไม่สามารถลบตั๋วได้: ' + response.message);
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error deleting ticket:', error);
+          alert('เกิดข้อผิดพลาดในการลบตั๋ว');
+        }
+      });
+    }
+  }
+
+  changeTicketStatus(ticket: AllTicketData, newStatusId: number): void {
+    if (!this.canChangeStatus(ticket)) {
+      console.warn('User cannot change ticket status');
+      return;
+    }
+
+    console.log('Changing ticket status:', ticket.ticket_no, 'to', newStatusId);
+    
+    this.apiService.updateTicketByTicketNo(ticket.ticket_no, {
+      status_id: newStatusId
+    }).subscribe({
+      next: (response) => {
+        if (response.code === 1) {
+          console.log('✅ Ticket status changed successfully');
+          // Update local ticket data
+          ticket.status_id = newStatusId;
+        } else {
+          console.error('❌ Failed to change ticket status:', response.message);
+          alert('ไม่สามารถเปลี่ยนสถานะตั๋วได้: ' + response.message);
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error changing ticket status:', error);
+        alert('เกิดข้อผิดพลาดในการเปลี่ยนสถานะตั๋ว');
+      }
+    });
+  }
+
+  assignTicket(ticket: AllTicketData): void {
+    if (!this.canAssignTicket(ticket)) {
+      console.warn('User cannot assign tickets');
+      return;
+    }
+
+    // TODO: Implement ticket assignment logic
+    console.log('Assigning ticket:', ticket.ticket_no);
+    alert('ฟีเจอร์การมอบหมายตั๋วยังไม่พร้อมใช้งาน');
+  }
+
+  // ===== UTILITY METHODS ===== ✅
+
+  reloadTickets(): void {
+    console.log('🔄 Reloading tickets');
+    this.loadTickets();
+  }
+
+  reloadStatusCache(): void {
+    console.log('Reloading status cache...');
+    this.apiService.clearStatusCache();
+    this.statusCacheLoaded = false;
+    this.loadStatusCache();
+  }
+
   getDebugInfo(): any {
     return {
       totalTickets: this.tickets.length,
       filteredTickets: this.filteredTickets.length,
       currentUser: this.currentUser?.id,
+      viewMode: this.viewMode,
+      permissions: {
+        canViewAll: this.canViewAllTickets,
+        canViewOwn: this.canViewOwnTickets,
+        canCreate: this.canCreateTickets,
+        canManage: this.canManageTickets
+      },
       hasError: !!this.ticketsError,
       isLoading: this.isLoading,
       statusCache: {
@@ -348,11 +647,33 @@ export class TicketListComponent implements OnInit {
     };
   }
 
-  // ✅ NEW: Method สำหรับ reload status cache
-  reloadStatusCache(): void {
-    console.log('Reloading status cache...');
-    this.apiService.clearStatusCache();
-    this.statusCacheLoaded = false;
-    this.loadStatusCache();
+  // ===== VIEW MODE METHODS ===== ✅
+
+  getViewModeTitle(): string {
+    return this.viewMode === 'all' ? 'All Tickets' : 'My Tickets';
+  }
+
+  getViewModeDescription(): string {
+    if (this.viewMode === 'all') {
+      return 'Viewing all tickets in the system';
+    } else {
+      return 'Viewing only tickets created by you';
+    }
+  }
+
+  canSwitchViewMode(): boolean {
+    return this.canViewAllTickets && this.canViewOwnTickets;
+  }
+
+  switchToAllTickets(): void {
+    if (this.canViewAllTickets) {
+      this.router.navigate(['/tickets']);
+    }
+  }
+
+  switchToMyTickets(): void {
+    if (this.canViewOwnTickets) {
+      this.router.navigate(['/tickets/my-tickets']);
+    }
   }
 }

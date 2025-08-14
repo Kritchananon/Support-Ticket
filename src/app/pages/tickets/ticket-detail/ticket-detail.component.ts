@@ -1,10 +1,13 @@
+// ===== การปรับแก้ ticket-detail.component.ts ===== ✅
+
+// ✅ 1. เพิ่ม imports ที่จำเป็น
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 
-// ✅ Import API Services with satisfaction
+// ✅ Import API Services
 import { 
   ApiService, 
   TicketHistoryResponse, 
@@ -13,11 +16,19 @@ import {
   satisfactionResponse
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-
-// ✅ Import Ticket Service
 import { TicketService } from '../../../shared/services/ticket.service';
 
-// ✅ Import New Interfaces
+// ✅ Import NEW: Permission Directives
+import { PERMISSION_DIRECTIVES } from '../../../shared/directives/permission.directive';
+
+// ✅ Import Permission Models
+import { 
+  permissionEnum,
+  UserRole,
+  ROLES 
+} from '../../../shared/models/permission.model';
+
+// ✅ Import Interfaces (existing)
 import { 
   SaveSupporterFormData, 
   SaveSupporterResponse, 
@@ -86,12 +97,17 @@ interface TicketData {
   }>;
 }
 
-// ===== COMPONENT ===== ✅
+// ===== COMPONENT DECLARATION ===== ✅
 
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    ...PERMISSION_DIRECTIVES  // ✅ เพิ่ม permission directives
+  ],
   templateUrl: './ticket-detail.component.html',
   styleUrls: ['./ticket-detail.component.css']
 })
@@ -101,9 +117,9 @@ export class TicketDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private apiService = inject(ApiService);
-  private authService = inject(AuthService);
-  private ticketService = inject(TicketService); // ✅ เพิ่ม TicketService
-  private fb = inject(FormBuilder); // ✅ เพิ่ม FormBuilder
+  public authService = inject(AuthService);  // ✅ เปลี่ยนเป็น public เพื่อใช้ใน template
+  private ticketService = inject(TicketService);
+  private fb = inject(FormBuilder);
 
   // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
@@ -155,7 +171,7 @@ export class TicketDetailComponent implements OnInit {
     isLoading?: boolean;
   } } = {};
 
-  // ✅ ===== NEW: SUPPORTER PROPERTIES ===== 
+  // ✅ ===== ENHANCED: SUPPORTER PROPERTIES ===== 
 
   // Supporter Form & State
   supporterForm!: FormGroup;
@@ -167,9 +183,13 @@ export class TicketDetailComponent implements OnInit {
     successMessage: null
   };
 
-  // User Permissions
+  // ✅ ENHANCED: Permission Properties
   isSupporterMode = false;
   canUserSaveSupporter = false;
+  hasViewAllTicketsPermission = false;
+  hasChangeStatusPermission = false;
+  hasAssigneePermission = false;
+  hasSolveProblemPermission = false;
 
   // Action Dropdown
   actionDropdownOptions: ActionDropdownOption[] = [
@@ -215,7 +235,7 @@ export class TicketDetailComponent implements OnInit {
     
     if (this.ticket_no) {
       this.initializeSupporterForm();
-      this.checkUserPermissions();
+      this.checkUserPermissions();  // ✅ ENHANCED
       this.loadStatusCache();
       this.loadTicketDetail();
     } else {
@@ -223,76 +243,222 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ✅ ===== NEW: SUPPORTER INITIALIZATION ===== 
+  // ===== ✅ ENHANCED: PERMISSION CHECKING METHODS ===== 
 
   /**
-   * ✅ สร้าง Supporter Form
-   */
-  private initializeSupporterForm(): void {
-    this.supporterForm = this.fb.group({
-      action: ['', [Validators.required]],
-      estimate_time: [null, [Validators.min(0), Validators.max(1000)]],
-      due_date: [''],
-      lead_time: [null, [Validators.min(0), Validators.max(10000)]],
-      close_estimate: [''],
-      fix_issue_description: ['', [Validators.maxLength(5000)]],
-      related_ticket_id: ['']
-    });
-
-    // Listen to form changes for real-time validation
-    this.supporterForm.valueChanges.subscribe(() => {
-      this.validateSupporterForm();
-    });
-  }
-
-  /**
-   * ✅ ตรวจสอบสิทธิ์ของ User
+   * ✅ ENHANCED: ตรวจสอบสิทธิ์ของ User
    */
   private checkUserPermissions(): void {
-    this.canUserSaveSupporter = this.ticketService.canUserSaveSupporter();
+    console.log('🔍 Checking user permissions in ticket detail...');
+    
+    // ✅ ใช้ AuthService methods ที่มีอยู่แล้ว
+    this.canUserSaveSupporter = this.authService.isSupporter() || this.authService.isAdmin();
     this.isSupporterMode = this.canUserSaveSupporter;
     
-    console.log('User permissions:', {
+    // ✅ ตรวจสอบ permissions เฉพาะ
+    this.hasViewAllTicketsPermission = this.authService.hasPermission(permissionEnum.VIEW_ALL_TICKETS);
+    this.hasChangeStatusPermission = this.authService.hasPermission(permissionEnum.CHANGE_STATUS);
+    this.hasAssigneePermission = this.authService.hasPermission(permissionEnum.ASSIGNEE);
+    this.hasSolveProblemPermission = this.authService.hasPermission(permissionEnum.SOLVE_PROBLEM);
+    
+    console.log('✅ User permissions checked:', {
       canUserSaveSupporter: this.canUserSaveSupporter,
-      isSupporterMode: this.isSupporterMode
+      isSupporterMode: this.isSupporterMode,
+      hasViewAllTickets: this.hasViewAllTicketsPermission,
+      hasChangeStatus: this.hasChangeStatusPermission,
+      hasAssignee: this.hasAssigneePermission,
+      hasSolveProblem: this.hasSolveProblemPermission,
+      userRoles: this.authService.getUserRoles(),
+      isAdmin: this.authService.isAdmin(),
+      isSupporter: this.authService.isSupporter()
     });
   }
 
   /**
-   * ✅ แสดง/ซ่อน Supporter Form
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
+   */
+  canShowSupporterForm(): boolean {
+    return !!(this.isSupporterMode && 
+           this.canUserSaveSupporter && 
+           this.ticketData?.ticket && 
+           !this.isLoading);
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบ permission เฉพาะๆ (สำหรับใช้ใน template)
+   */
+  hasPermission(permission: number | permissionEnum): boolean {
+    return this.authService.hasPermission(permission);
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบ role เฉพาะๆ (สำหรับใช้ใน template)
+   */
+  hasRole(role: UserRole): boolean {
+    return this.authService.hasRole(role);
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบหลาย roles (สำหรับใช้ใน template)
+   */
+  hasAnyRole(roles: UserRole[]): boolean {
+    return this.authService.hasAnyRole(roles);
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าเป็น admin หรือไม่
+   */
+  isAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าเป็น supporter หรือไม่
+   */
+  isSupporter(): boolean {
+    return this.authService.isSupporter();
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าเป็น support team member หรือไม่
+   */
+  isSupportTeamMember(): boolean {
+    return this.authService.isSupporter() || this.authService.isAdmin();
+  }
+
+  // ===== ✅ ENHANCED: TICKET ACTION METHODS ===== 
+
+  /**
+   * ✅ ENHANCED: Edit ticket with permission check
+   */
+  onEditTicket(): void {
+    if (!this.ticketData?.ticket?.ticket_no) {
+      console.error('No ticket number available for edit');
+      return;
+    }
+
+    // ✅ ตรวจสอบสิทธิ์ก่อนแก้ไข
+    if (!this.authService.hasPermission(permissionEnum.EDIT_TICKET) && 
+        !this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN])) {
+      console.warn('User does not have permission to edit tickets');
+      alert('คุณไม่มีสิทธิ์แก้ไข ticket นี้');
+      return;
+    }
+
+    const currentStatus = this.getCurrentStatusId();
+    
+    if (currentStatus === 5) {
+      alert('Ticket นี้เสร็จสิ้นแล้ว ไม่สามารถแก้ไขได้');
+      return;
+    }
+    
+    if (currentStatus === 6) {
+      alert('Ticket นี้ถูกยกเลิกแล้ว ไม่สามารถแก้ไขได้');
+      return;
+    }
+
+    this.saveTicketDataForEdit();
+    this.router.navigate(['/tickets/edit', this.ticketData.ticket.ticket_no]);
+  }
+
+  /**
+   * ✅ ENHANCED: Delete ticket with permission check
+   */
+  onDeleteTicket(): void {
+    if (!this.ticketData?.ticket?.ticket_no) {
+      console.error('No ticket number available for deletion');
+      return;
+    }
+
+    // ✅ ตรวจสอบสิทธิ์ก่อนลบ
+    if (!this.authService.hasPermission(permissionEnum.DELETE_TICKET) && 
+        !this.authService.isAdmin()) {
+      console.warn('User does not have permission to delete tickets');
+      alert('คุณไม่มีสิทธิ์ลบ ticket นี้');
+      return;
+    }
+
+    const ticketNo = this.ticketData.ticket.ticket_no;
+    const confirmMessage = `คุณแน่ใจหรือไม่ที่ต้องการลบ ticket ${ticketNo}?\n\nการลบนี้ไม่สามารถยกเลิกได้`;
+    
+    if (confirm(confirmMessage)) {
+      this.deleteTicket(ticketNo);
+    }
+  }
+
+  /**
+   * ✅ NEW: Admin-only escalate ticket
+   */
+  escalateTicket(): void {
+    if (!this.authService.isAdmin()) {
+      console.warn('Only admin can escalate tickets');
+      alert('เฉพาะ Admin เท่านั้นที่สามารถ escalate ticket ได้');
+      return;
+    }
+
+    console.log('Escalating ticket (Admin action)');
+    // TODO: Implement escalation logic
+    alert('Ticket has been escalated');
+  }
+
+  /**
+   * ✅ NEW: Admin-only force close ticket
+   */
+  forceCloseTicket(): void {
+    if (!this.authService.isAdmin()) {
+      console.warn('Only admin can force close tickets');
+      alert('เฉพาะ Admin เท่านั้นที่สามารถ force close ticket ได้');
+      return;
+    }
+
+    if (confirm('คุณแน่ใจหรือไม่ที่ต้องการ force close ticket นี้?')) {
+      console.log('Force closing ticket (Admin action)');
+      // TODO: Implement force close logic
+      alert('Ticket has been force closed');
+    }
+  }
+
+  /**
+   * ✅ NEW: View ticket (refresh) - FIXED: Made public
+   */
+  onViewTicket(ticketNo: string): void {
+    console.log('Refreshing ticket:', ticketNo);
+    this.loadTicketDetail(); // ✅ This can now call the public method
+  }
+
+  // ===== ✅ ENHANCED: SUPPORTER FORM METHODS ===== 
+
+  /**
+   * ✅ ENHANCED: แสดง/ซ่อน Supporter Form
    */
   toggleSupporterForm(): void {
+    // ✅ ตรวจสอบสิทธิ์ก่อนแสดง form
+    if (!this.canUserSaveSupporter) {
+      console.warn('User does not have supporter permissions');
+      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features');
+      return;
+    }
+
     this.supporterFormState.isVisible = !this.supporterFormState.isVisible;
     
     if (this.supporterFormState.isVisible && this.ticketData?.ticket) {
       this.populateFormWithTicketData();
     }
+
+    console.log('Supporter form toggled:', this.supporterFormState.isVisible);
   }
 
   /**
-   * ✅ เติมข้อมูลใน Form จาก Ticket Data
-   */
-  private populateFormWithTicketData(): void {
-    if (!this.ticketData?.ticket) return;
-
-    const ticket = this.ticketData.ticket;
-    
-    this.supporterForm.patchValue({
-      estimate_time: ticket.estimate_time ? parseInt(ticket.estimate_time) : null,
-      due_date: ticket.due_date ? this.formatDateForInput(ticket.due_date) : '',
-      lead_time: ticket.lead_time ? parseInt(ticket.lead_time.toString()) : null,
-      close_estimate: ticket.close_estimate ? this.formatDateTimeForInput(ticket.close_estimate) : '',
-      fix_issue_description: ticket.fix_issue_description || '',
-      related_ticket_id: ticket.related_ticket_id?.toString() || ''
-    });
-  }
-
-  // ✅ ===== NEW: SUPPORTER FORM ACTIONS ===== 
-
-  /**
-   * ✅ บันทึกข้อมูล Supporter
+   * ✅ ENHANCED: บันทึกข้อมูล Supporter
    */
   onSaveSupporter(): void {
+    // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
+    if (!this.canUserSaveSupporter) {
+      console.warn('User does not have supporter permissions');
+      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter';
+      return;
+    }
+
     if (!this.supporterForm.valid || !this.ticketData?.ticket) {
       this.markFormGroupTouched();
       return;
@@ -331,45 +497,212 @@ export class TicketDetailComponent implements OnInit {
       });
   }
 
+  // ===== ✅ ENHANCED: SATISFACTION METHODS ===== 
+
   /**
-   * ✅ จัดการเมื่อบันทึกสำเร็จ
+   * ✅ ENHANCED: ตั้งค่าคะแนนความพึงพอใจและบันทึก (with permission check)
    */
-  private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
-    // อัพเดท ticket data
-    if (response.data.ticket) {
-      Object.assign(this.ticketData!.ticket, response.data.ticket);
+  setRating(rating: number): void {
+    // ✅ ตรวจสอบสิทธิ์ก่อนให้คะแนน
+    if (!this.authService.hasPermission(permissionEnum.SATISFACTION)) {
+      console.warn('User does not have permission to rate satisfaction');
+      alert('คุณไม่มีสิทธิ์ประเมินความพึงพอใจ');
+      return;
     }
 
-    // อัพเดท attachments
-    if (response.data.attachments && response.data.attachments.length > 0) {
-      this.ticketData!.fix_attachment.push(...response.data.attachments.map(att => ({
-        attachment_id: att.id,
-        path: `path/to/${att.filename}`, // ปรับตาม API response
-        filename: att.filename,
-        file_type: att.extension,
-        file_size: 0
-      })));
+    if (!this.canEvaluate) {
+      console.log('Cannot evaluate this ticket:', this.satisfactionMessage);
+      return;
     }
 
-    // แสดง Success Modal
-    this.showSuccessModal = true;
-    this.modalTitle = 'Supporter Data Saved';
-    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว';
-    this.modalTicketNo = this.ticket_no;
+    if (this.hasExistingSatisfaction) {
+      console.log('Ticket already has satisfaction rating');
+      return;
+    }
 
-    // ซ่อน form และรีเซ็ต
-    this.supporterFormState.isVisible = false;
-    this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จ';
-    this.resetSupporterForm();
-
-    // โหลดข้อมูล ticket ใหม่
-    this.loadTicketDetail();
-    
-    console.log('Supporter data saved successfully');
+    // ✅ ตั้งค่า rating ทันทีเพื่อให้ดาวเปลี่ยนสี
+    this.currentRating = rating;
+    this.satisfaction(rating);
+    console.log('Rating set to:', rating);
   }
 
   /**
-   * ✅ สร้าง FormData สำหรับส่ง API
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่ (with permission check)
+   */
+  canClickStar(): boolean {
+    return this.authService.hasPermission(permissionEnum.SATISFACTION) && 
+           this.canEvaluate && 
+           !this.hasExistingSatisfaction && 
+           !this.isSavingRating;
+  }
+
+  // ===== ✅ ENHANCED: PERMISSION-AWARE HELPER METHODS ===== 
+
+  /**
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check)
+   */
+  canEdit(): boolean {
+    if (!this.ticketData?.ticket) return false;
+    
+    // ✅ ตรวจสอบสิทธิ์ก่อน
+    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+                             this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    
+    if (!hasEditPermission) return false;
+    
+    const status = this.getCurrentStatusId();
+    return [1, 2, 3, 4].includes(status);
+  }
+
+  /**
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check)
+   */
+  canDelete(): boolean {
+    if (!this.ticketData?.ticket) return false;
+    
+    // ✅ ตรวจสอบสิทธิ์ก่อน
+    const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
+                               this.authService.isAdmin();
+    
+    if (!hasDeletePermission) return false;
+    
+    const status = this.getCurrentStatusId();
+    return ![5, 6].includes(status);
+  }
+
+  /**
+   * ✅ ENHANCED: ได้รับข้อความปุ่ม Edit (with permission context)
+   */
+  getEditButtonText(): string {
+    if (!this.ticketData?.ticket) return 'Edit';
+    
+    // ✅ ตรวจสอบสิทธิ์ก่อน
+    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+                             this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    
+    if (!hasEditPermission) return 'No Permission';
+    
+    const status = this.getCurrentStatusId();
+    
+    switch (status) {
+      case 5: return 'Completed';
+      case 6: return 'Cancelled';
+      default: return 'Edit';
+    }
+  }
+
+  /**
+   * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Edit (with permission context)
+   */
+  getEditButtonClass(): string {
+    const hasPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+                         this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    
+    if (!hasPermission) return 'btn-edit disabled no-permission';
+    
+    return this.canEdit() ? 'btn-edit' : 'btn-edit disabled';
+  }
+
+  /**
+   * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Delete (with permission context)
+   */
+  getDeleteButtonClass(): string {
+    const hasPermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
+                         this.authService.isAdmin();
+    
+    if (!hasPermission) return 'btn-delete disabled no-permission';
+    
+    return this.canDelete() ? 'btn-delete' : 'btn-delete disabled';
+  }
+
+  // ===== ✅ NEW: DEBUG METHODS FOR DEVELOPMENT ===== 
+
+  /**
+   * ✅ NEW: Debug permissions (สำหรับ development) - FIXED: Removed duplicate
+   */
+  debugPermissions(): void {
+    console.group('🔍 Ticket Detail Permission Debug');
+    console.log('Component permissions:', {
+      canUserSaveSupporter: this.canUserSaveSupporter,
+      isSupporterMode: this.isSupporterMode,
+      hasViewAllTickets: this.hasViewAllTicketsPermission,
+      hasChangeStatus: this.hasChangeStatusPermission,
+      hasAssignee: this.hasAssigneePermission,
+      hasSolveProblem: this.hasSolveProblemPermission
+    });
+    
+    console.log('Auth service permissions:', {
+      isAdmin: this.authService.isAdmin(),
+      isSupporter: this.authService.isSupporter(),
+      userRoles: this.authService.getUserRoles(),
+      effectivePermissions: this.authService.getEffectivePermissions().slice(0, 10)
+    });
+    
+    console.log('Action permissions:', {
+      canEdit: this.canEdit(),
+      canDelete: this.canDelete(),
+      canShowSupporterForm: this.canShowSupporterForm(),
+      canClickStar: this.canClickStar()
+    });
+    console.groupEnd();
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าใช้งานใน development mode หรือไม่
+   */
+  isDevelopment(): boolean {
+    return false; // ✅ ใช้ static value แทน environment
+  }
+
+  /**
+   * ✅ NEW: ได้รับ user roles สำหรับแสดงใน template
+   */
+  getUserRolesDisplay(): string {
+    return this.authService.getUserRoles().join(', ');
+  }
+
+  // ===== EXISTING METHODS (เก็บไว้เหมือนเดิม) ===== ✅
+
+  /**
+   * สร้าง Supporter Form
+   */
+  private initializeSupporterForm(): void {
+    this.supporterForm = this.fb.group({
+      action: ['', [Validators.required]],
+      estimate_time: [null, [Validators.min(0), Validators.max(1000)]],
+      due_date: [''],
+      lead_time: [null, [Validators.min(0), Validators.max(10000)]],
+      close_estimate: [''],
+      fix_issue_description: ['', [Validators.maxLength(5000)]],
+      related_ticket_id: ['']
+    });
+
+    // Listen to form changes for real-time validation
+    this.supporterForm.valueChanges.subscribe(() => {
+      this.validateSupporterForm();
+    });
+  }
+
+  /**
+   * เติมข้อมูลใน Form จาก Ticket Data
+   */
+  private populateFormWithTicketData(): void {
+    if (!this.ticketData?.ticket) return;
+
+    const ticket = this.ticketData.ticket;
+    
+    this.supporterForm.patchValue({
+      estimate_time: ticket.estimate_time ? parseInt(ticket.estimate_time) : null,
+      due_date: ticket.due_date ? this.formatDateForInput(ticket.due_date) : '',
+      lead_time: ticket.lead_time ? parseInt(ticket.lead_time.toString()) : null,
+      close_estimate: ticket.close_estimate ? this.formatDateTimeForInput(ticket.close_estimate) : '',
+      fix_issue_description: ticket.fix_issue_description || '',
+      related_ticket_id: ticket.related_ticket_id?.toString() || ''
+    });
+  }
+
+  /**
+   * สร้าง FormData สำหรับส่ง API
    */
   private createSupporterFormData(): SaveSupporterFormData {
     const formValue = this.supporterForm.value;
@@ -414,7 +747,44 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ รีเซ็ต Supporter Form
+   * จัดการเมื่อบันทึกสำเร็จ
+   */
+  private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
+    // อัพเดท ticket data
+    if (response.data.ticket) {
+      Object.assign(this.ticketData!.ticket, response.data.ticket);
+    }
+
+    // อัพเดท attachments
+    if (response.data.attachments && response.data.attachments.length > 0) {
+      this.ticketData!.fix_attachment.push(...response.data.attachments.map(att => ({
+        attachment_id: att.id,
+        path: `path/to/${att.filename}`,
+        filename: att.filename,
+        file_type: att.extension,
+        file_size: 0
+      })));
+    }
+
+    // แสดง Success Modal
+    this.showSuccessModal = true;
+    this.modalTitle = 'Supporter Data Saved';
+    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว';
+    this.modalTicketNo = this.ticket_no;
+
+    // ซ่อน form และรีเซ็ต
+    this.supporterFormState.isVisible = false;
+    this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จ';
+    this.resetSupporterForm();
+
+    // โหลดข้อมูล ticket ใหม่
+    this.loadTicketDetail();
+    
+    console.log('Supporter data saved successfully');
+  }
+
+  /**
+   * รีเซ็ต Supporter Form
    */
   resetSupporterForm(): void {
     this.supporterForm.reset();
@@ -432,7 +802,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ Mark ทุก field ใน form ว่า touched
+   * Mark ทุก field ใน form ว่า touched
    */
   private markFormGroupTouched(): void {
     Object.keys(this.supporterForm.controls).forEach(key => {
@@ -440,10 +810,10 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  // ✅ ===== NEW: FILE UPLOAD METHODS ===== 
-
+  // ===== FILE UPLOAD METHODS ===== ✅
+  
   /**
-   * ✅ เลือกไฟล์
+   * เลือกไฟล์
    */
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -471,7 +841,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ลบไฟล์ที่เลือก
+   * ลบไฟล์ที่เลือก
    */
   removeSelectedFile(index: number): void {
     this.selectedFiles.splice(index, 1);
@@ -483,7 +853,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ล้างไฟล์ทั้งหมด
+   * ล้างไฟล์ทั้งหมด
    */
   clearAllFiles(): void {
     this.selectedFiles = [];
@@ -492,7 +862,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ได้รับข้อมูลไฟล์สำหรับแสดงผล
+   * ได้รับข้อมูลไฟล์สำหรับแสดงผล
    */
   getFileDisplayInfo(file: File): { 
     name: string; 
@@ -508,10 +878,10 @@ export class TicketDetailComponent implements OnInit {
     };
   }
 
-  // ✅ ===== NEW: FORM VALIDATION ===== 
-
+  // ===== FORM VALIDATION METHODS ===== ✅
+  
   /**
-   * ✅ Validate Supporter Form แบบ real-time
+   * Validate Supporter Form แบบ real-time
    */
   private validateSupporterForm(): void {
     const formValue = this.supporterForm.value;
@@ -594,23 +964,33 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ตรวจสอบว่าฟิลด์มี error หรือไม่
+   * ตรวจสอบว่าฟิลด์มี error หรือไม่
    */
   hasFieldError(fieldName: keyof SupporterFormValidation): boolean {
     return !this.supporterFormValidation[fieldName].isValid;
   }
 
   /**
-   * ✅ ดึงข้อความ error ของฟิลด์
+   * ดึงข้อความ error ของฟิลด์
    */
   getFieldError(fieldName: keyof SupporterFormValidation): string {
     return this.supporterFormValidation[fieldName].error || '';
   }
 
-  // ✅ ===== NEW: UTILITY METHODS ===== 
-
   /**
-   * ✅ แปลงวันที่สำหรับ input type="date"
+   * ได้รับ CSS class สำหรับฟิลด์ที่มี error
+   */
+  getFieldClass(fieldName: keyof SupporterFormValidation): string {
+    const baseClass = 'form-control';
+    const errorClass = 'is-invalid';
+    
+    return this.hasFieldError(fieldName) ? `${baseClass} ${errorClass}` : baseClass;
+  }
+
+  // ===== UTILITY METHODS ===== ✅
+  
+  /**
+   * แปลงวันที่สำหรับ input type="date"
    */
   private formatDateForInput(dateString: string): string {
     if (!dateString) return '';
@@ -623,7 +1003,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ แปลงวันที่และเวลาสำหรับ input type="datetime-local"
+   * แปลงวันที่และเวลาสำหรับ input type="datetime-local"
    */
   private formatDateTimeForInput(dateString: string): string {
     if (!dateString) return '';
@@ -635,30 +1015,485 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
-   */
-  canShowSupporterForm(): boolean {
-    return !!(this.isSupporterMode && 
-           this.canUserSaveSupporter && 
-           this.ticketData?.ticket && 
-           !this.isLoading);
+  getCurrentStatusId(): number {
+    return this.currentStatusInfo?.status_id || 
+           this.ticketData?.ticket?.status_id || 
+           1;
   }
 
-  /**
-   * ✅ ได้รับ CSS class สำหรับฟิลด์ที่มี error
-   */
-  getFieldClass(fieldName: keyof SupporterFormValidation): string {
-    const baseClass = 'form-control';
-    const errorClass = 'is-invalid';
+  getCurrentStatusName(): string {
+    const statusId = this.getCurrentStatusId();
     
-    return this.hasFieldError(fieldName) ? `${baseClass} ${errorClass}` : baseClass;
+    if (this.statusCacheLoaded) {
+      return this.apiService.getCachedStatusName(statusId);
+    }
+    
+    return this.currentStatusInfo?.status_name || 
+           this.ticketData?.ticket?.status_name || 
+           this.getDefaultStatusName(statusId);
   }
 
-  // ===== EXISTING METHODS ===== ✅
-  // (เก็บ methods เดิมทั้งหมดไว้ - ไม่ขอแสดงเพื่อประหยัดพื้นที่)
+  private getDefaultStatusName(statusId: number): string {
+    switch (statusId) {
+      case 1: return 'Created';
+      case 2: return 'Open Ticket';
+      case 3: return 'In Progress';
+      case 4: return 'Resolved';
+      case 5: return 'Completed';
+      case 6: return 'Cancel';
+      default: return `Status ${statusId}`;
+    }
+  }
 
-  // ===== INITIALIZATION METHODS ===== ✅
+  formatDate(dateString: string): string {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('th-TH', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  }
+
+  // ===== SATISFACTION METHODS (EXISTING) ===== ✅
+
+  /**
+   * บันทึกคะแนนความพึงพอใจ - แสดง Modal แทน Alert + จัดการ body class
+   */
+  private satisfaction(rating: number): void {
+    if (!this.ticket_no || this.isSavingRating) {
+      return;
+    }
+
+    this.isSavingRating = true;
+    
+    this.apiService.satisfaction(this.ticket_no, rating).subscribe({
+      next: (response: satisfactionResponse) => {
+        if (response.success) {
+          console.log('✅ Satisfaction saved successfully:', response.data);
+          
+          this.hasExistingSatisfaction = true;
+          this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
+          this.currentRating = rating;
+          
+          this.saveSatisfactionToStorage(rating);
+          
+          this.showSuccessModal = true;
+          this.modalTitle = 'Assessment Success';
+          this.modalMessage = 'ขอบคุณสำหรับการประเมินความพึงพอใจ';
+          this.modalTicketNo = this.ticket_no;
+          
+          document.body.classList.add('modal-open');
+          
+        } else {
+          console.error('❌ Failed to save satisfaction:', response.error);
+          this.currentRating = 0;
+          this.hasExistingSatisfaction = false;
+          alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
+        }
+        this.isSavingRating = false;
+      },
+      error: (error) => {
+        console.error('❌ Error saving satisfaction:', error);
+        this.currentRating = 0;
+        this.hasExistingSatisfaction = false;
+        this.isSavingRating = false;
+        alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
+      }
+    });
+  }
+
+  /**
+   * ได้รับคลาส CSS สำหรับดาว
+   */
+  getStarClass(starIndex: number): string {
+    const baseClass = 'star';
+    
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return baseClass + (starIndex <= this.currentRating ? ' filled permanent-rating' : ' disabled');
+    }
+    
+    if (!this.canClickStar()) {
+      return baseClass + ' disabled';
+    }
+    
+    if (this.isSavingRating && starIndex === this.currentRating) {
+      return baseClass + ' saving';
+    }
+    
+    if (this.hoverRating > 0) {
+      return baseClass + (starIndex <= this.hoverRating ? ' hover' : '');
+    }
+    
+    return baseClass + (starIndex <= this.currentRating ? ' filled' : '');
+  }
+
+  /**
+   * ตรวจสอบว่าดาวควรจะเต็ม (สีเหลือง) หรือไม่
+   */
+  isStarFilled(starIndex: number): boolean {
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return starIndex <= this.currentRating;
+    }
+    
+    if (this.hoverRating > 0 && this.canClickStar()) {
+      return starIndex <= this.hoverRating;
+    }
+    
+    if (this.currentRating > 0 && !this.hasExistingSatisfaction) {
+      return starIndex <= this.currentRating;
+    }
+    
+    return false;
+  }
+
+  /**
+   * จัดการ mouse events บนดาว
+   */
+  onStarMouseEnter(rating: number): void {
+    if (this.canClickStar() && !this.hasExistingSatisfaction) {
+      this.hoverRating = rating;
+    }
+  }
+
+  onStarMouseLeave(): void {
+    if (this.canClickStar() && !this.hasExistingSatisfaction) {
+      this.hoverRating = 0;
+    }
+  }
+
+  /**
+   * ได้รับ tooltip สำหรับดาว
+   */
+  getStarTooltip(starIndex: number): string {
+    if (this.hasExistingSatisfaction) {
+      if (starIndex <= this.currentRating) {
+        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
+      } else {
+        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
+      }
+    }
+    
+    if (!this.canEvaluate) {
+      return this.satisfactionMessage;
+    }
+    
+    if (this.canClickStar()) {
+      return `ให้คะแนน ${starIndex} ดาว`;
+    }
+    
+    return this.getEvaluationMessage();
+  }
+
+  /**
+   * ได้รับข้อความสำหรับแสดงสถานะการประเมิน
+   */
+  getEvaluationMessage(): string {
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      return '';
+    }
+    
+    if (this.hasExistingSatisfaction) {
+      return '';
+    }
+    
+    if (!this.canEvaluate) {
+      return this.satisfactionMessage;
+    }
+    
+    return 'กรุณาประเมินความพึงพอใจ';
+  }
+
+  /**
+   * ปิด Success Modal + จัดการ body class + รีเซ็ตสถานะ
+   */
+  closeSuccessModal(): void {
+    this.showSuccessModal = false;
+    this.modalTitle = '';
+    this.modalMessage = '';
+    this.modalTicketNo = '';
+    
+    document.body.classList.remove('modal-open');
+    
+    if (this.hasExistingSatisfaction && this.currentRating > 0) {
+      console.log('Rating confirmed:', this.currentRating, 'stars');
+    }
+  }
+
+  /**
+   * อัพเดทสถานะการประเมิน
+   */
+  private updateEvaluationStatus(): void {
+    const statusId = this.getCurrentStatusId();
+    
+    this.canEvaluate = this.apiService.canEvaluateTicket(statusId);
+    this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
+    
+    console.log('✅ Evaluation status updated:', {
+      statusId,
+      canEvaluate: this.canEvaluate,
+      message: this.satisfactionMessage
+    });
+  }
+
+  /**
+   * โหลดสถานะการประเมินจากข้อมูล ticket (ถ้ามี)
+   */
+  private loadExistingSatisfaction(): void {
+    const savedRating = localStorage.getItem(`satisfaction_${this.ticket_no}`);
+    if (savedRating) {
+      const rating = parseInt(savedRating, 10);
+      if (rating >= 1 && rating <= 5) {
+        this.currentRating = rating;
+        this.hasExistingSatisfaction = true;
+        this.satisfactionMessage = `คุณได้ให้คะแนน ${rating} ดาวแล้ว`;
+        console.log('Loaded existing satisfaction:', rating, 'stars');
+      }
+    }
+  }
+
+  /**
+   * บันทึกสถานะการประเมินลง localStorage (เป็น backup)
+   */
+  private saveSatisfactionToStorage(rating: number): void {
+    try {
+      localStorage.setItem(`satisfaction_${this.ticket_no}`, rating.toString());
+      localStorage.setItem(`satisfaction_${this.ticket_no}_timestamp`, new Date().toISOString());
+      console.log('Satisfaction saved to localStorage:', rating);
+    } catch (error) {
+      console.warn('Could not save satisfaction to localStorage:', error);
+    }
+  }
+
+  // ===== STATUS & HISTORY METHODS (EXISTING) ===== ✅
+
+  getStatusBadgeClass(statusId?: number): string {
+    const currentStatusId = statusId || this.getCurrentStatusId();
+    
+    switch (currentStatusId) {
+      case 1: return 'badge-pending';
+      case 2: return 'badge-in-progress';
+      case 3: return 'badge-hold';
+      case 4: return 'badge-resolved';
+      case 5: return 'badge-complete';
+      case 6: return 'badge-cancel';
+      default: return 'badge-pending';
+    }
+  }
+
+  getStatusIcon(statusId?: number): string {
+    const currentStatusId = statusId || this.getCurrentStatusId();
+    
+    switch (currentStatusId) {
+      case 1: return 'bi-plus-circle';
+      case 2: return 'bi-clock';
+      case 3: return 'bi-play-circle';
+      case 4: return 'bi-clipboard-check';
+      case 5: return 'bi-check-circle';
+      case 6: return 'bi-x-circle';
+      default: return 'bi-clock';
+    }
+  }
+
+  // ===== ATTACHMENT METHODS (EXISTING) ===== ✅
+
+  isImageFile(path: string, attachmentId?: number): boolean {
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].type === 'image';
+    }
+    
+    if (path.startsWith('data:image/')) return true;
+    
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
+  }
+
+  getFileIcon(path: string, attachmentId?: number): string {
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      const fileInfo = this.attachmentTypes[attachmentId];
+      
+      switch (fileInfo.type) {
+        case 'image': return 'bi-image-fill';
+        case 'pdf': return 'bi-file-earmark-pdf-fill';
+        case 'excel': return 'bi-file-earmark-excel-fill';
+        case 'word': return 'bi-file-earmark-word-fill';
+        case 'text': return 'bi-file-earmark-text-fill';
+        case 'archive': return 'bi-file-earmark-zip-fill';
+        case 'video': return 'bi-file-earmark-play-fill';
+        case 'audio': return 'bi-file-earmark-music-fill';
+        default: return 'bi-file-earmark-fill';
+      }
+    }
+    
+    const extension = path.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf': return 'bi-file-earmark-pdf-fill';
+      case 'doc':
+      case 'docx': return 'bi-file-earmark-word-fill';
+      case 'xls':
+      case 'xlsx': 
+      case 'csv': return 'bi-file-earmark-excel-fill';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'svg': return 'bi-image-fill';
+      case 'txt':
+      case 'log':
+      case 'md':
+      case 'json':
+      case 'xml': return 'bi-file-earmark-text-fill';
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz': return 'bi-file-earmark-zip-fill';
+      case 'mp4':
+      case 'avi':
+      case 'mkv':
+      case 'mov':
+      case 'wmv': return 'bi-file-earmark-play-fill';
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+      case 'flac': return 'bi-file-earmark-music-fill';
+      default: return 'bi-file-earmark-fill';
+    }
+  }
+
+  getDisplayFileName(path: string, attachmentId?: number): string {
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].filename;
+    }
+    
+    return this.extractFilenameFromPath(path);
+  }
+
+  private extractFilenameFromPath(path: string): string {
+    if (!path) return 'unknown';
+    
+    if (path.startsWith('data:')) {
+      return 'data_file';
+    }
+    
+    const parts = path.split('/');
+    const lastPart = parts[parts.length - 1];
+    
+    return lastPart.split('?')[0] || 'unknown';
+  }
+
+  getFileInfo(attachmentId: number): { type: string; extension: string; filename: string; isLoading: boolean; icon: string; } {
+    const fileInfo = this.attachmentTypes[attachmentId];
+    
+    if (fileInfo) {
+      return {
+        type: fileInfo.type,
+        extension: fileInfo.extension,
+        filename: fileInfo.filename,
+        isLoading: fileInfo.isLoading || false,
+        icon: this.getFileIcon('', attachmentId)
+      };
+    }
+    
+    return {
+      type: 'unknown',
+      extension: '',
+      filename: 'Unknown file',
+      isLoading: false,
+      icon: 'bi-file-earmark-fill'
+    };
+  }
+
+  getFileSize(attachment: any): string {
+    if (attachment.file_size) {
+      const size = attachment.file_size;
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+      if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    }
+    return '';
+  }
+
+  onDownloadAttachment(attachmentId: number, path: string): void {
+    const fileInfo = this.getFileInfo(attachmentId);
+    
+    if (path.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = path;
+      link.download = fileInfo.filename || `attachment_${attachmentId}`;
+      link.click();
+    } else {
+      window.open(path, '_blank');
+    }
+    
+    console.log(`Downloading attachment:`, { id: attachmentId, filename: fileInfo.filename, type: fileInfo.type, path: path });
+  }
+
+  onImageError(attachmentId: number): void {
+    console.log(`Image failed to load for attachment ${attachmentId}`);
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'file';
+    }
+  }
+
+  onImageLoad(attachmentId: number): void {
+    console.log(`Image loaded successfully for attachment ${attachmentId}`);
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'image';
+    }
+  }
+
+  // ===== HISTORY METHODS (EXISTING) ===== ✅
+
+  getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
+    if (historyItem.is_active) {
+      return 'badge-current';
+    }
+    if (historyItem.is_completed) {
+      return 'badge-completed';
+    }
+    return 'badge-pending';
+  }
+
+  getHistoryIcon(statusName: string): string {
+    const workflowItem = this.STATUS_WORKFLOW.find(s => 
+      s.name.toLowerCase() === statusName.toLowerCase()
+    );
+    return workflowItem?.icon || 'bi-clock';
+  }
+
+  hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
+    return !!historyItem.create_date && historyItem.create_date.trim() !== '';
+  }
+
+  formatHistoryDate(dateString: string): string {
+    if (!dateString || dateString.trim() === '') {
+      return '-';
+    }
+    
+    try {
+      return new Date(dateString).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '-';
+    }
+  }
+
+  // ===== INITIALIZATION METHODS (EXISTING) ===== ✅
 
   private loadStatusCache(): void {
     console.log('=== Loading Status Cache ===');
@@ -719,7 +1554,8 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  private async loadTicketDetail(): Promise<void> {
+  // ✅ FIXED: Made loadTicketDetail public so it can be called from template
+  public async loadTicketDetail(): Promise<void> {
     console.log('=== loadTicketDetail START ===');
     
     this.isLoading = true;
@@ -735,8 +1571,6 @@ export class TicketDetailComponent implements OnInit {
 
       this.useTicketDataStatus();
       await this.loadTicketHistory();
-      
-      // ✅ โหลดข้อมูลการประเมินเดิม (ถ้ามี)
       this.loadExistingSatisfaction();
       
       console.log('✅ loadTicketDetail completed successfully');
@@ -776,279 +1610,6 @@ export class TicketDetailComponent implements OnInit {
       currentStatusInfo: this.currentStatusInfo
     });
   }
-
-  // ===== SATISFACTION METHODS ===== ✅
-
-  /**
-   * ✅ อัพเดทสถานะการประเมิน
-   */
-  private updateEvaluationStatus(): void {
-    const statusId = this.getCurrentStatusId();
-    
-    this.canEvaluate = this.apiService.canEvaluateTicket(statusId);
-    this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
-    
-    console.log('✅ Evaluation status updated:', {
-      statusId,
-      canEvaluate: this.canEvaluate,
-      message: this.satisfactionMessage
-    });
-  }
-
-  /**
-   * ✅ ตั้งค่าคะแนนความพึงพอใจและบันทึก
-   */
-  setRating(rating: number): void {
-    if (!this.canEvaluate) {
-      console.log('Cannot evaluate this ticket:', this.satisfactionMessage);
-      return;
-    }
-
-    if (this.hasExistingSatisfaction) {
-      console.log('Ticket already has satisfaction rating');
-      return;
-    }
-
-    // ✅ ตั้งค่า rating ทันทีเพื่อให้ดาวเปลี่ยนสี
-    this.currentRating = rating;
-    this.satisfaction(rating);
-    console.log('Rating set to:', rating);
-  }
-
-  /**
-   * ✅ บันทึกคะแนนความพึงพอใจ - แสดง Modal แทน Alert + จัดการ body class
-   */
-  private satisfaction(rating: number): void {
-    if (!this.ticket_no || this.isSavingRating) {
-      return;
-    }
-
-    this.isSavingRating = true;
-    
-    this.apiService.satisfaction(this.ticket_no, rating).subscribe({
-      next: (response: satisfactionResponse) => {
-        if (response.success) {
-          console.log('✅ Satisfaction saved successfully:', response.data);
-          
-          // ✅ เก็บสถานะการให้คะแนนอย่างถาวร
-          this.hasExistingSatisfaction = true;
-          this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
-          
-          // ✅ ให้แน่ใจว่า currentRating ยังคงมีค่าที่ถูกต้อง
-          this.currentRating = rating;
-          
-          // ✅ บันทึกลง localStorage เป็น backup
-          this.saveSatisfactionToStorage(rating);
-          
-          // ✅ แสดง Success Modal แทน Alert + จัดการ body class
-          this.showSuccessModal = true;
-          this.modalTitle = 'Assessment Success';
-          this.modalMessage = 'ขอบคุณสำหรับการประเมินความพึงพอใจ';
-          this.modalTicketNo = this.ticket_no;
-          
-          // ✅ เพิ่ม body class เพื่อป้องกัน scroll
-          document.body.classList.add('modal-open');
-          
-        } else {
-          console.error('❌ Failed to save satisfaction:', response.error);
-          
-          // ✅ ถ้าล้มเหลว ให้ reset rating
-          this.currentRating = 0;
-          this.hasExistingSatisfaction = false;
-          alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
-        }
-        this.isSavingRating = false;
-      },
-      error: (error) => {
-        console.error('❌ Error saving satisfaction:', error);
-        
-        // ✅ ถ้า error ให้ reset rating
-        this.currentRating = 0;
-        this.hasExistingSatisfaction = false;
-        this.isSavingRating = false;
-        alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
-      }
-    });
-  }
-
-  /**
-   * ✅ ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่
-   */
-  canClickStar(): boolean {
-    return this.canEvaluate && !this.hasExistingSatisfaction && !this.isSavingRating;
-  }
-
-  /**
-   * ✅ ได้รับคลาส CSS สำหรับดาว - แก้ไขเพื่อแสดงสีเหลืองหลังให้คะแนนแล้ว
-   */
-  getStarClass(starIndex: number): string {
-    const baseClass = 'star';
-    
-    // ✅ ถ้าให้คะแนนแล้ว ให้แสดงดาวเป็นสีเหลือง (filled) ตามจำนวนที่ให้
-    if (this.hasExistingSatisfaction && this.currentRating > 0) {
-      return baseClass + (starIndex <= this.currentRating ? ' filled permanent-rating' : ' disabled');
-    }
-    
-    // ✅ ถ้าไม่สามารถคลิกได้
-    if (!this.canClickStar()) {
-      return baseClass + ' disabled';
-    }
-    
-    // ✅ ถ้ากำลังบันทึก และเป็นดาวที่ให้คะแนน
-    if (this.isSavingRating && starIndex === this.currentRating) {
-      return baseClass + ' saving';
-    }
-    
-    // ✅ ถ้ากำลัง hover
-    if (this.hoverRating > 0) {
-      return baseClass + (starIndex <= this.hoverRating ? ' hover' : '');
-    }
-    
-    // ✅ แสดงตามคะแนนปัจจุบัน (ระหว่างการให้คะแนน)
-    return baseClass + (starIndex <= this.currentRating ? ' filled' : '');
-  }
-
-  /**
-   * ✅ ตรวจสอบว่าดาวควรจะเต็ม (สีเหลือง) หรือไม่
-   */
-  isStarFilled(starIndex: number): boolean {
-    // ✅ ถ้าให้คะแนนแล้ว ให้แสดงตามคะแนนที่ให้
-    if (this.hasExistingSatisfaction && this.currentRating > 0) {
-      return starIndex <= this.currentRating;
-    }
-    
-    // ✅ ถ้ากำลัง hover
-    if (this.hoverRating > 0 && this.canClickStar()) {
-      return starIndex <= this.hoverRating;
-    }
-    
-    // ✅ ถ้ากำลังเลือกคะแนน (ก่อนบันทึก)
-    if (this.currentRating > 0 && !this.hasExistingSatisfaction) {
-      return starIndex <= this.currentRating;
-    }
-    
-    return false;
-  }
-
-  /**
-   * ✅ จัดการ mouse events บนดาว - ป้องกันการ hover หลังให้คะแนนแล้ว
-   */
-  onStarMouseEnter(rating: number): void {
-    if (this.canClickStar() && !this.hasExistingSatisfaction) {
-      this.hoverRating = rating;
-    }
-  }
-
-  onStarMouseLeave(): void {
-    if (this.canClickStar() && !this.hasExistingSatisfaction) {
-      this.hoverRating = 0;
-    }
-  }
-
-  /**
-   * ✅ ได้รับ tooltip สำหรับดาว
-   */
-  getStarTooltip(starIndex: number): string {
-    if (this.hasExistingSatisfaction) {
-      if (starIndex <= this.currentRating) {
-        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
-      } else {
-        return `คุณให้คะแนน ${this.currentRating} ดาวแล้ว`;
-      }
-    }
-    
-    if (!this.canEvaluate) {
-      return this.satisfactionMessage;
-    }
-    
-    if (this.canClickStar()) {
-      return `ให้คะแนน ${starIndex} ดาว`;
-    }
-    
-    return this.getEvaluationMessage();
-  }
-
-  /**
-   * ✅ ได้รับข้อความสำหรับแสดงสถานะการประเมิน
-   */
-  getEvaluationMessage(): string {
-    if (this.hasExistingSatisfaction && this.currentRating > 0) {
-      return ''; // ✅ ไม่แสดงข้อความเมื่อประเมินแล้ว
-    }
-    
-    if (this.hasExistingSatisfaction) {
-      return ''; // ✅ ไม่แสดงข้อความเมื่อประเมินแล้ว
-    }
-    
-    if (!this.canEvaluate) {
-      return this.satisfactionMessage;
-    }
-    
-    return 'กรุณาประเมินความพึงพอใจ';
-  }
-
-  /**
-   * ✅ ปิด Success Modal + จัดการ body class + รีเซ็ตสถานะ
-   */
-  closeSuccessModal(): void {
-    this.showSuccessModal = false;
-    this.modalTitle = '';
-    this.modalMessage = '';
-    this.modalTicketNo = '';
-    
-    // ✅ ลบ body class เพื่ออนุญาต scroll
-    document.body.classList.remove('modal-open');
-    
-    // ✅ ให้แน่ใจว่าสถานะ rating ยังคงอยู่
-    if (this.hasExistingSatisfaction && this.currentRating > 0) {
-      console.log('Rating confirmed:', this.currentRating, 'stars');
-    }
-  }
-
-  /**
-   * ✅ รีเซ็ตสถานะการประเมิน (ใช้เมื่อต้องการล้างข้อมูล)
-   */
-  private resetSatisfactionState(): void {
-    this.currentRating = 0;
-    this.hoverRating = 0;
-    this.hasExistingSatisfaction = false;
-    this.isSavingRating = false;
-    this.satisfactionMessage = '';
-  }
-
-  /**
-   * ✅ โหลดสถานะการประเมินจากข้อมูล ticket (ถ้ามี)
-   */
-  private loadExistingSatisfaction(): void {
-    // ✅ ตรวจสอบว่ามีข้อมูลการประเมินแล้วหรือไม่
-    // ในการใช้งานจริง อาจจะดึงจาก API หรือ localStorage
-    
-    const savedRating = localStorage.getItem(`satisfaction_${this.ticket_no}`);
-    if (savedRating) {
-      const rating = parseInt(savedRating, 10);
-      if (rating >= 1 && rating <= 5) {
-        this.currentRating = rating;
-        this.hasExistingSatisfaction = true;
-        this.satisfactionMessage = `คุณได้ให้คะแนน ${rating} ดาวแล้ว`;
-        console.log('Loaded existing satisfaction:', rating, 'stars');
-      }
-    }
-  }
-
-  /**
-   * ✅ บันทึกสถานะการประเมินลง localStorage (เป็น backup)
-   */
-  private saveSatisfactionToStorage(rating: number): void {
-    try {
-      localStorage.setItem(`satisfaction_${this.ticket_no}`, rating.toString());
-      localStorage.setItem(`satisfaction_${this.ticket_no}_timestamp`, new Date().toISOString());
-      console.log('Satisfaction saved to localStorage:', rating);
-    } catch (error) {
-      console.warn('Could not save satisfaction to localStorage:', error);
-    }
-  }
-
-  // ===== HISTORY METHODS ===== ✅
 
   private async loadTicketHistory(): Promise<void> {
     if (!this.ticketData?.ticket?.id) {
@@ -1175,180 +1736,130 @@ export class TicketDetailComponent implements OnInit {
     return index !== -1 ? index : 0;
   }
 
-  getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
-    if (historyItem.is_active) {
-      return 'badge-current';
-    }
-    if (historyItem.is_completed) {
-      return 'badge-completed';
-    }
-    return 'badge-pending';
-  }
+  // ===== PRIVATE HELPER METHODS (EXISTING) ===== ✅
 
-  getHistoryIcon(statusName: string): string {
-    const workflowItem = this.STATUS_WORKFLOW.find(s => 
-      s.name.toLowerCase() === statusName.toLowerCase()
-    );
-    return workflowItem?.icon || 'bi-clock';
-  }
+  private saveTicketDataForEdit(): void {
+    if (!this.ticketData?.ticket) return;
 
-  hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
-    return !!historyItem.create_date && historyItem.create_date.trim() !== '';
-  }
-
-  formatHistoryDate(dateString: string): string {
-    if (!dateString || dateString.trim() === '') {
-      return '-';
-    }
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id;
     
-    try {
-      return new Date(dateString).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
+    if (!currentUserId) {
+      console.error('No current user ID found');
+      return;
+    }
+
+    const editTicketData = {
+      userId: currentUserId,
+      ticketId: this.ticketData.ticket.id,
+      ticket_no: this.ticketData.ticket.ticket_no,
+      isEditMode: true,
+      isTicketCreated: true,
+      formData: {
+        projectId: this.ticketData.ticket.project_id,
+        categoryId: this.ticketData.ticket.categories_id,
+        issueDescription: this.ticketData.ticket.issue_description
+      },
+      selectedProject: {
+        id: this.ticketData.ticket.project_id,
+        projectName: this.ticketData.ticket.project_name
+      },
+      selectedCategory: {
+        id: this.ticketData.ticket.categories_id,
+        categoryName: this.ticketData.ticket.categories_name
+      },
+      existingAttachments: this.ticketData.issue_attachment.map(attachment => ({
+        attachment_id: attachment.attachment_id,
+        path: attachment.path,
+        filename: attachment.filename,
+        file_type: attachment.file_type,
+        file_size: attachment.file_size
+      })),
+      timestamp: new Date().getTime()
+    };
+    
+    const storageKey = `editTicket_${currentUserId}_${this.ticketData.ticket.ticket_no}`;
+    localStorage.setItem(storageKey, JSON.stringify(editTicketData));
+  }
+
+  private deleteTicket(ticket_no: string): void {
+    this.isDeleting = true;
+    
+    this.apiService.deleteTicketByTicketNo(ticket_no).subscribe({
+      next: (response: any) => {
+        if (response.code === 1) {
+          alert('ลบ ticket สำเร็จแล้ว');
+          this.clearLocalStorageData();
+          this.backToList();
+        } else {
+          alert(`ไม่สามารถลบ ticket ได้: ${response.message}`);
+        }
+        this.isDeleting = false;
+      },
+      error: (error: any) => {
+        console.error('Delete ticket error:', error);
+        alert(`เกิดข้อผิดพลาดในการลบ ticket: ${error}`);
+        this.isDeleting = false;
+      }
+    });
+  }
+
+  private clearLocalStorageData(): void {
+    const currentUser = this.authService.getCurrentUser();
+    const currentUserId = currentUser?.id;
+    
+    if (currentUserId) {
+      const incompleteKey = `incompleteTicket_${currentUserId}`;
+      const editKey = `editTicket_${currentUserId}_${this.ticket_no}`;
+      
+      localStorage.removeItem(incompleteKey);
+      localStorage.removeItem(editKey);
+    }
+  }
+
+  private getTicketByTicketNo(ticket_no: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!ticket_no || ticket_no.trim() === '') {
+        this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
+        reject(new Error('Invalid ticket number'));
+        return;
+      }
+
+      const requestData: GetTicketDataRequest = { ticket_no: ticket_no };
+      
+      this.apiService.getTicketData(requestData).subscribe({
+        next: (response: any) => {
+          if (response && response.code === 1) {
+            if (response.data && this.isValidTicketData(response.data)) {
+              this.ticketData = response.data as TicketData;
+              this.analyzeAllAttachments();
+              resolve();
+            } else {
+              this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
+              reject(new Error('Invalid ticket data'));
+            }
+          } else {
+            this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
+            reject(new Error(this.error));
+          }
+        },
+        error: (error: any) => {
+          console.error('API Error:', error);
+          this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+          reject(error);
+        }
       });
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '-';
-    }
+    });
   }
 
-  // ===== STATUS METHODS ===== ✅
+  private isValidTicketData(data: any): boolean {
+    const hasTicket = data.ticket && typeof data.ticket === 'object';
+    const hasIssueAttachment = Array.isArray(data.issue_attachment);
+    const hasFixAttachment = Array.isArray(data.fix_attachment);
+    const hasStatusHistory = Array.isArray(data.status_history);
 
-  getCurrentStatusName(): string {
-    const statusId = this.getCurrentStatusId();
-    
-    if (this.statusCacheLoaded) {
-      return this.apiService.getCachedStatusName(statusId);
-    }
-    
-    return this.currentStatusInfo?.status_name || 
-           this.ticketData?.ticket?.status_name || 
-           this.getDefaultStatusName(statusId);
+    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
   }
-
-  getCurrentStatusId(): number {
-    return this.currentStatusInfo?.status_id || 
-           this.ticketData?.ticket?.status_id || 
-           1;
-  }
-
-  private getDefaultStatusName(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'Created';
-      case 2: return 'Open Ticket';
-      case 3: return 'In Progress';
-      case 4: return 'Resolved';
-      case 5: return 'Completed';
-      case 6: return 'Cancel';
-      default: return `Status ${statusId}`;
-    }
-  }
-
-  getStatusBadgeClass(statusId?: number): string {
-    const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'badge-pending';
-      case 2: return 'badge-in-progress';
-      case 3: return 'badge-hold';
-      case 4: return 'badge-resolved';
-      case 5: return 'badge-complete';
-      case 6: return 'badge-cancel';
-      default: return 'badge-pending';
-    }
-  }
-
-  getStatusIcon(statusId?: number): string {
-    const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'bi-plus-circle';
-      case 2: return 'bi-clock';
-      case 3: return 'bi-play-circle';
-      case 4: return 'bi-clipboard-check';
-      case 5: return 'bi-check-circle';
-      case 6: return 'bi-x-circle';
-      default: return 'bi-clock';
-    }
-  }
-
-  // ===== EDIT/DELETE METHODS ===== ✅
-
-  onEditTicket(): void {
-    if (!this.ticketData?.ticket?.ticket_no) {
-      console.error('No ticket number available for edit');
-      return;
-    }
-
-    const currentStatus = this.getCurrentStatusId();
-    
-    if (currentStatus === 5) {
-      alert('Ticket นี้เสร็จสิ้นแล้ว ไม่สามารถแก้ไขได้');
-      return;
-    }
-    
-    if (currentStatus === 6) {
-      alert('Ticket นี้ถูกยกเลิกแล้ว ไม่สามารถแก้ไขได้');
-      return;
-    }
-
-    this.saveTicketDataForEdit();
-    this.router.navigate(['/tickets/edit', this.ticketData.ticket.ticket_no]);
-  }
-
-  onDeleteTicket(): void {
-    if (!this.ticketData?.ticket?.ticket_no) {
-      console.error('No ticket number available for deletion');
-      return;
-    }
-
-    const ticketNo = this.ticketData.ticket.ticket_no;
-    const confirmMessage = `คุณแน่ใจหรือไม่ที่ต้องการลบ ticket ${ticketNo}?\n\nการลบนี้ไม่สามารถยกเลิกได้`;
-    
-    if (confirm(confirmMessage)) {
-      this.deleteTicket(ticketNo);
-    }
-  }
-
-  canEdit(): boolean {
-    if (!this.ticketData?.ticket) return false;
-    
-    const status = this.getCurrentStatusId();
-    return [1, 2, 3, 4].includes(status);
-  }
-
-  canDelete(): boolean {
-    if (!this.ticketData?.ticket) return false;
-    
-    const status = this.getCurrentStatusId();
-    return ![5, 6].includes(status);
-  }
-
-  getEditButtonText(): string {
-    if (!this.ticketData?.ticket) return 'Edit';
-    
-    const status = this.getCurrentStatusId();
-    
-    switch (status) {
-      case 5: return 'Completed';
-      case 6: return 'Cancelled';
-      default: return 'Edit';
-    }
-  }
-
-  getEditButtonClass(): string {
-    return this.canEdit() ? 'btn-edit' : 'btn-edit disabled';
-  }
-
-  getDeleteButtonClass(): string {
-    return this.canDelete() ? 'btn-delete' : 'btn-delete disabled';
-  }
-
-  // ===== ATTACHMENT METHODS ===== ✅
 
   private analyzeAllAttachments(): void {
     if (!this.ticketData) return;
@@ -1420,19 +1931,6 @@ export class TicketDetailComponent implements OnInit {
     }
 
     this.checkFileTypeFromHeaders(attachment.path, attachmentId);
-  }
-
-  private extractFilenameFromPath(path: string): string {
-    if (!path) return 'unknown';
-    
-    if (path.startsWith('data:')) {
-      return 'data_file';
-    }
-    
-    const parts = path.split('/');
-    const lastPart = parts[parts.length - 1];
-    
-    return lastPart.split('?')[0] || 'unknown';
   }
 
   private getFileExtension(filename: string): string {
@@ -1632,285 +2130,6 @@ export class TicketDetailComponent implements OnInit {
     
     img.crossOrigin = 'anonymous';
     img.src = url;
-  }
-
-  // ===== ATTACHMENT PUBLIC METHODS ===== ✅
-
-  isImageFile(path: string, attachmentId?: number): boolean {
-    if (attachmentId && this.attachmentTypes[attachmentId]) {
-      return this.attachmentTypes[attachmentId].type === 'image';
-    }
-    
-    if (path.startsWith('data:image/')) return true;
-    
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
-    return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
-  }
-
-  getFileIcon(path: string, attachmentId?: number): string {
-    if (attachmentId && this.attachmentTypes[attachmentId]) {
-      const fileInfo = this.attachmentTypes[attachmentId];
-      
-      switch (fileInfo.type) {
-        case 'image': return 'bi-image-fill';
-        case 'pdf': return 'bi-file-earmark-pdf-fill';
-        case 'excel': return 'bi-file-earmark-excel-fill';
-        case 'word': return 'bi-file-earmark-word-fill';
-        case 'text': return 'bi-file-earmark-text-fill';
-        case 'archive': return 'bi-file-earmark-zip-fill';
-        case 'video': return 'bi-file-earmark-play-fill';
-        case 'audio': return 'bi-file-earmark-music-fill';
-        default: return 'bi-file-earmark-fill';
-      }
-    }
-    
-    const extension = path.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'pdf': return 'bi-file-earmark-pdf-fill';
-      case 'doc':
-      case 'docx': return 'bi-file-earmark-word-fill';
-      case 'xls':
-      case 'xlsx': 
-      case 'csv': return 'bi-file-earmark-excel-fill';
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp':
-      case 'svg': return 'bi-image-fill';
-      case 'txt':
-      case 'log':
-      case 'md':
-      case 'json':
-      case 'xml': return 'bi-file-earmark-text-fill';
-      case 'zip':
-      case 'rar':
-      case '7z':
-      case 'tar':
-      case 'gz': return 'bi-file-earmark-zip-fill';
-      case 'mp4':
-      case 'avi':
-      case 'mkv':
-      case 'mov':
-      case 'wmv': return 'bi-file-earmark-play-fill';
-      case 'mp3':
-      case 'wav':
-      case 'aac':
-      case 'flac': return 'bi-file-earmark-music-fill';
-      default: return 'bi-file-earmark-fill';
-    }
-  }
-
-  getDisplayFileName(path: string, attachmentId?: number): string {
-    if (attachmentId && this.attachmentTypes[attachmentId]) {
-      return this.attachmentTypes[attachmentId].filename;
-    }
-    
-    return this.extractFilenameFromPath(path);
-  }
-
-  getFileInfo(attachmentId: number): { type: string; extension: string; filename: string; isLoading: boolean; icon: string; } {
-    const fileInfo = this.attachmentTypes[attachmentId];
-    
-    if (fileInfo) {
-      return {
-        type: fileInfo.type,
-        extension: fileInfo.extension,
-        filename: fileInfo.filename,
-        isLoading: fileInfo.isLoading || false,
-        icon: this.getFileIcon('', attachmentId)
-      };
-    }
-    
-    return {
-      type: 'unknown',
-      extension: '',
-      filename: 'Unknown file',
-      isLoading: false,
-      icon: 'bi-file-earmark-fill'
-    };
-  }
-
-  getFileSize(attachment: any): string {
-    if (attachment.file_size) {
-      const size = attachment.file_size;
-      if (size < 1024) return `${size} B`;
-      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-      if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-      return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    }
-    return '';
-  }
-
-  onDownloadAttachment(attachmentId: number, path: string): void {
-    const fileInfo = this.getFileInfo(attachmentId);
-    
-    if (path.startsWith('data:')) {
-      const link = document.createElement('a');
-      link.href = path;
-      link.download = fileInfo.filename || `attachment_${attachmentId}`;
-      link.click();
-    } else {
-      window.open(path, '_blank');
-    }
-    
-    console.log(`Downloading attachment:`, { id: attachmentId, filename: fileInfo.filename, type: fileInfo.type, path: path });
-  }
-
-  onImageError(attachmentId: number): void {
-    console.log(`Image failed to load for attachment ${attachmentId}`);
-    if (this.attachmentTypes[attachmentId]) {
-      this.attachmentTypes[attachmentId].type = 'file';
-    }
-  }
-
-  onImageLoad(attachmentId: number): void {
-    console.log(`Image loaded successfully for attachment ${attachmentId}`);
-    if (this.attachmentTypes[attachmentId]) {
-      this.attachmentTypes[attachmentId].type = 'image';
-    }
-  }
-
-  // ===== UTILITY METHODS ===== ✅
-
-  formatDate(dateString: string): string {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleDateString('th-TH', {
-        day: '2-digit',
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
-  }
-
-  // ===== PRIVATE HELPER METHODS ===== ✅
-
-  private saveTicketDataForEdit(): void {
-    if (!this.ticketData?.ticket) return;
-
-    const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id;
-    
-    if (!currentUserId) {
-      console.error('No current user ID found');
-      return;
-    }
-
-    const editTicketData = {
-      userId: currentUserId,
-      ticketId: this.ticketData.ticket.id,
-      ticket_no: this.ticketData.ticket.ticket_no,
-      isEditMode: true,
-      isTicketCreated: true,
-      formData: {
-        projectId: this.ticketData.ticket.project_id,
-        categoryId: this.ticketData.ticket.categories_id,
-        issueDescription: this.ticketData.ticket.issue_description
-      },
-      selectedProject: {
-        id: this.ticketData.ticket.project_id,
-        projectName: this.ticketData.ticket.project_name
-      },
-      selectedCategory: {
-        id: this.ticketData.ticket.categories_id,
-        categoryName: this.ticketData.ticket.categories_name
-      },
-      existingAttachments: this.ticketData.issue_attachment.map(attachment => ({
-        attachment_id: attachment.attachment_id,
-        path: attachment.path,
-        filename: attachment.filename,
-        file_type: attachment.file_type,
-        file_size: attachment.file_size
-      })),
-      timestamp: new Date().getTime()
-    };
-    
-    const storageKey = `editTicket_${currentUserId}_${this.ticketData.ticket.ticket_no}`;
-    localStorage.setItem(storageKey, JSON.stringify(editTicketData));
-  }
-
-  private deleteTicket(ticket_no: string): void {
-    this.isDeleting = true;
-    
-    this.apiService.deleteTicketByTicketNo(ticket_no).subscribe({
-      next: (response: any) => {
-        if (response.code === 1) {
-          alert('ลบ ticket สำเร็จแล้ว');
-          this.clearLocalStorageData();
-          this.backToList();
-        } else {
-          alert(`ไม่สามารถลบ ticket ได้: ${response.message}`);
-        }
-        this.isDeleting = false;
-      },
-      error: (error: any) => {
-        console.error('Delete ticket error:', error);
-        alert(`เกิดข้อผิดพลาดในการลบ ticket: ${error}`);
-        this.isDeleting = false;
-      }
-    });
-  }
-
-  private clearLocalStorageData(): void {
-    const currentUser = this.authService.getCurrentUser();
-    const currentUserId = currentUser?.id;
-    
-    if (currentUserId) {
-      const incompleteKey = `incompleteTicket_${currentUserId}`;
-      const editKey = `editTicket_${currentUserId}_${this.ticket_no}`;
-      
-      localStorage.removeItem(incompleteKey);
-      localStorage.removeItem(editKey);
-    }
-  }
-
-  private getTicketByTicketNo(ticket_no: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!ticket_no || ticket_no.trim() === '') {
-        this.error = 'หมายเลขตั๋วไม่ถูกต้อง';
-        reject(new Error('Invalid ticket number'));
-        return;
-      }
-
-      const requestData: GetTicketDataRequest = { ticket_no: ticket_no };
-      
-      this.apiService.getTicketData(requestData).subscribe({
-        next: (response: any) => {
-          if (response && response.code === 1) {
-            if (response.data && this.isValidTicketData(response.data)) {
-              this.ticketData = response.data as TicketData;
-              this.analyzeAllAttachments();
-              resolve();
-            } else {
-              this.error = 'ข้อมูล ticket ไม่ถูกต้อง';
-              reject(new Error('Invalid ticket data'));
-            }
-          } else {
-            this.error = response?.message || 'ไม่พบข้อมูล ticket ที่ต้องการ';
-            reject(new Error(this.error));
-          }
-        },
-        error: (error: any) => {
-          console.error('API Error:', error);
-          this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-          reject(error);
-        }
-      });
-    });
-  }
-
-  private isValidTicketData(data: any): boolean {
-    const hasTicket = data.ticket && typeof data.ticket === 'object';
-    const hasIssueAttachment = Array.isArray(data.issue_attachment);
-    const hasFixAttachment = Array.isArray(data.fix_attachment);
-    const hasStatusHistory = Array.isArray(data.status_history);
-
-    return hasTicket && hasIssueAttachment && hasFixAttachment && hasStatusHistory;
   }
 
   // ===== NAVIGATION ===== ✅

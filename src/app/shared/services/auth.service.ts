@@ -12,15 +12,35 @@ import {
   TokenData, 
   User, 
   AuthState,
-  UserPermission,
+  UserWithPermissions,
   createEmptyAuthState,
   isLoginSuccessResponse,
   extractTokenData,
   extractUserData,
+  createAuthStateFromLoginResponse,
+  userHasRole,
+  userHasPermission,
+  userHasAnyRole,
+  userHasAnyPermission,
+  AuthStateHelper,
   LOGIN_SUCCESS_CODE 
 } from '../models/user.model';
 
-// ✅ Re-export TokenData สำหรับ api.service.ts (ใช้ export type)
+// ✅ Import permission-related types
+import { 
+  permissionEnum, 
+  UserRole, 
+  ROLES, 
+  ROLE_PERMISSIONS,
+  getRolePermissions,
+  getPermissionsFromRoles,
+  checkUserPermission,
+  checkUserRole,
+  checkAccess,
+  AccessControl
+} from '../models/permission.model';
+
+// ✅ Re-export TokenData สำหรับ api.service.ts
 export type { TokenData } from '../models/user.model';
 
 @Injectable({
@@ -76,7 +96,7 @@ export class AuthService {
 
       // ✅ เรียก Backend API ตาม endpoint ที่ถูกต้อง
       const response = await firstValueFrom(
-        this.http.post<LoginResponse>(`${this.apiUrl}/login`, body, { headers })
+        this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, body, { headers })
           .pipe(
             tap(res => console.log('📥 Raw backend response:', res)),
             catchError((error: HttpErrorResponse) => this.handleLoginError(error))
@@ -84,10 +104,20 @@ export class AuthService {
       );
 
       console.log('📋 Processing login response...');
+      
+      // ✅ Debug login response
+      this.debugLoginResponse(response);
 
       // ✅ ตรวจสอบความสำเร็จของ response
       if (isLoginSuccessResponse(response)) {
         console.log('✅ Login successful, processing tokens and user data');
+        console.log('🔍 Backend response data:', {
+          hasPermissions: !!response.permission,
+          permissionCount: response.permission?.length || 0,
+          permissions: response.permission,
+          hasRoles: !!response.roles,
+          roles: response.roles
+        });
         
         // ✅ แยกข้อมูล token และ user
         const tokenData = extractTokenData(response);
@@ -97,30 +127,34 @@ export class AuthService {
           // ✅ บันทึก tokens
           this.setTokens(tokenData);
           
-          // ✅ บันทึก user data พร้อม permissions
-          const userWithPermissions: User = {
-            ...userData,
-            // เพิ่มข้อมูลเพิ่มเติมถ้ามี
-          };
+          // ✅ บันทึก user data พร้อม permissions และ roles
+          this.setCurrentUser(userData);
           
-          this.setCurrentUser(userWithPermissions);
-          
-          // ✅ บันทึก permissions
+          // ✅ บันทึก permissions และ roles แยก (สำคัญมาก!)
           if (response.permission && Array.isArray(response.permission)) {
             this.setUserPermissions(response.permission);
             console.log('🔐 Permissions set:', response.permission);
+          } else {
+            console.warn('⚠️ No permissions received from backend!');
+            // ✅ ถ้าไม่ได้รับ permissions ให้ใช้ default ตาม role
+            this.setDefaultPermissionsByRole(userData.roles || []);
           }
 
-          // ✅ อัปเดต auth state
-          this.updateAuthState({
-            isAuthenticated: true,
-            isLoading: false,
-            user: userWithPermissions,
-            token: tokenData.access_token,
-            permissions: response.permission || [],
-            expires_at: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-            last_activity: new Date()
-          });
+          if (response.roles && Array.isArray(response.roles)) {
+            this.setUserRoles(response.roles);
+            console.log('👥 Roles set:', response.roles);
+          } else if (userData.roles && Array.isArray(userData.roles)) {
+            this.setUserRoles(userData.roles);
+            console.log('👥 Roles set from user data:', userData.roles);
+          } else {
+            console.warn('⚠️ No roles received from backend!');
+            // ✅ ถ้าไม่ได้รับ roles ให้ใช้ default
+            this.setUserRoles([ROLES.USER]); // Default fallback
+          }
+
+          // ✅ อัปเดต auth state ด้วย helper function
+          const newAuthState = createAuthStateFromLoginResponse(response, userData, tokenData.access_token);
+          this.authStateSubject.next(newAuthState);
 
           console.log('🎉 Login process completed successfully');
         } else {
@@ -240,7 +274,7 @@ export class AuthService {
   /**
    * ✅ บันทึก user data
    */
-  setCurrentUser(user: User): void {
+  setCurrentUser(user: User | UserWithPermissions): void {
     try {
       localStorage.setItem('user_data', JSON.stringify(user));
       this.currentUserSubject.next(user);
@@ -276,9 +310,29 @@ export class AuthService {
   }
 
   /**
-   * ✅ บันทึก permissions
+   * ✅ ดึง user data พร้อม permissions และ roles
    */
-  setUserPermissions(permissions: string[]): void {
+  getCurrentUserWithPermissions(): UserWithPermissions | null {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+
+    const permissions = this.getUserPermissions();
+    const roles = this.getUserRoles();
+
+    return {
+      ...user,
+      permissions,
+      roles,
+      effective_permissions: permissions
+    };
+  }
+
+  // ===== PERMISSION MANAGEMENT ===== ✅
+
+  /**
+   * ✅ บันทึก permissions (รับ number[] โดยตรง)
+   */
+  setUserPermissions(permissions: number[]): void {
     try {
       localStorage.setItem('user_permissions', JSON.stringify(permissions));
       console.log('🔐 Permissions saved:', permissions);
@@ -288,9 +342,9 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึง permissions
+   * ✅ ดึง permissions (return number[] โดยตรง)
    */
-  getUserPermissions(): string[] {
+  getUserPermissions(): number[] {
     try {
       const permStr = localStorage.getItem('user_permissions');
       return permStr ? JSON.parse(permStr) : [];
@@ -301,11 +355,180 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบสิทธิ์
+   * ✅ ตรวจสอบสิทธิ์เดี่ยว (รับ number)
    */
-  hasPermission(permission: string): boolean {
+  hasPermission(permission: number): boolean {
     const permissions = this.getUserPermissions();
     return permissions.includes(permission);
+  }
+
+  /**
+   * ✅ ตรวจสอบสิทธิ์หลายตัว (ต้องมีทั้งหมด)
+   */
+  hasAllPermissions(permissions: number[]): boolean {
+    const userPermissions = this.getUserPermissions();
+    return permissions.every(permission => userPermissions.includes(permission));
+  }
+
+  /**
+   * ✅ ตรวจสอบสิทธิ์หลายตัว (มีอย่างน้อย 1 ตัว)
+   */
+  hasAnyPermission(permissions: number[]): boolean {
+    const userPermissions = this.getUserPermissions();
+    return permissions.some(permission => userPermissions.includes(permission));
+  }
+
+  // ===== ROLE MANAGEMENT ===== ✅
+
+  /**
+   * ✅ บันทึก roles
+   */
+  setUserRoles(roles: UserRole[]): void {
+    try {
+      localStorage.setItem('user_roles', JSON.stringify(roles));
+      console.log('👥 Roles saved:', roles);
+    } catch (error) {
+      console.error('❌ Error saving roles:', error);
+    }
+  }
+
+  /**
+   * ✅ ดึง roles
+   */
+  getUserRoles(): UserRole[] {
+    try {
+      const rolesStr = localStorage.getItem('user_roles');
+      return rolesStr ? JSON.parse(rolesStr) : [];
+    } catch (error) {
+      console.error('❌ Error loading roles:', error);
+      return [];
+    }
+  }
+
+  /**
+   * ✅ ตรวจสอบ role เดี่ยว
+   */
+  hasRole(role: UserRole): boolean {
+    const roles = this.getUserRoles();
+    return roles.includes(role);
+  }
+
+  /**
+   * ✅ ตรวจสอบ roles หลายตัว (ต้องมีทั้งหมด)
+   */
+  hasAllRoles(roles: UserRole[]): boolean {
+    const userRoles = this.getUserRoles();
+    return roles.every(role => userRoles.includes(role));
+  }
+
+  /**
+   * ✅ ตรวจสอบ roles หลายตัว (มีอย่างน้อย 1 ตัว)
+   */
+  hasAnyRole(roles: UserRole[]): boolean {
+    const userRoles = this.getUserRoles();
+    return roles.some(role => userRoles.includes(role));
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าเป็น Admin หรือไม่
+   */
+  isAdmin(): boolean {
+    return this.hasRole(ROLES.ADMIN);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าเป็น Supporter หรือไม่
+   */
+  isSupporter(): boolean {
+    return this.hasRole(ROLES.SUPPORTER);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าเป็น User หรือไม่
+   */
+  isUser(): boolean {
+    return this.hasRole(ROLES.USER);
+  }
+
+  /**
+   * ✅ ดึง primary role (role ที่สำคัญที่สุด)
+   */
+  getPrimaryRole(): UserRole | null {
+    if (this.isAdmin()) return ROLES.ADMIN;
+    if (this.isSupporter()) return ROLES.SUPPORTER;
+    if (this.isUser()) return ROLES.USER;
+    return null;
+  }
+
+  /**
+   * ✅ ดึง permissions ที่ได้จาก roles
+   */
+  getEffectivePermissions(): number[] {
+    const userRoles = this.getUserRoles();
+    const directPermissions = this.getUserPermissions();
+    const rolePermissions = getPermissionsFromRoles(userRoles);
+    
+    // รวม permissions จาก roles และ direct permissions
+    const allPermissions = [...new Set([...directPermissions, ...rolePermissions])];
+    return allPermissions;
+  }
+
+  // ===== ACCESS CONTROL ===== ✅
+
+  /**
+   * ✅ ตรวจสอบการเข้าถึงแบบรวม (permissions + roles)
+   */
+  checkAccess(
+    requiredPermissions?: number[],
+    requiredRoles?: UserRole[]
+  ): AccessControl {
+    const userPermissions = this.getEffectivePermissions();
+    const userRoles = this.getUserRoles();
+    
+    return checkAccess(userPermissions, userRoles, requiredPermissions, requiredRoles);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถจัดการ tickets ได้หรือไม่
+   */
+  canManageTickets(): boolean {
+    return this.hasAnyPermission([
+      13, // VIEW_ALL_TICKETS
+      5,  // CHANGE_STATUS
+      9   // ASSIGNEE
+    ]);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถจัดการ users ได้หรือไม่
+   */
+  canManageUsers(): boolean {
+    return this.hasAnyPermission([
+      15, // ADD_USER
+      16  // DEL_USER
+    ]);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถสร้าง ticket ได้หรือไม่
+   */
+  canCreateTickets(): boolean {
+    return this.hasPermission(1); // CREATE_TICKET
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถดู tickets ทั้งหมดได้หรือไม่
+   */
+  canViewAllTickets(): boolean {
+    return this.hasPermission(13); // VIEW_ALL_TICKETS
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถดูแค่ tickets ของตัวเองได้หรือไม่
+   */
+  canViewOwnTicketsOnly(): boolean {
+    return this.hasPermission(12) && // VIEW_OWN_TICKETS
+           !this.hasPermission(13);  // และไม่มี VIEW_ALL_TICKETS
   }
 
   // ===== AUTHENTICATION STATUS ===== ✅
@@ -380,6 +603,7 @@ export class AuthService {
       'token_expires_timestamp',
       'user_data',
       'user_permissions',
+      'user_roles',           // ✅ เพิ่มการล้าง roles
       'remember_me'
     ];
     
@@ -472,7 +696,42 @@ export class AuthService {
       );
   }
 
-  // ===== HELPER METHODS ===== ✅
+  /**
+   * ✅ ตั้งค่า default permissions ตาม roles (fallback)
+   */
+  private setDefaultPermissionsByRole(roles: UserRole[]): void {
+    console.log('🔄 Setting default permissions for roles:', roles);
+    
+    const defaultPermissions = getPermissionsFromRoles(roles);
+    this.setUserPermissions(defaultPermissions);
+    
+    console.log('✅ Default permissions set:', defaultPermissions);
+  }
+
+  /**
+   * ✅ Debug method - แสดงข้อมูล login response
+   */
+  debugLoginResponse(response: LoginResponse): void {
+    console.group('🔍 Login Response Debug');
+    console.log('Response structure:', {
+      code: response.code,
+      status: response.status,
+      message: response.message,
+      hasUser: !!response.user,
+      hasToken: !!response.access_token,
+      hasPermissions: !!response.permission,
+      permissionCount: response.permission?.length || 0,
+      permissions: response.permission,
+      hasRoles: !!response.roles,
+      roles: response.roles
+    });
+    
+    if (response.user) {
+      console.log('User data:', response.user);
+    }
+    
+    console.groupEnd();
+  }
 
   /**
    * ✅ โหลด user data จาก localStorage เมื่อเริ่มต้น
@@ -483,6 +742,7 @@ export class AuthService {
     const token = this.getToken();
     const user = this.getCurrentUser();
     const permissions = this.getUserPermissions();
+    const roles = this.getUserRoles();
     
     if (token && user && !this.isTokenExpired()) {
       console.log('✅ Valid session found, restoring auth state');
@@ -496,7 +756,9 @@ export class AuthService {
         user: user,
         token: token,
         permissions: permissions,
-        last_activity: new Date()
+        roles: roles,                    // ✅ เพิ่ม roles
+        last_activity: new Date(),
+        effective_permissions: this.getEffectivePermissions() // ✅ เพิ่ม effective permissions
       });
       
     } else {
@@ -607,6 +869,46 @@ export class AuthService {
     return this.refreshAccessToken();
   }
 
+  // ===== ADVANCED PERMISSION METHODS ===== ✅
+
+  /**
+   * ✅ ตรวจสอบ permission พร้อม fallback logic
+   */
+  hasPermissionWithFallback(permission: permissionEnum, fallbackRoles?: UserRole[]): boolean {
+    // ตรวจสอบ direct permission ก่อน
+    if (this.hasPermission(permission)) {
+      return true;
+    }
+    
+    // ถ้าไม่มี ลองตรวจสอบผ่าน roles
+    if (fallbackRoles && this.hasAnyRole(fallbackRoles)) {
+      return true;
+    }
+    
+    // ตรวจสอบผ่าน role permissions mapping
+    const userRoles = this.getUserRoles();
+    return userRoles.some(role => {
+      const rolePermissions = getRolePermissions(role);
+      return rolePermissions.includes(permission);
+    });
+  }
+
+  /**
+   * ✅ ดึงรายการ permissions ที่ขาดหายไป
+   */
+  getMissingPermissions(requiredPermissions: number[]): number[] {
+    const userPermissions = this.getEffectivePermissions();
+    return requiredPermissions.filter(permission => !userPermissions.includes(permission));
+  }
+
+  /**
+   * ✅ ดึงรายการ roles ที่ขาดหายไป
+   */
+  getMissingRoles(requiredRoles: UserRole[]): UserRole[] {
+    const userRoles = this.getUserRoles();
+    return requiredRoles.filter(role => !userRoles.includes(role));
+  }
+
   // ===== DEBUG METHODS ===== ✅
 
   /**
@@ -618,11 +920,15 @@ export class AuthService {
     const token = this.getToken();
     const user = this.getCurrentUser();
     const permissions = this.getUserPermissions();
+    const roles = this.getUserRoles();
+    const effectivePermissions = this.getEffectivePermissions();
     
     console.log('📋 Basic Info:', {
       hasToken: !!token,
       hasUser: !!user,
-      permissionCount: permissions.length
+      permissionCount: permissions.length,
+      roleCount: roles.length,
+      effectivePermissionCount: effectivePermissions.length
     });
     
     if (token) {
@@ -651,10 +957,24 @@ export class AuthService {
     console.log('🔐 Auth Methods:', {
       isAuthenticated: this.isAuthenticated(),
       hasValidToken: this.hasValidToken(),
-      isLoggedIn: this.isLoggedIn()
+      isLoggedIn: this.isLoggedIn(),
+      isAdmin: this.isAdmin(),
+      isSupporter: this.isSupporter(),
+      isUser: this.isUser(),
+      primaryRole: this.getPrimaryRole()
     });
     
     console.log('🔐 Permissions:', permissions);
+    console.log('👥 Roles:', roles);
+    console.log('⚡ Effective Permissions:', effectivePermissions);
+    
+    console.log('🎯 Access Control:', {
+      canManageTickets: this.canManageTickets(),
+      canManageUsers: this.canManageUsers(),
+      canCreateTickets: this.canCreateTickets(),
+      canViewAllTickets: this.canViewAllTickets(),
+      canViewOwnTicketsOnly: this.canViewOwnTicketsOnly()
+    });
     
     console.groupEnd();
   }
@@ -686,11 +1006,109 @@ export class AuthService {
   }
 
   /**
-   * ✅ เช็คว่ามี session ถูกต้องหรือไม่
+   * ✅ ตรวจสอบสถานะ permission ปัจจุบัน
    */
-  validateSession(): boolean {
-    const isValid = this.isAuthenticated();
-    console.log('🔒 Session validation:', isValid);
-    return isValid;
+  checkCurrentPermissionStatus(): void {
+    console.group('🔍 Current Permission Status');
+    
+    const user = this.getCurrentUser();
+    const permissions = this.getUserPermissions();
+    const roles = this.getUserRoles();
+    const effectivePermissions = this.getEffectivePermissions();
+    
+    console.log('Current Status:', {
+      isAuthenticated: this.isAuthenticated(),
+      hasUser: !!user,
+      username: user?.username,
+      rolesCount: roles.length,
+      roles: roles,
+      directPermissions: permissions.length,
+      directPermissionsList: permissions,
+      effectivePermissions: effectivePermissions.length,
+      effectivePermissionsList: effectivePermissions,
+      isAdmin: this.isAdmin(),
+      isSupporter: this.isSupporter(),
+      isUser: this.isUser(),
+      canManageTickets: this.canManageTickets(),
+      canViewAllTickets: this.canViewAllTickets()
+    });
+    
+    // ✅ ตรวจสอบข้อมูลใน localStorage
+    console.log('LocalStorage Data:', {
+      hasUserData: !!localStorage.getItem('user_data'),
+      hasPermissions: !!localStorage.getItem('user_permissions'),
+      hasRoles: !!localStorage.getItem('user_roles'),
+      hasToken: !!localStorage.getItem('access_token')
+    });
+    
+    console.groupEnd();
+  }
+
+  /**
+   * ✅ Debug permissions ใน localStorage
+   */
+  debugPermissionsInStorage(): void {
+    console.group('🔍 Permissions Storage Debug');
+    
+    const permStr = localStorage.getItem('user_permissions');
+    const rolesStr = localStorage.getItem('user_roles');
+    
+    console.log('Raw localStorage data:', {
+      permissions: permStr,
+      roles: rolesStr
+    });
+    
+    if (permStr) {
+      try {
+        const parsedPermissions = JSON.parse(permStr);
+        console.log('Parsed permissions:', {
+          type: typeof parsedPermissions,
+          isArray: Array.isArray(parsedPermissions),
+          length: parsedPermissions?.length,
+          values: parsedPermissions,
+          mapped: parsedPermissions?.map((p: any) => ({
+            original: p,
+            type: typeof p,
+            asNumber: parseInt(p, 10),
+            isValid: !isNaN(parseInt(p, 10))
+          }))
+        });
+      } catch (error) {
+        console.error('Error parsing permissions:', error);
+      }
+    }
+    
+    console.log('Current getUserPermissions():', this.getUserPermissions());
+    console.log('Current getUserRoles():', this.getUserRoles());
+    
+    console.groupEnd();
+  }
+
+  /**
+   * ✅ ดึงข้อมูล auth state สำหรับ debug
+   */
+  getAuthState(): AuthState {
+    return this.authStateSubject.value;
+  }
+
+  /**
+   * ✅ ดึงสถิติการใช้งาน
+   */
+  getUsageStats(): {
+    loginTime: Date | null;
+    lastActivity: Date | null;
+    sessionDuration: number;
+    tokenRefreshCount: number;
+  } {
+    const authState = this.getAuthState();
+    const loginTime = authState.last_activity;
+    const now = new Date();
+    
+    return {
+      loginTime: loginTime,
+      lastActivity: authState.last_activity,
+      sessionDuration: loginTime ? now.getTime() - loginTime.getTime() : 0,
+      tokenRefreshCount: 0 // TODO: implement refresh counter if needed
+    };
   }
 }

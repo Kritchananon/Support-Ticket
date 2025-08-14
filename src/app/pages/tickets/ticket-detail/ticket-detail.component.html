@@ -74,9 +74,11 @@
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb">
         <li class="breadcrumb-item">
-          <a routerLink="/tickets">All Ticket</a>
+          <a routerLink="/tickets">All Tickets</a>
         </li>
-        <li class="breadcrumb-item active" aria-current="page">Ticket</li>
+        <li class="breadcrumb-item active" aria-current="page">
+          Ticket {{ ticketData.ticket.ticket_no }}
+        </li>
       </ol>
     </nav>
   </div>
@@ -94,7 +96,7 @@
         <div class="ticket-header">
           <div class="ticket-header-left">
             <div class="ticket-title-container">
-              <h1 class="ticket-title">Ticket</h1>
+              <h1 class="ticket-title">Ticket {{ ticketData.ticket.ticket_no }}</h1>
               
               <!-- Status Badge -->
               <div class="status-badge" [ngClass]="getStatusBadgeClass()">
@@ -119,6 +121,7 @@
                 [title]="canDelete() ? 'ลบ ticket นี้' : 'ไม่สามารถลบ ticket ในสถานะนี้ได้'">
                 
                 <span *ngIf="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <i class="bi bi-trash" *ngIf="!isDeleting"></i>
                 <span *ngIf="!isDeleting">Delete</span>
                 <span *ngIf="isDeleting">Deleting...</span>
               </button>
@@ -134,6 +137,23 @@
                 <i class="bi bi-pencil" *ngIf="!isEditing"></i>
                 <span>{{ getEditButtonText() }}</span>
               </button>
+
+              <!-- ✅ Admin-only buttons -->
+              <div *hasRole="'admin'" class="admin-actions ms-2">
+                <button class="btn btn-warning btn-sm" 
+                        (click)="escalateTicket()"
+                        title="Escalate ticket (Admin only)">
+                  <i class="bi bi-arrow-up-circle me-1"></i>
+                  Escalate
+                </button>
+                
+                <button class="btn btn-danger btn-sm ms-2" 
+                        (click)="forceCloseTicket()"
+                        title="Force close ticket (Admin only)">
+                  <i class="bi bi-x-circle me-1"></i>
+                  Force Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -155,7 +175,7 @@
           
           <div class="detail-item">
             <div class="detail-label">Priority:</div>
-            <div class="detail-value priority-high">{{ ticketData.ticket.priority || 'High' }}</div>
+            <div class="detail-value priority-high">{{ ticketData.ticket.priority || 'Medium' }}</div>
           </div>
           
           <div class="detail-divider"></div>
@@ -182,14 +202,14 @@
           </div>
           
           <div class="issue-content">
-            <div class="issue-label">Issue:</div>
+            <div class="issue-label">Issue Description:</div>
             <div class="issue-description">{{ ticketData.ticket.issue_description }}</div>
           </div>
         </div>
 
         <!-- Attachments Section -->
         <div class="attachments-section">
-          <div class="attachment-label">Attachment:</div>
+          <div class="attachment-label">Attachments:</div>
           <div class="attachment-grid">
             
             <!-- Attachment Items -->
@@ -273,8 +293,8 @@
             </div>
           </div>
           
-          <!-- ✅ Updated Evaluation Section -->
-          <div class="evaluation-section">
+          <!-- ✅ Enhanced Evaluation Section with Permission Check -->
+          <div class="evaluation-section" *hasPermission="[14]">
             <div class="evaluation-label">Evaluation</div>
             
             <!-- Evaluation Status Message -->
@@ -322,8 +342,8 @@
         <div class="support-header">
           <h2 class="support-title">Support Information</h2>
           
-          <!-- ✅ Supporter Action Button (ถ้ามีสิทธิ์) -->
-          <div *ngIf="canShowSupporterForm()" class="supporter-action">
+          <!-- ✅ ENHANCED: Supporter Action Button (ใช้ directive แทน method) -->
+          <div *supporterOnly class="supporter-action">
             <button type="button" 
                     class="btn btn-outline-primary" 
                     (click)="toggleSupporterForm()"
@@ -339,9 +359,9 @@
           <div class="support-progress-remaining"></div>
         </div>
 
-        <!-- ✅ SUPPORTER FORM SECTION -->
-        <div *ngIf="canShowSupporterForm() && supporterFormState.isVisible" 
-             class="supporter-form-section">
+        <!-- ✅ ENHANCED: Supporter Form Section (ใช้ ng-container เพื่อหลีกเลี่ยง multiple directives) -->
+        <ng-container *ngIf="supporterFormState.isVisible">
+          <div *hasRole="['supporter', 'admin']" class="supporter-form-section">
           
           <!-- Form Header -->
           <div class="supporter-form-header">
@@ -388,7 +408,8 @@
             
             <!-- Row 1: Action และ Estimate Time -->
             <div class="row mb-3">
-              <div class="col-md-6">
+              <!-- ✅ Action Dropdown (ต้องมีสิทธิ์ CHANGE_STATUS) -->
+              <div class="col-md-6" *hasPermission="[5]">
                 <label for="action" class="form-label">
                   <i class="bi bi-list-check me-1"></i>
                   Action <span class="text-danger">*</span>
@@ -410,7 +431,8 @@
                 </div>
               </div>
               
-              <div class="col-md-6">
+              <!-- ✅ Estimate Time (ทุกคนที่เป็น support team ใช้ได้) -->
+              <div class="col-md-6" *hasRole="['supporter', 'admin']">
                 <label for="estimate_time" class="form-label">
                   <i class="bi bi-clock me-1"></i>
                   Estimate Time (ชั่วโมง)
@@ -429,8 +451,8 @@
               </div>
             </div>
 
-            <!-- Row 2: Due Date และ Lead Time -->
-            <div class="row mb-3">
+            <!-- ✅ Row 2: Due Date และ Lead Time (เฉพาะ support team) -->
+            <div class="row mb-3" *hasRole="['supporter', 'admin']">
               <div class="col-md-6">
                 <label for="due_date" class="form-label">
                   <i class="bi bi-calendar-date me-1"></i>
@@ -465,24 +487,28 @@
               </div>
             </div>
 
-            <!-- Row 3: Close Estimate -->
+            <!-- Row 3: Close Estimate และ Related Tickets -->
             <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="close_estimate" class="form-label">
-                  <i class="bi bi-calendar-check me-1"></i>
-                  Close Estimate
-                </label>
-                <input type="datetime-local" 
-                       id="close_estimate" 
-                       class="form-control"
-                       formControlName="close_estimate"
-                       [class.is-invalid]="hasFieldError('close_estimate')">
-                <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
-                  {{ getFieldError('close_estimate') }}
+              <!-- ✅ Close Estimate (เฉพาะ admin หรือ senior supporter) -->
+              <ng-container *hasPermission="[5, 7]">
+                <div class="col-md-6">
+                  <label for="close_estimate" class="form-label">
+                    <i class="bi bi-calendar-check me-1"></i>
+                    Close Estimate
+                  </label>
+                  <input type="datetime-local" 
+                         id="close_estimate" 
+                         class="form-control"
+                         formControlName="close_estimate"
+                         [class.is-invalid]="hasFieldError('close_estimate')">
+                  <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
+                    {{ getFieldError('close_estimate') }}
+                  </div>
                 </div>
-              </div>
+              </ng-container>
               
-              <div class="col-md-6">
+              <!-- ✅ Related Tickets (ทุกคนที่เป็น support team ใช้ได้) -->
+              <div class="col-md-6" *hasRole="['supporter', 'admin']">
                 <label for="related_ticket_id" class="form-label">
                   <i class="bi bi-link-45deg me-1"></i>
                   Related Tickets
@@ -499,8 +525,8 @@
               </div>
             </div>
 
-            <!-- Row 4: Fix Description -->
-            <div class="row mb-3">
+            <!-- ✅ Row 4: Fix Description (เฉพาะผู้ที่มีสิทธิ์แก้ไขปัญหา) -->
+            <div class="row mb-3" *hasPermission="[8]">
               <div class="col-12">
                 <label for="fix_issue_description" class="form-label">
                   <i class="bi bi-chat-square-text me-1"></i>
@@ -524,8 +550,8 @@
               </div>
             </div>
 
-            <!-- Row 5: File Upload -->
-            <div class="row mb-3">
+            <!-- ✅ Row 5: File Upload (เฉพาะ support team) -->
+            <div class="row mb-3" *hasRole="['supporter', 'admin']">
               <div class="col-12">
                 <label for="attachments" class="form-label">
                   <i class="bi bi-paperclip me-1"></i>
@@ -618,6 +644,7 @@
             </div>
           </form>
         </div>
+        </ng-container>
 
         <!-- Support Details -->
         <div class="support-details">
@@ -633,7 +660,7 @@
             
             <div class="support-item">
               <div class="support-label">Estimate time:</div>
-              <div class="support-value">{{ ticketData.ticket.estimate_time }}</div>
+              <div class="support-value">{{ ticketData.ticket.estimate_time || '-' }}</div>
             </div>
             
             <div class="support-divider"></div>
@@ -647,7 +674,7 @@
             
             <div class="support-item">
               <div class="support-label">Lead Time:</div>
-              <div class="support-value">{{ ticketData.ticket.lead_time }}</div>
+              <div class="support-value">{{ ticketData.ticket.lead_time || '-' }}</div>
             </div>
           </div>
           
@@ -670,7 +697,7 @@
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Change Request:</div>
-              <div class="support-value">{{ ticketData.ticket.change_request }}</div>
+              <div class="support-value">{{ ticketData.ticket.change_request || '-' }}</div>
             </div>
             
             <div class="support-item">
@@ -679,7 +706,7 @@
             </div>
             
             <div class="support-item">
-              <div class="support-label">Attachment:</div>
+              <div class="support-label">Fix Attachments:</div>
               <div class="support-value">
                 
                 <!-- Fix Attachments -->
@@ -759,6 +786,85 @@
         <div class="text-center text-muted py-3">
           <i class="bi bi-clock-history fs-4"></i>
           <div class="mt-2">No history available</div>
+        </div>
+      </div>
+
+      <!-- ✅ Debug Panel (Development Only) -->
+      <div *ngIf="isDevelopment()" class="debug-panel mt-3">
+        <div class="card border-warning">
+          <div class="card-header bg-warning text-dark">
+            <small><i class="bi bi-bug me-1"></i> Debug Info (Dev Only)</small>
+          </div>
+          <div class="card-body p-2">
+            <button class="btn btn-sm btn-outline-warning mb-2" 
+                    (click)="debugPermissions()">
+              Debug Permissions
+            </button>
+            <div class="text-small">
+              <strong>User Info:</strong><br>
+              <small class="text-muted">
+                Roles: {{ getUserRolesDisplay() }}<br>
+                Admin: {{ isAdmin() }}<br>
+                Supporter: {{ isSupporter() }}<br>
+                Can Edit: {{ canEdit() }}<br>
+                Can Delete: {{ canDelete() }}<br>
+                Can Rate: {{ canClickStar() }}
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ Quick Actions Panel (Permission-based) -->
+      <div class="quick-actions mt-3">
+        <div class="card">
+          <div class="card-header">
+            <small><i class="bi bi-lightning me-1"></i> Quick Actions</small>
+          </div>
+          <div class="card-body p-2">
+            <!-- User Actions -->
+            <div *hasRole="'user'" class="user-actions mb-2">
+              <button class="btn btn-sm btn-outline-primary w-100 mb-1" 
+                      (click)="loadTicketDetail()"
+                      title="Refresh ticket details">
+                <i class="bi bi-arrow-clockwise me-1"></i>
+                Refresh
+              </button>
+            </div>
+            
+            <!-- Supporter Actions -->
+            <div *hasRole="['supporter', 'admin']" class="supporter-actions mb-2">
+              <button class="btn btn-sm btn-outline-success w-100 mb-1" 
+                      *hasPermission="[8]"
+                      (click)="toggleSupporterForm()"
+                      [disabled]="supporterFormState.isSaving">
+                <i class="bi bi-tools me-1"></i>
+                Support Tools
+              </button>
+              
+              <button class="btn btn-sm btn-outline-info w-100 mb-1" 
+                      *hasPermission="[6]"
+                      title="Reply to ticket">
+                <i class="bi bi-reply me-1"></i>
+                Reply
+              </button>
+            </div>
+            
+            <!-- Admin Actions -->
+            <div *hasRole="'admin'" class="admin-actions">
+              <button class="btn btn-sm btn-outline-warning w-100 mb-1" 
+                      (click)="escalateTicket()">
+                <i class="bi bi-arrow-up-circle me-1"></i>
+                Escalate
+              </button>
+              
+              <button class="btn btn-sm btn-outline-danger w-100" 
+                      (click)="forceCloseTicket()">
+                <i class="bi bi-x-circle me-1"></i>
+                Force Close
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

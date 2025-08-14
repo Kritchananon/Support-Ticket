@@ -1,28 +1,38 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, NavigationEnd } from '@angular/router';
+import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
 
-// ✅ Import interfaces จาก user.model.ts ใหม่
-import { User, AuthState } from '../../models/user.model';
+// ✅ Import Permission Models
+import { permissionEnum, UserRole, ROLES } from '../../models/permission.model';
+import { User, AuthState, UserWithPermissions } from '../../models/user.model';
+
+// ✅ Import Permission Directives
+import { HasPermissionDirective, HasRoleDirective } from '../../directives/permission.directive';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    HasPermissionDirective,  // ✅ Import permission directives
+    HasRoleDirective
+  ],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css']
 })
 export class HeaderComponent implements OnInit, OnDestroy {
-  private authService = inject(AuthService);
+  public authService = inject(AuthService);  // ✅ เปลี่ยนเป็น public
   private router = inject(Router);
 
-  // ✅ User and Auth State
-  currentUser: User | null = null;
+  // ✅ User and Auth State with enhanced types
+  currentUser: UserWithPermissions | null = null;
   authState: AuthState | null = null;
-  userPermissions: string[] = [];
+  userPermissions: number[] = [];  // ✅ เปลี่ยนเป็น number[]
+  userRoles: UserRole[] = [];
   
   // ✅ UI State
   currentLanguage = 'th';
@@ -33,6 +43,139 @@ export class HeaderComponent implements OnInit, OnDestroy {
   showTokenWarning = false;
   isRefreshing = false;
   tokenInfo: any = null;
+
+  // ✅ Permission Enums (for template usage)
+  readonly permissionEnum = permissionEnum;
+  readonly ROLES = ROLES;
+
+  // ✅ Menu Configuration based on roles
+  menuItems = {
+    admin: [
+      {
+        label: 'Dashboard',
+        labelTh: 'แดชบอร์ด',
+        route: '/dashboard',
+        icon: 'bi-speedometer2',
+        permissions: []
+      },
+      {
+        label: 'All Tickets',
+        labelTh: 'ตั๋วทั้งหมด',
+        route: '/tickets',
+        icon: 'bi-ticket-perforated',
+        permissions: [13] // VIEW_ALL_TICKETS
+      },
+      {
+        label: 'Admin Panel',
+        labelTh: 'แผงผู้ดูแล',
+        route: '/admin',
+        icon: 'bi-gear-fill',
+        permissions: [15, 16] // ADD_USER, DEL_USER
+      },
+      {
+        label: 'Reports',
+        labelTh: 'รายงาน',
+        route: '/reports',
+        icon: 'bi-graph-up',
+        permissions: [13] // VIEW_ALL_TICKETS
+      },
+      {
+        label: 'Settings',
+        labelTh: 'การตั้งค่า',
+        route: '/settings',
+        icon: 'bi-sliders',
+        permissions: []
+      }
+    ],
+    supporter: [
+      {
+        label: 'Dashboard',
+        labelTh: 'แดชบอร์ด',
+        route: '/dashboard',
+        icon: 'bi-speedometer2',
+        permissions: []
+      },
+      {
+        label: 'All Tickets',
+        labelTh: 'ตั๋วทั้งหมด',
+        route: '/tickets',
+        icon: 'bi-ticket-perforated',
+        permissions: [13] // VIEW_ALL_TICKETS
+      },
+      {
+        label: 'Support Queue',
+        labelTh: 'คิวสนับสนุน',
+        route: '/support/queue',
+        icon: 'bi-list-task',
+        permissions: [9] // ASSIGNEE
+      },
+      {
+        label: 'My Assigned',
+        labelTh: 'งานที่รับผิดชอบ',
+        route: '/support/assigned',
+        icon: 'bi-person-check',
+        permissions: [8] // SOLVE_PROBLEM
+      },
+      {
+        label: 'Reports',
+        labelTh: 'รายงาน',
+        route: '/reports',
+        icon: 'bi-graph-up',
+        permissions: [13] // VIEW_ALL_TICKETS
+      }
+    ],
+    user: [
+      {
+        label: 'Dashboard',
+        labelTh: 'แดชบอร์ด',
+        route: '/dashboard',
+        icon: 'bi-speedometer2',
+        permissions: []
+      },
+      {
+        label: 'My Tickets',
+        labelTh: 'ตั๋วของฉัน',
+        route: '/tickets/my-tickets',
+        icon: 'bi-ticket-perforated',
+        permissions: [12] // VIEW_OWN_TICKETS
+      },
+      {
+        label: 'Create Ticket',
+        labelTh: 'สร้างตั๋ว',
+        route: '/tickets/new',
+        icon: 'bi-plus-circle',
+        permissions: [1] // CREATE_TICKET
+      }
+    ]
+  };
+
+  // ✅ Quick Actions based on permissions
+  quickActions = [
+    {
+      label: 'New Ticket',
+      labelTh: 'ตั๋วใหม่',
+      route: '/tickets/new',
+      icon: 'bi-plus-lg',
+      permission: 1, // CREATE_TICKET
+      class: 'btn-primary'
+    },
+    {
+      label: 'Assign Tickets',
+      labelTh: 'มอบหมายตั๋ว',
+      route: '/support/queue',
+      icon: 'bi-person-plus',
+      permission: 9, // ASSIGNEE
+      class: 'btn-success'
+    },
+    {
+      label: 'User Management',
+      labelTh: 'จัดการผู้ใช้',
+      route: '/admin/users',
+      icon: 'bi-people',
+      permission: 15, // ADD_USER
+      class: 'btn-warning'
+    }
+  ];
 
   // ✅ Subscription Management
   private subscriptions: Subscription[] = [];
@@ -46,17 +189,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     console.log('🧹 Header component cleanup');
-    // ✅ ป้องกัน memory leaks
     this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
   // ===== INITIALIZATION ===== ✅
 
-  /**
-   * ✅ ตั้งค่าเริ่มต้น component
-   */
   private initializeComponent(): void {
-    // ✅ โหลดข้อมูล user และ auth state
     this.loadUserData();
     this.loadLanguagePreference();
     this.loadTokenInfo();
@@ -64,29 +202,30 @@ export class HeaderComponent implements OnInit, OnDestroy {
     console.log('📋 Header initialized with:', {
       hasUser: !!this.currentUser,
       language: this.currentLanguage,
-      permissionCount: this.userPermissions.length
+      permissionCount: this.userPermissions.length,
+      roleCount: this.userRoles.length,
+      primaryRole: this.getPrimaryRole()
     });
   }
 
-  /**
-   * ✅ ตั้งค่า subscriptions
-   */
   private setupSubscriptions(): void {
     // ✅ Subscribe to user changes
     const userSub = this.authService.currentUser$.subscribe(user => {
       console.log('👤 User data updated in header:', user?.username);
-      this.currentUser = user;
-      this.updateUserRelatedData();
+      this.updateUserData();
     });
 
     // ✅ Subscribe to auth state changes
     const authSub = this.authService.authState$.subscribe(state => {
       console.log('🔐 Auth state updated in header:', {
         isAuthenticated: state.isAuthenticated,
-        hasUser: !!state.user
+        hasUser: !!state.user,
+        roleCount: state.roles.length,
+        permissionCount: state.permissions.length
       });
       this.authState = state;
       this.userPermissions = state.permissions || [];
+      this.userRoles = state.roles || [];
     });
 
     // ✅ Subscribe to token warning
@@ -98,7 +237,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       }
     });
 
-    // ✅ Subscribe to route changes for page title
+    // ✅ Subscribe to route changes
     const routeSub = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
@@ -106,31 +245,34 @@ export class HeaderComponent implements OnInit, OnDestroy {
         this.updatePageTitle();
       });
 
-    // ✅ เก็บ subscriptions เพื่อ cleanup
     this.subscriptions.push(userSub, authSub, warningSub, routeSub);
   }
 
   // ===== DATA LOADING ===== ✅
 
-  /**
-   * ✅ โหลดข้อมูล user
-   */
   private loadUserData(): void {
-    this.currentUser = this.authService.getCurrentUser();
-    this.userPermissions = this.authService.getUserPermissions();
+    this.updateUserData();
     
     if (this.currentUser) {
       console.log('✅ User data loaded:', {
         id: this.currentUser.id,
         username: this.currentUser.username,
-        fullName: this.getUserFullName()
+        fullName: this.getUserFullName(),
+        primaryRole: this.getPrimaryRole()
       });
     }
   }
 
-  /**
-   * ✅ โหลดการตั้งค่าภาษา
-   */
+  private updateUserData(): void {
+    this.currentUser = this.authService.getCurrentUserWithPermissions();
+    this.userPermissions = this.authService.getUserPermissions();
+    this.userRoles = this.authService.getUserRoles();
+    
+    if (this.currentUser) {
+      this.updateTokenInfo();
+    }
+  }
+
   private loadLanguagePreference(): void {
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage && ['th', 'en'].includes(savedLanguage)) {
@@ -139,9 +281,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ โหลดข้อมูล token
-   */
   private loadTokenInfo(): void {
     this.tokenInfo = this.authService.getTokenInfo();
     if (this.tokenInfo) {
@@ -153,28 +292,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ อัปเดตข้อมูลที่เกี่ยวข้องกับ user
-   */
-  private updateUserRelatedData(): void {
-    if (this.currentUser) {
-      this.userPermissions = this.authService.getUserPermissions();
-      this.updateTokenInfo();
-    }
-  }
-
-  /**
-   * ✅ อัปเดตข้อมูล token
-   */
   private updateTokenInfo(): void {
     this.tokenInfo = this.authService.getTokenInfo();
   }
 
   // ===== USER INFO METHODS ===== ✅
 
-  /**
-   * ✅ ดึงชื่อเต็มของ user
-   */
   getUserFullName(): string {
     if (!this.currentUser) return '';
     
@@ -188,9 +311,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     return this.currentUser.username || 'User';
   }
 
-  /**
-   * ✅ ดึงชื่อย่อของ user
-   */
   getUserInitials(): string {
     if (!this.currentUser) return 'U';
     
@@ -205,33 +325,93 @@ export class HeaderComponent implements OnInit, OnDestroy {
     return username.charAt(0).toUpperCase();
   }
 
-  /**
-   * ✅ ดึงข้อมูล contact
-   */
   getUserContact(): string {
     if (!this.currentUser) return '';
     return this.currentUser.email || this.currentUser.phone || '';
   }
 
-  /**
-   * ✅ ตรวจสอบสิทธิ์
-   */
-  hasPermission(permission: string): boolean {
+  // ===== PERMISSION & ROLE METHODS ===== ✅
+
+  hasPermission(permission: number): boolean {
     return this.authService.hasPermission(permission);
   }
 
-  /**
-   * ✅ ดึงจำนวน permissions
-   */
+  hasRole(role: UserRole): boolean {
+    return this.authService.hasRole(role);
+  }
+
+  hasAnyRole(roles: UserRole[]): boolean {
+    return this.authService.hasAnyRole(roles);
+  }
+
+  getPrimaryRole(): UserRole | null {
+    return this.authService.getPrimaryRole();
+  }
+
+  isAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
+  isSupporter(): boolean {
+    return this.authService.isSupporter();
+  }
+
+  isUser(): boolean {
+    return this.authService.isUser();
+  }
+
   getPermissionCount(): number {
     return this.userPermissions.length;
   }
 
+  getRoleDisplay(): string {
+    const primaryRole = this.getPrimaryRole();
+    if (!primaryRole) return 'User';
+    
+    switch (primaryRole) {
+      case ROLES.ADMIN: return this.currentLanguage === 'th' ? 'ผู้ดูแลระบบ' : 'Administrator';
+      case ROLES.SUPPORTER: return this.currentLanguage === 'th' ? 'ผู้สนับสนุน' : 'Support Team';
+      case ROLES.USER: return this.currentLanguage === 'th' ? 'ผู้ใช้งาน' : 'User';
+      default: return primaryRole;
+    }
+  }
+
+  // ===== MENU METHODS ===== ✅
+
+  getMenuItems(): typeof this.menuItems.admin {
+    const primaryRole = this.getPrimaryRole();
+    
+    switch (primaryRole) {
+      case ROLES.ADMIN:
+        return this.menuItems.admin;
+      case ROLES.SUPPORTER:
+        return this.menuItems.supporter;
+      case ROLES.USER:
+      default:
+        return this.menuItems.user;
+    }
+  }
+
+  getVisibleQuickActions(): typeof this.quickActions {
+    return this.quickActions.filter(action => 
+      this.hasPermission(action.permission)
+    );
+  }
+
+  shouldShowMenuItem(item: any): boolean {
+    if (!item.permissions || item.permissions.length === 0) {
+      return true; // No specific permissions required
+    }
+    
+    return this.authService.hasAnyPermission(item.permissions);
+  }
+
+  getMenuItemLabel(item: any): string {
+    return this.currentLanguage === 'th' ? item.labelTh : item.label;
+  }
+
   // ===== GREETING METHODS ===== ✅
 
-  /**
-   * ✅ ดึงคำทักทายตามเวลา
-   */
   getGreeting(): string {
     const hour = new Date().getHours();
     
@@ -250,18 +430,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ ดึงข้อความตามภาษา
-   */
   getText(en: string, th: string): string {
     return this.currentLanguage === 'th' ? th : en;
   }
 
   // ===== LANGUAGE MANAGEMENT ===== ✅
 
-  /**
-   * ✅ เปลี่ยนภาษา
-   */
   switchLanguage(lang: string): void {
     if (['th', 'en'].includes(lang) && lang !== this.currentLanguage) {
       console.log('🌍 Switching language from', this.currentLanguage, 'to', lang);
@@ -270,14 +444,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
       localStorage.setItem('language', lang);
       this.updatePageTitle();
       
-      // ✅ สามารถ emit event เพื่อแจ้ง component อื่นได้
       this.broadcastLanguageChange(lang);
     }
   }
 
-  /**
-   * ✅ แจ้งการเปลี่ยนภาษาไปยัง component อื่น
-   */
   private broadcastLanguageChange(language: string): void {
     const event = new CustomEvent('language-changed', {
       detail: { language }
@@ -287,9 +457,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== PAGE TITLE MANAGEMENT ===== ✅
 
-  /**
-   * ✅ อัปเดต page title ตาม route
-   */
   private updatePageTitle(): void {
     const path = this.router.url;
     
@@ -301,14 +468,22 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.pageTitle = this.getText('Create New Ticket', 'สร้างตั๋วใหม่');
     } else if (path.includes('/tickets/') && path.includes('/edit')) {
       this.pageTitle = this.getText('Edit Ticket', 'แก้ไขตั๋ว');
+    } else if (path.includes('/tickets/my-tickets')) {
+      this.pageTitle = this.getText('My Tickets', 'ตั๋วของฉัน');
     } else if (path.includes('/tickets/') && !path.includes('/edit')) {
       this.pageTitle = this.getText('Ticket Details', 'รายละเอียดตั๋ว');
     } else if (path.includes('/tickets')) {
       this.pageTitle = this.getText('All Tickets', 'ตั๋วทั้งหมด');
+    } else if (path.includes('/admin')) {
+      this.pageTitle = this.getText('Admin Panel', 'แผงผู้ดูแล');
+    } else if (path.includes('/support')) {
+      this.pageTitle = this.getText('Support Panel', 'แผงสนับสนุน');
     } else if (path.includes('/settings')) {
       this.pageTitle = this.getText('Settings', 'การตั้งค่า');
     } else if (path.includes('/reports')) {
       this.pageTitle = this.getText('Reports', 'รายงาน');
+    } else if (path.includes('/profile')) {
+      this.pageTitle = this.getText('My Profile', 'โปรไฟล์ของฉัน');
     } else {
       this.pageTitle = this.getText('Support Ticket System', 'ระบบตั๋วสนับสนุน');
     }
@@ -316,43 +491,35 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== NAVIGATION METHODS ===== ✅
 
-  /**
-   * ✅ ไปหน้า profile
-   */
   goToProfile(event: Event): void {
     event.preventDefault();
     console.log('👤 Navigating to profile');
     this.router.navigate(['/profile']);
   }
 
-  /**
-   * ✅ ไปหน้า settings
-   */
   goToSettings(event: Event): void {
     event.preventDefault();
     console.log('⚙️ Navigating to settings');
     this.router.navigate(['/settings/general']);
   }
 
-  /**
-   * ✅ ไปหน้า dashboard
-   */
   goToDashboard(): void {
     console.log('🏠 Navigating to dashboard');
     this.router.navigate(['/dashboard']);
   }
 
+  navigateToQuickAction(action: any): void {
+    console.log('⚡ Quick action:', action.label, '→', action.route);
+    this.router.navigate([action.route]);
+  }
+
   // ===== LOGOUT FUNCTIONALITY ===== ✅
 
-  /**
-   * ✅ ออกจากระบบ
-   */
   logout(event: Event): void {
     event.preventDefault();
     
     console.log('🚪 Logout requested');
     
-    // ✅ แสดง confirmation dialog
     const confirmLogout = confirm(
       this.getText(
         'Are you sure you want to logout?', 
@@ -368,19 +535,14 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ ดำเนินการ logout
-   */
   private performLogout(): void {
     this.isLoading = true;
     
     try {
-      // ✅ เรียก AuthService logout
       this.authService.logout();
       console.log('✅ Logout completed');
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // ✅ แม้จะ error ก็ force logout
       this.authService.clearAuthData();
     } finally {
       this.isLoading = false;
@@ -389,9 +551,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== TOKEN WARNING METHODS ===== ✅
 
-  /**
-   * ✅ รีเฟรช session ด้วยตนเอง
-   */
   refreshSession(): void {
     console.log('🔄 Manual session refresh requested');
     
@@ -407,22 +566,15 @@ export class HeaderComponent implements OnInit, OnDestroy {
       error: (error) => {
         console.error('❌ Manual token refresh failed:', error);
         this.isRefreshing = false;
-        // AuthService จะจัดการ auto logout
       }
     });
   }
 
-  /**
-   * ✅ ปิด token warning
-   */
   dismissWarning(): void {
     console.log('❌ Token warning dismissed');
     this.showTokenWarning = false;
   }
 
-  /**
-   * ✅ ดึงข้อความเวลาที่เหลือ
-   */
   getTimeLeftText(): string {
     if (!this.tokenInfo) return '';
     
@@ -443,9 +595,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== MOBILE MENU ===== ✅
 
-  /**
-   * ✅ เปิด/ปิด mobile menu
-   */
   toggleMobileMenu(): void {
     console.log('📱 Mobile menu toggled');
     
@@ -468,34 +617,55 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ===== NOTIFICATION METHODS ===== ✅
+
+  getNotificationCount(): number {
+    // TODO: Implement notification system
+    return 0;
+  }
+
+  hasUnreadNotifications(): boolean {
+    return this.getNotificationCount() > 0;
+  }
+
+  markNotificationsAsRead(): void {
+    // TODO: Implement notification system
+    console.log('📬 Marking notifications as read');
+  }
+
   // ===== UTILITY METHODS ===== ✅
 
-  /**
-   * ✅ ตรวจสอบว่าเป็น mobile หรือไม่
-   */
   isMobile(): boolean {
     return window.innerWidth < 768;
   }
 
-  /**
-   * ✅ ดึงสถานะ online/offline
-   */
   isOnline(): boolean {
     return navigator.onLine;
   }
 
-  /**
-   * ✅ ดึงข้อมูล browser info
-   */
   getBrowserInfo(): string {
     return navigator.userAgent;
   }
 
+  // ===== ACCESSIBILITY METHODS ===== ✅
+
+  getAriaLabel(item: any): string {
+    const label = this.getMenuItemLabel(item);
+    const hasNotification = item.route === '/notifications' && this.hasUnreadNotifications();
+    
+    if (hasNotification) {
+      return `${label} (${this.getNotificationCount()} unread)`;
+    }
+    
+    return label;
+  }
+
+  isCurrentRoute(route: string): boolean {
+    return this.router.url.startsWith(route);
+  }
+
   // ===== DEBUG METHODS ===== ✅
 
-  /**
-   * ✅ Debug header component state
-   */
   debugHeaderState(): void {
     console.group('🔍 Header Component Debug');
     
@@ -504,13 +674,20 @@ export class HeaderComponent implements OnInit, OnDestroy {
       username: this.currentUser?.username,
       fullName: this.getUserFullName(),
       initials: this.getUserInitials(),
-      contact: this.getUserContact()
+      contact: this.getUserContact(),
+      primaryRole: this.getPrimaryRole(),
+      roleDisplay: this.getRoleDisplay()
     });
     
     console.log('🔐 Auth Info:', {
       isAuthenticated: this.authService.isAuthenticated(),
       permissionCount: this.userPermissions.length,
-      permissions: this.userPermissions
+      roleCount: this.userRoles.length,
+      permissions: this.userPermissions,
+      roles: this.userRoles,
+      isAdmin: this.isAdmin(),
+      isSupporter: this.isSupporter(),
+      isUser: this.isUser()
     });
     
     console.log('🎛️ Component State:', {
@@ -521,6 +698,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
       isLoading: this.isLoading
     });
     
+    console.log('🍔 Menu Info:', {
+      menuItemCount: this.getMenuItems().length,
+      visibleQuickActions: this.getVisibleQuickActions().length,
+      quickActions: this.getVisibleQuickActions()
+    });
+    
     if (this.tokenInfo) {
       console.log('🔑 Token Info:', this.tokenInfo);
     }
@@ -528,9 +711,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     console.groupEnd();
   }
 
-  /**
-   * ✅ Force refresh component data
-   */
   forceRefresh(): void {
     console.log('🔄 Force refreshing header component');
     this.loadUserData();
@@ -538,11 +718,92 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.updatePageTitle();
   }
 
-  /**
-   * ✅ Test authentication status
-   */
   testAuthStatus(): void {
     console.log('🧪 Testing authentication status');
     this.authService.debugAuthStatus();
+    this.authService.checkCurrentPermissionStatus();
+  }
+
+  // ✅ NEW: Method สำหรับ debug permission issue
+  debugPermissionIssue(): void {
+    console.group('🔍 Permission Issue Debug');
+    
+    // ✅ เรียก debug method ใน auth service
+    this.authService.debugPermissionsInStorage();
+    
+    console.log('Header Component State:', {
+      currentUser: this.currentUser,
+      userPermissions: this.userPermissions,
+      userRoles: this.userRoles,
+      primaryRole: this.getPrimaryRole(),
+      menuItems: this.getMenuItems(),
+      visibleQuickActions: this.getVisibleQuickActions()
+    });
+    
+    console.log('Auth Service Checks:', {
+      isAuthenticated: this.authService.isAuthenticated(),
+      isAdmin: this.authService.isAdmin(),
+      isSupporter: this.authService.isSupporter(),
+      isUser: this.authService.isUser(),
+      canManageTickets: this.authService.canManageTickets(),
+      canViewAllTickets: this.authService.canViewAllTickets(),
+      rawPermissions: this.authService.getUserPermissions(),
+      rawRoles: this.authService.getUserRoles()
+    });
+    
+    // ✅ ตรวจสอบ permission เฉพาะๆ
+    const supporterPermissions = [5, 6, 7, 8, 9, 10, 13];
+    console.log('Supporter Permission Checks:', {
+      hasChangeStatus: this.authService.hasPermission(5), // CHANGE_STATUS
+      hasReplyTicket: this.authService.hasPermission(6), // REPLY_TICKET
+      hasCloseTicket: this.authService.hasPermission(7), // CLOSE_TICKET
+      hasSolveProblem: this.authService.hasPermission(8), // SOLVE_PROBLEM
+      hasAssignee: this.authService.hasPermission(9), // ASSIGNEE
+      hasOpenTicket: this.authService.hasPermission(10), // OPEN_TICKET
+      hasViewAllTickets: this.authService.hasPermission(13) // VIEW_ALL_TICKETS
+    });
+    
+    console.groupEnd();
+    
+    // ✅ แสดงใน alert เพื่อให้ user เห็น
+    alert(`Current Role: ${this.getPrimaryRole()}\nPermissions: ${this.userPermissions.length}\nRoles: ${this.userRoles.join(', ')}\n\nSupporter Check: ${this.isSupporter()}\nCan Manage Tickets: ${this.canManageTickets()}`);
+  }
+
+  // ===== PERMISSION HELPERS FOR TEMPLATE ===== ✅
+
+  isAuthenticated(): boolean {
+    return this.authService.isAuthenticated();
+  }
+
+  canCreateTickets(): boolean {
+    return this.hasPermission(1); // CREATE_TICKET
+  }
+
+  canViewAllTickets(): boolean {
+    return this.hasPermission(13); // VIEW_ALL_TICKETS
+  }
+
+  canManageUsers(): boolean {
+    return this.authService.canManageUsers();
+  }
+
+  canManageTickets(): boolean {
+    return this.authService.canManageTickets();
+  }
+
+  canAccessReports(): boolean {
+    return this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+  }
+
+  canAccessSettings(): boolean {
+    return true; // All authenticated users can access general settings
+  }
+
+  canAccessAdminPanel(): boolean {
+    return this.isAdmin();
+  }
+
+  canAccessSupportPanel(): boolean {
+    return this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
   }
 }

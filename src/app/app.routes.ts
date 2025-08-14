@@ -6,7 +6,18 @@ import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { TicketCreateComponent } from './pages/tickets/ticket-create/ticket-create.component';
 import { TicketListComponent } from './pages/tickets/ticket-list/ticket-list.component';
 import { TicketDetailComponent } from './pages/tickets/ticket-detail/ticket-detail.component';
-import { authGuard } from './shared/guards/auth.guard';
+
+// ✅ Import Permission Guards
+import { 
+  authGuard, 
+  adminGuard, 
+  supportGuard, 
+  userManagementGuard,
+  createPermissionGuard
+} from './shared/guards/auth.guard';
+
+// ✅ Import Permission Enum
+import { permissionEnum } from './shared/models/permission.model';
 
 export const routes: Routes = [
   {
@@ -14,56 +25,257 @@ export const routes: Routes = [
     redirectTo: '/login',
     pathMatch: 'full'
   },
-  // Auth routes (no guard)
+  
+  // ===== Auth Routes (No Guard) ===== ✅
   {
     path: '',
     component: AuthLayoutComponent,
     children: [
       {
         path: 'login',
-        component: LoginComponent
+        component: LoginComponent,
+        title: 'Login - Support Ticket System'
       }
     ]
   },
-  // Protected routes (with auth guard)
+  
+  // ===== Protected Routes (With Auth Guard) ===== ✅
   {
     path: '',
     component: MainLayoutComponent,
     canActivate: [authGuard],
     children: [
+      // ===== Dashboard ===== ✅
       {
         path: 'dashboard',
-        component: DashboardComponent
+        component: DashboardComponent,
+        title: 'Dashboard - Support Ticket System'
       },
-      // Ticket Routes
+      
+      // ===== Ticket Routes ===== ✅
       {
         path: 'tickets',
         children: [
+          // ✅ All Tickets List (Support team only)
           {
             path: '',
-            component: TicketListComponent
+            component: TicketListComponent,
+            canActivate: [authGuard],
+            data: {
+              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.VIEW_OWN_TICKETS],
+              requireAllPermissions: false // มีอย่างน้อย 1 permission
+            },
+            title: 'All Tickets - Support Ticket System'
           },
+          
+          // ✅ My Tickets (User only - ดูแค่ของตัวเอง)
+          {
+            path: 'my-tickets',
+            component: TicketListComponent,
+            canActivate: [authGuard],
+            data: {
+              viewMode: 'own-only', // ส่งไปให้ component รู้
+              permissions: [permissionEnum.VIEW_OWN_TICKETS]
+            },
+            title: 'My Tickets - Support Ticket System'
+          },
+          
+          // ✅ Create New Ticket
           {
             path: 'new',
-            component: TicketCreateComponent
+            component: TicketCreateComponent,
+            canActivate: [createPermissionGuard([permissionEnum.CREATE_TICKET])],
+            title: 'Create New Ticket - Support Ticket System'
           },
+          
+          // ✅ Edit Ticket (Own tickets or admin/supporter)
           {
             path: 'edit/:ticket_no',
             component: TicketCreateComponent,
-            title: 'Edit Ticket'
+            canActivate: [authGuard],
+            data: {
+              permissions: [
+                permissionEnum.EDIT_TICKET, 
+                permissionEnum.CHANGE_STATUS,
+                permissionEnum.SOLVE_PROBLEM
+              ],
+              requireAllPermissions: false // มีอย่างน้อย 1 permission
+            },
+            title: 'Edit Ticket - Support Ticket System'
           },
+          
+          // ✅ Ticket Details
           {
-            // ✅ แก้ไข: เปลี่ยนจาก :id เป็น :ticketNo เพื่อรับ ticket_no แทน ticket_id
             path: ':ticket_no',
-            component: TicketDetailComponent
+            component: TicketDetailComponent,
+            canActivate: [authGuard],
+            data: {
+              permissions: [
+                permissionEnum.VIEW_ALL_TICKETS,
+                permissionEnum.VIEW_OWN_TICKETS,
+                permissionEnum.TRACK_TICKET
+              ],
+              requireAllPermissions: false // มีอย่างน้อย 1 permission
+            },
+            title: 'Ticket Details - Support Ticket System'
           }
         ]
+      },
+      
+      // ===== Settings Routes ===== ✅
+      {
+        path: 'settings',
+        children: [
+          {
+            path: '',
+            redirectTo: 'general',
+            pathMatch: 'full'
+          },
+          
+          // ✅ General Settings (All authenticated users)
+          {
+            path: 'general',
+            component: DashboardComponent, // Use existing component for now
+            title: 'General Settings - Support Ticket System'
+          },
+          
+          // ✅ User Account Management (Admin only)
+          {
+            path: 'user-account',
+            canActivate: [userManagementGuard],
+            component: DashboardComponent, // Use existing component for now
+            data: {
+              permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
+              requireAllPermissions: false
+            },
+            title: 'User Management - Support Ticket System'
+          }
+        ]
+      },
+      
+      // ===== Admin Routes ===== ✅
+      {
+        path: 'admin',
+        canActivate: [adminGuard],
+        children: [
+          {
+            path: '',
+            redirectTo: 'dashboard',
+            pathMatch: 'full'
+          },
+          {
+            path: 'dashboard',
+            component: DashboardComponent, // Use existing component for now
+            title: 'Admin Dashboard - Support Ticket System'
+          },
+          {
+            path: 'users',
+            component: DashboardComponent, // Use existing component for now
+            data: {
+              permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER]
+            },
+            title: 'User Management - Support Ticket System'
+          }
+        ]
+      },
+      
+      // ===== Support Team Routes ===== ✅
+      {
+        path: 'support',
+        canActivate: [supportGuard],
+        children: [
+          {
+            path: '',
+            redirectTo: 'queue',
+            pathMatch: 'full'
+          },
+          {
+            path: 'queue',
+            component: TicketListComponent, // Use existing component
+            data: {
+              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              viewMode: 'all'
+            },
+            title: 'Support Queue - Support Ticket System'
+          },
+          {
+            path: 'assigned',
+            component: TicketListComponent, // Use existing component
+            data: {
+              permissions: [permissionEnum.ASSIGNEE, permissionEnum.SOLVE_PROBLEM],
+              viewMode: 'all'
+            },
+            title: 'Assigned Tickets - Support Ticket System'
+          }
+        ]
+      },
+      
+      // ===== Simple Routes ===== ✅
+      {
+        path: 'profile',
+        component: DashboardComponent, // Use existing component for now
+        title: 'My Profile - Support Ticket System'
+      },
+      
+      {
+        path: 'access-denied',
+        component: DashboardComponent, // Use existing component for now
+        title: 'Access Denied - Support Ticket System'
       }
     ]
   },
-  // Fallback route
+  
+  // ===== Fallback Route ===== ✅
   {
     path: '**',
-    redirectTo: '/login'
+    redirectTo: '/dashboard'
   }
 ];
+
+// ===== Route Configuration Constants ===== ✅
+export const ROUTE_PERMISSIONS = {
+  TICKETS: {
+    VIEW_ALL: [permissionEnum.VIEW_ALL_TICKETS],
+    VIEW_OWN: [permissionEnum.VIEW_OWN_TICKETS],
+    CREATE: [permissionEnum.CREATE_TICKET],
+    EDIT: [permissionEnum.EDIT_TICKET, permissionEnum.CHANGE_STATUS],
+    DELETE: [permissionEnum.DELETE_TICKET]
+  },
+  ADMIN: {
+    USERS: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
+    SETTINGS: [permissionEnum.ADD_USER] // Admin role required
+  },
+  SUPPORT: {
+    QUEUE: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+    SOLVE: [permissionEnum.SOLVE_PROBLEM, permissionEnum.REPLY_TICKET]
+  }
+} as const;
+
+// ===== Route Utility Functions ===== ✅
+export function getRouteTitle(path: string): string {
+  const route = routes
+    .flatMap(r => r.children || [r])
+    .find(r => r.path === path);
+  
+  return route?.title as string || 'Support Ticket System';
+}
+
+export function getRoutePermissions(path: string): permissionEnum[] {
+  const route = routes
+    .flatMap(r => r.children || [r])
+    .find(r => r.path === path);
+  
+  return route?.data?.['permissions'] || [];
+}
+
+export function isRouteAccessible(path: string, userPermissions: permissionEnum[]): boolean {
+  const requiredPermissions = getRoutePermissions(path);
+  
+  if (requiredPermissions.length === 0) {
+    return true; // No specific permissions required
+  }
+  
+  return requiredPermissions.some(permission => 
+    userPermissions.includes(permission)
+  );
+}

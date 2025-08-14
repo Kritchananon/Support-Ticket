@@ -4,7 +4,14 @@ import { provideHttpClient, withInterceptors, HTTP_INTERCEPTORS } from '@angular
 import { FormsModule } from '@angular/forms';
 
 import { routes } from './app.routes';
-import { AuthInterceptor } from './shared/services/api.service'; // ✅ Import AuthInterceptor
+import { AuthInterceptor } from './shared/services/api.service';
+
+// ✅ Import Permission Directives
+import { PERMISSION_DIRECTIVES } from './shared/directives/permission.directive';
+
+// ✅ Import Services (for dependency injection)
+import { AuthService } from './shared/services/auth.service';
+import { ApiService } from './shared/services/api.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -27,7 +34,17 @@ export const appConfig: ApplicationConfig = {
     },
     
     // ✅ Import FormsModule for template-driven forms
-    importProvidersFrom(FormsModule)
+    importProvidersFrom(FormsModule),
+    
+    // ✅ Core Services (explicitly provided for better DI)
+    AuthService,
+    ApiService,
+    
+    // ✅ Permission Directives (available globally)
+    ...PERMISSION_DIRECTIVES.map(directive => ({
+      provide: directive,
+      useClass: directive
+    })),
     
     // ✅ หมายเหตุ: Service Worker จะถูกจัดการใน main.ts แทน
     // เพื่อหลีกเลี่ยงปัญหา import ใน development mode

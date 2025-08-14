@@ -15,20 +15,85 @@
       <i class="bi bi-list"></i>
     </button>
 
-    <!-- Page Title (Left side - optional, can be empty for cleaner look) -->
+    <!-- ✅ Role-Based Quick Actions (Left side) -->
+    <div class="quick-actions d-none d-lg-flex">
+      <ng-container *ngFor="let action of getVisibleQuickActions()">
+        <button 
+          *hasPermission="[action.permission]"
+          (click)="navigateToQuickAction(action)"
+          class="btn btn-sm me-2"
+          [ngClass]="action.class"
+          [title]="getMenuItemLabel(action)">
+          <i [class]="action.icon"></i>
+          <span class="d-none d-xl-inline ms-1">{{ getMenuItemLabel(action) }}</span>
+        </button>
+      </ng-container>
+    </div>
+
+    <!-- Page Title (Center - optional) -->
     <div class="page-title d-none d-md-block">
-      <!-- Empty for cleaner header design -->
+      <h4 class="mb-0">{{ pageTitle }}</h4>
     </div>
 
     <!-- Right Side Navigation -->
     <div class="header-nav ms-auto">
+      <!-- ✅ Role Badge -->
+      <div class="role-badge me-3 d-none d-md-flex" *ngIf="currentUser">
+        <span class="badge"
+              [ngClass]="{
+                'bg-danger': isAdmin(),
+                'bg-warning': isSupporter(),
+                'bg-primary': isUser()
+              }">
+          <i class="bi" 
+             [ngClass]="{
+               'bi-shield-check': isAdmin(),
+               'bi-headset': isSupporter(),
+               'bi-person': isUser()
+             }"></i>
+          {{ getRoleDisplay() }}
+        </span>
+      </div>
+
+      <!-- ✅ Notifications (Support team only) -->
+      <div class="dropdown me-3" *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
+        <button 
+          class="btn-icon dropdown-toggle" 
+          type="button" 
+          data-bs-toggle="dropdown" 
+          aria-expanded="false"
+          [attr.aria-label]="getText('Notifications', 'การแจ้งเตือน')">
+          <i class="bi bi-bell"></i>
+          <span *ngIf="hasUnreadNotifications()" class="notification-badge">
+            {{ getNotificationCount() }}
+          </span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end notification-menu">
+          <li class="dropdown-header">
+            {{ getText('Notifications', 'การแจ้งเตือน') }}
+            <button *ngIf="hasUnreadNotifications()" 
+                    (click)="markNotificationsAsRead()" 
+                    class="btn btn-sm btn-link float-end">
+              {{ getText('Mark all as read', 'อ่านทั้งหมด') }}
+            </button>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          
+          <!-- TODO: Add notification items -->
+          <li class="dropdown-item-text text-center text-muted">
+            {{ getText('No new notifications', 'ไม่มีการแจ้งเตือนใหม่') }}
+          </li>
+        </ul>
+      </div>
+
       <!-- Language Selector -->
       <div class="dropdown me-3">
         <button 
           class="btn-outline-secondary dropdown-toggle language-btn" 
           type="button" 
           data-bs-toggle="dropdown" 
-          aria-expanded="false">
+          aria-expanded="false"
+          [attr.aria-label]="getText('Select Language', 'เลือกภาษา')">
           <span class="flag-emoji me-2">{{ currentLanguage === 'th' ? '🇹🇭' : '🇺🇸' }}</span>
           {{ currentLanguage === 'th' ? 'TH' : 'EN' }}
         </button>
@@ -38,7 +103,8 @@
               class="dropdown-item" 
               type="button"
               (click)="switchLanguage('th')"
-              [class.active]="currentLanguage === 'th'">
+              [class.active]="currentLanguage === 'th'"
+              [attr.aria-pressed]="currentLanguage === 'th'">
               <span class="flag-emoji me-2">🇹🇭</span>
               ไทย
             </button>
@@ -48,7 +114,8 @@
               class="dropdown-item" 
               type="button"
               (click)="switchLanguage('en')"
-              [class.active]="currentLanguage === 'en'">
+              [class.active]="currentLanguage === 'en'"
+              [attr.aria-pressed]="currentLanguage === 'en'">
               <span class="flag-emoji me-2">🇺🇸</span>
               English
             </button>
@@ -62,7 +129,8 @@
           class="btn-link dropdown-toggle user-dropdown" 
           type="button" 
           data-bs-toggle="dropdown" 
-          aria-expanded="false">
+          aria-expanded="false"
+          [attr.aria-label]="getText('User Menu', 'เมนูผู้ใช้')">
           <div class="user-avatar">
             <i class="bi bi-person-circle"></i>
           </div>
@@ -78,8 +146,17 @@
                 <i class="bi bi-person-circle"></i>
               </div>
               <div class="user-details">
-                <div class="user-name-full">{{ currentUser?.firstname }} {{ currentUser?.lastname }}</div>
-                <div class="user-email">{{ currentUser?.email || currentUser?.username }}</div>
+                <div class="user-name-full">{{ getUserFullName() }}</div>
+                <div class="user-email">{{ getUserContact() || currentUser?.username }}</div>
+                <div class="user-role-small">
+                  <i class="bi" 
+                     [ngClass]="{
+                       'bi-shield-check': isAdmin(),
+                       'bi-headset': isSupporter(),
+                       'bi-person': isUser()
+                     }"></i>
+                  {{ getRoleDisplay() }}
+                </div>
               </div>
             </div>
           </li>
@@ -100,7 +177,42 @@
               {{ getText('Settings', 'การตั้งค่า') }}
             </a>
           </li>
+
+          <!-- ✅ Role-specific menu items -->
+          <li><hr class="dropdown-divider"></li>
           
+          <!-- Admin Panel (Admin only) -->
+          <li *hasRole="[ROLES.ADMIN]">
+            <a class="dropdown-item" [routerLink]="['/admin']">
+              <i class="bi bi-shield-check me-2"></i>
+              {{ getText('Admin Panel', 'แผงผู้ดูแล') }}
+            </a>
+          </li>
+          
+          <!-- Support Panel (Support team only) -->
+          <li *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
+            <a class="dropdown-item" [routerLink]="['/support']">
+              <i class="bi bi-headset me-2"></i>
+              {{ getText('Support Panel', 'แผงสนับสนุน') }}
+            </a>
+          </li>
+
+          <!-- User Management (Admin only) -->
+          <li *hasPermission="[permissionEnum.ADD_USER, permissionEnum.DEL_USER]">
+            <a class="dropdown-item" [routerLink]="['/admin/users']">
+              <i class="bi bi-people me-2"></i>
+              {{ getText('User Management', 'จัดการผู้ใช้') }}
+            </a>
+          </li>
+
+          <!-- Reports (Support team only) -->
+          <li *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
+            <a class="dropdown-item" [routerLink]="['/reports']">
+              <i class="bi bi-graph-up me-2"></i>
+              {{ getText('Reports', 'รายงาน') }}
+            </a>
+          </li>
+
           <li><hr class="dropdown-divider"></li>
           
           <!-- Logout Link -->
@@ -111,6 +223,50 @@
             </a>
           </li>
         </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ Mobile Menu (Role-based) -->
+  <div class="mobile-menu d-md-none" *ngIf="isMobile()">
+    <div class="mobile-menu-content">
+      <div class="mobile-user-info">
+        <div class="user-avatar">
+          <i class="bi bi-person-circle"></i>
+        </div>
+        <div class="user-details">
+          <div class="user-name">{{ getUserFullName() }}</div>
+          <div class="user-role">{{ getRoleDisplay() }}</div>
+        </div>
+      </div>
+
+      <!-- Mobile Navigation Menu -->
+      <nav class="mobile-nav">
+        <ng-container *ngFor="let item of getMenuItems()">
+          <a 
+            *hasPermission="item.permissions"
+            [routerLink]="item.route"
+            class="mobile-nav-item"
+            [class.active]="isCurrentRoute(item.route)"
+            [attr.aria-label]="getAriaLabel(item)">
+            <i [class]="item.icon"></i>
+            <span>{{ getMenuItemLabel(item) }}</span>
+          </a>
+        </ng-container>
+      </nav>
+
+      <!-- Mobile Quick Actions -->
+      <div class="mobile-quick-actions">
+        <ng-container *ngFor="let action of getVisibleQuickActions()">
+          <button 
+            *hasPermission="[action.permission]"
+            (click)="navigateToQuickAction(action)"
+            class="btn btn-sm"
+            [ngClass]="action.class">
+            <i [class]="action.icon"></i>
+            <span>{{ getMenuItemLabel(action) }}</span>
+          </button>
+        </ng-container>
       </div>
     </div>
   </div>
