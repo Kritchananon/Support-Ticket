@@ -13,13 +13,12 @@ import {
   TicketHistoryResponse, 
   TicketStatusHistory,
   GetTicketDataRequest,
-  satisfactionResponse
+  satisfactionResponse,
+  StatusDDLItem,         // ✅ ใช้ interface จาก api.service.ts
+  StatusDDLResponse      // ✅ ใช้ interface จาก api.service.ts
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { TicketService } from '../../../shared/services/ticket.service';
-
-// ✅ Import NEW: Permission Directives
-import { PERMISSION_DIRECTIVES } from '../../../shared/directives/permission.directive';
 
 // ✅ Import Permission Models
 import { 
@@ -28,12 +27,11 @@ import {
   ROLES 
 } from '../../../shared/models/permission.model';
 
-// ✅ Import Interfaces (existing)
+// ✅ Import Existing Interfaces (ใช้ที่มีอยู่แล้ว)
 import { 
   SaveSupporterFormData, 
   SaveSupporterResponse, 
-  SupporterActionType,
-  ActionDropdownOption
+  SupporterActionType
 } from '../../../shared/models/ticket.model';
 import { 
   SupporterFormState,
@@ -41,7 +39,7 @@ import {
   SupporterFormValidation
 } from '../../../shared/models/common.model';
 
-// ===== INTERFACES ===== ✅
+// ===== LOCAL INTERFACES (เฉพาะ component นี้) ===== ✅
 
 interface HistoryDisplayItem {
   status_id: number;
@@ -97,6 +95,24 @@ interface TicketData {
   }>;
 }
 
+// ✅ ENHANCED: Action Dropdown Interface (ขยายจาก ticket.model.ts)
+interface ActionDropdownOption {
+  value: string;
+  label: string;
+  statusId: number;
+  disabled?: boolean;
+}
+
+// ✅ ENHANCED: Supporter Action Types (ขยายจาก ticket.model.ts)
+enum LocalSupporterActionType {
+  PENDING = 'PENDING',
+  OPEN_TICKET = 'OPEN_TICKET', 
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+  COMPLETE = 'COMPLETE',
+  CANCEL = 'CANCEL'
+}
+
 // ===== COMPONENT DECLARATION ===== ✅
 
 @Component({
@@ -105,8 +121,7 @@ interface TicketData {
   imports: [
     CommonModule, 
     FormsModule, 
-    ReactiveFormsModule,
-    ...PERMISSION_DIRECTIVES  // ✅ เพิ่ม permission directives
+    ReactiveFormsModule
   ],
   templateUrl: './ticket-detail.component.html',
   styleUrls: ['./ticket-detail.component.css']
@@ -191,14 +206,20 @@ export class TicketDetailComponent implements OnInit {
   hasAssigneePermission = false;
   hasSolveProblemPermission = false;
 
-  // Action Dropdown
-  actionDropdownOptions: ActionDropdownOption[] = [
-    { value: SupporterActionType.COMPLETE, label: 'Complete', statusId: 5 },
-    { value: SupporterActionType.PENDING, label: 'Pending', statusId: 1 },
-    { value: SupporterActionType.OPEN_TICKET, label: 'Open Ticket', statusId: 2 },
-    { value: SupporterActionType.IN_PROGRESS, label: 'In Progress', statusId: 3 },
-    { value: SupporterActionType.RESOLVED, label: 'Resolved', statusId: 4 },
-    { value: SupporterActionType.CANCEL, label: 'Cancel', statusId: 6 }
+  // ✅ NEW: Action Dropdown Properties
+  actionDropdownOptions: ActionDropdownOption[] = [];
+  statusList: StatusDDLItem[] = []; // ✅ ใช้ interface จาก api.service.ts
+  isLoadingActions = false;
+  actionError = '';
+
+  // Action Dropdown (ค่าเริ่มต้น - จะถูกแทนที่ด้วยข้อมูลจาก API)
+  private defaultActionDropdownOptions: ActionDropdownOption[] = [
+    { value: LocalSupporterActionType.COMPLETE, label: 'Complete', statusId: 5 },
+    { value: LocalSupporterActionType.PENDING, label: 'Pending', statusId: 1 },
+    { value: LocalSupporterActionType.OPEN_TICKET, label: 'Open Ticket', statusId: 2 },
+    { value: LocalSupporterActionType.IN_PROGRESS, label: 'In Progress', statusId: 3 },
+    { value: LocalSupporterActionType.RESOLVED, label: 'Resolved', statusId: 4 },
+    { value: LocalSupporterActionType.CANCEL, label: 'Cancel', statusId: 6 }
   ];
 
   // File Upload
@@ -235,8 +256,9 @@ export class TicketDetailComponent implements OnInit {
     
     if (this.ticket_no) {
       this.initializeSupporterForm();
-      this.checkUserPermissions();  // ✅ ENHANCED
+      this.checkUserPermissions();
       this.loadStatusCache();
+      this.loadActionDropdownOptions(); // ✅ เพิ่มบรรทัดนี้
       this.loadTicketDetail();
     } else {
       this.router.navigate(['/tickets']);
@@ -246,42 +268,45 @@ export class TicketDetailComponent implements OnInit {
   // ===== ✅ ENHANCED: PERMISSION CHECKING METHODS ===== 
 
   /**
-   * ✅ ENHANCED: ตรวจสอบสิทธิ์ของ User
+   * ✅ ENHANCED: ตรวจสอบสิทธิ์ของ User - Fixed Logic
    */
   private checkUserPermissions(): void {
-    console.log('🔍 Checking user permissions in ticket detail...');
+    // ✅ ดึง permissions ที่ user มี
+    const userPermissions = this.authService.getEffectivePermissions();
+    const userRoles = this.authService.getUserRoles();
     
-    // ✅ ใช้ AuthService methods ที่มีอยู่แล้ว
-    this.canUserSaveSupporter = this.authService.isSupporter() || this.authService.isAdmin();
+    // ✅ ตรวจสอบ supporter permissions โดยตรง
+    this.hasViewAllTicketsPermission = userPermissions.includes(5); // VIEW_ALL_TICKETS
+    this.hasChangeStatusPermission = userPermissions.includes(8);   // CHANGE_STATUS (ส่วนใหญ่ใช้ตัวนี้)
+    this.hasAssigneePermission = userPermissions.includes(9);       // ASSIGNEE
+    this.hasSolveProblemPermission = userPermissions.includes(8);   // SOLVE_PROBLEM (ใช้ permission 8)
+    
+    // ✅ สิทธิ์ในการใช้ Supporter Form
+    this.canUserSaveSupporter = this.hasChangeStatusPermission || 
+                               this.hasAssigneePermission || 
+                               this.authService.isAdmin() ||
+                               this.authService.isSupporter();
+    
     this.isSupporterMode = this.canUserSaveSupporter;
-    
-    // ✅ ตรวจสอบ permissions เฉพาะ
-    this.hasViewAllTicketsPermission = this.authService.hasPermission(permissionEnum.VIEW_ALL_TICKETS);
-    this.hasChangeStatusPermission = this.authService.hasPermission(permissionEnum.CHANGE_STATUS);
-    this.hasAssigneePermission = this.authService.hasPermission(permissionEnum.ASSIGNEE);
-    this.hasSolveProblemPermission = this.authService.hasPermission(permissionEnum.SOLVE_PROBLEM);
-    
-    console.log('✅ User permissions checked:', {
-      canUserSaveSupporter: this.canUserSaveSupporter,
-      isSupporterMode: this.isSupporterMode,
-      hasViewAllTickets: this.hasViewAllTicketsPermission,
-      hasChangeStatus: this.hasChangeStatusPermission,
-      hasAssignee: this.hasAssigneePermission,
-      hasSolveProblem: this.hasSolveProblemPermission,
-      userRoles: this.authService.getUserRoles(),
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter()
-    });
   }
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
+   * ✅ FIXED: ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
    */
   canShowSupporterForm(): boolean {
-    return !!(this.isSupporterMode && 
-           this.canUserSaveSupporter && 
-           this.ticketData?.ticket && 
-           !this.isLoading);
+    const userPermissions = this.authService.getEffectivePermissions();
+    
+    // ✅ ตรวจสอบ permission โดยตรงจาก array
+    const hasRequiredPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
+                                 userPermissions.includes(8) ||  // CHANGE_STATUS 
+                                 userPermissions.includes(9);    // ASSIGNEE
+
+    // ✅ FIXED: เพิ่ม !! เพื่อแปลงเป็น boolean และป้องกัน undefined
+    const canShow = hasRequiredPermission && 
+                    !!(this.ticketData?.ticket) && 
+                    !this.isLoading;
+    
+    return canShow;
   }
 
   /**
@@ -326,6 +351,226 @@ export class TicketDetailComponent implements OnInit {
     return this.authService.isSupporter() || this.authService.isAdmin();
   }
 
+  /**
+   * ✅ FIXED: Helper method เพื่อตรวจสอบ permission แบบง่าย
+   */
+  hasSpecificPermission(permissionId: number): boolean {
+    const userPermissions = this.authService.getEffectivePermissions();
+    return userPermissions.includes(permissionId);
+  }
+
+  /**
+   * ✅ ตัวช่วยสำหรับ template - เช็ค permission แบบง่าย
+   */
+  hasPermissions(permissionIds: number[]): boolean {
+    const userPermissions = this.authService.getEffectivePermissions();
+    return permissionIds.some(id => userPermissions.includes(id));
+  }
+
+  // ===== ✅ NEW: ACTION DROPDOWN METHODS ===== 
+
+  /**
+   * ✅ โหลดข้อมูล Status สำหรับ Action dropdown โดยใช้ getStatusDDL API
+   */
+  private async loadActionDropdownOptions(): Promise<void> {
+    console.log('Loading action dropdown options...');
+    this.isLoadingActions = true;
+    this.actionError = '';
+
+    try {
+      // ✅ เรียก API getStatusDDL ที่เพิ่มใหม่
+      const response = await this.apiService.getStatusDDL('th').toPromise();
+      
+      if (response && response.code === 1 && response.data) {
+        this.statusList = response.data;
+        this.buildActionDropdownOptions();
+        console.log('✅ Action dropdown options loaded:', this.actionDropdownOptions);
+      } else {
+        this.actionError = response?.message || 'ไม่สามารถโหลดข้อมูล Status ได้';
+        this.buildDefaultActionOptions();
+      }
+    } catch (error) {
+      console.error('❌ Error loading action dropdown:', error);
+      this.actionError = 'เกิดข้อผิดพลาดในการโหลดข้อมูล Status';
+      this.buildDefaultActionOptions();
+    } finally {
+      this.isLoadingActions = false;
+    }
+  }
+
+  /**
+   * ✅ สร้าง Action dropdown options จากข้อมูล Status ที่ได้จาก API
+   */
+  private buildActionDropdownOptions(): void {
+    if (!this.statusList || this.statusList.length === 0) {
+      this.buildDefaultActionOptions();
+      return;
+    }
+
+    // ✅ แปลง StatusDDLItem เป็น ActionDropdownOption
+    this.actionDropdownOptions = this.statusList.map(status => ({
+      value: this.getActionTypeFromStatusId(status.id),
+      label: status.name,
+      statusId: status.id,
+      disabled: this.isActionDisabled(status.id)
+    }));
+
+    // ✅ เรียงลำดับตาม workflow ที่เหมาะสม
+    this.sortActionOptions();
+  }
+
+  /**
+   * ✅ แปลง Status ID เป็น Action Type
+   */
+  private getActionTypeFromStatusId(statusId: number): string {
+    switch (statusId) {
+      case 1: return LocalSupporterActionType.PENDING;
+      case 2: return LocalSupporterActionType.OPEN_TICKET;
+      case 3: return LocalSupporterActionType.IN_PROGRESS;
+      case 4: return LocalSupporterActionType.RESOLVED;
+      case 5: return LocalSupporterActionType.COMPLETE;
+      case 6: return LocalSupporterActionType.CANCEL;
+      default: return `ACTION_${statusId}`;
+    }
+  }
+
+  /**
+   * ✅ ตรวจสอบว่า Action นั้นถูก disable หรือไม่
+   */
+  private isActionDisabled(statusId: number): boolean {
+    if (!this.ticketData?.ticket) return false;
+
+    const currentStatusId = this.getCurrentStatusId();
+    
+    // ✅ ไม่สามารถเปลี่ยนเป็น status เดียวกันได้
+    if (statusId === currentStatusId) return true;
+
+    // ✅ Business rules สำหรับการเปลี่ยน status
+    switch (currentStatusId) {
+      case 5: // Completed - ไม่สามารถเปลี่ยนเป็นอะไรได้
+        return true;
+      case 6: // Cancelled - ไม่สามารถเปลี่ยนเป็นอะไรได้
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * ✅ เรียงลำดับ Action options ตาม workflow
+   */
+  private sortActionOptions(): void {
+    const order = [2, 3, 4, 5, 1, 6]; // Open -> In Progress -> Resolved -> Complete -> Pending -> Cancel
+    
+    this.actionDropdownOptions.sort((a, b) => {
+      const aIndex = order.indexOf(a.statusId);
+      const bIndex = order.indexOf(b.statusId);
+      return aIndex - bIndex;
+    });
+  }
+
+  /**
+   * ✅ สร้าง Action options แบบ default (fallback)
+   */
+  private buildDefaultActionOptions(): void {
+    console.log('Using default action options');
+    this.actionDropdownOptions = [...this.defaultActionDropdownOptions];
+  }
+
+  /**
+   * ✅ รีเฟรช Action dropdown เมื่อ ticket status เปลี่ยน
+   */
+  public refreshActionDropdown(): void {
+    if (this.statusList && this.statusList.length > 0) {
+      this.buildActionDropdownOptions();
+    } else {
+      this.loadActionDropdownOptions();
+    }
+  }
+
+  /**
+   * ✅ ได้รับข้อความแสดงสถานะ loading
+   */
+  getActionDropdownLoadingMessage(): string {
+    if (this.isLoadingActions) return 'กำลังโหลดตัวเลือก...';
+    if (this.actionError) return this.actionError;
+    return '';
+  }
+
+  // ===== ✅ ENHANCED: SUPPORTER FORM METHODS ===== 
+
+  /**
+   * ✅ FIXED: แสดง/ซ่อน Supporter Form
+   */
+  toggleSupporterForm(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    
+    // ✅ ตรวจสอบสิทธิ์โดยตรงจาก permission array
+    const hasPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
+                         userPermissions.includes(8) ||  // CHANGE_STATUS
+                         userPermissions.includes(9);    // ASSIGNEE
+
+    if (!hasPermission) {
+      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features\nต้องการ permission: 5 (VIEW_ALL_TICKETS), 8 (CHANGE_STATUS), หรือ 9 (ASSIGNEE)');
+      return;
+    }
+
+    this.supporterFormState.isVisible = !this.supporterFormState.isVisible;
+    
+    if (this.supporterFormState.isVisible && this.ticketData?.ticket) {
+      this.populateFormWithTicketData();
+    }
+  }
+
+  /**
+   * ✅ FIXED: บันทึกข้อมูล Supporter
+   */
+  onSaveSupporter(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    
+    // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
+    const canSave = userPermissions.includes(8) ||  // CHANGE_STATUS (หลัก)
+                    userPermissions.includes(9) ||  // ASSIGNEE  
+                    this.authService.isAdmin();
+
+    if (!canSave) {
+      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter\nต้องการ permission: 8 (CHANGE_STATUS) หรือ 9 (ASSIGNEE)';
+      return;
+    }
+
+    if (!this.supporterForm.valid || !this.ticketData?.ticket) {
+      this.markFormGroupTouched();
+      return;
+    }
+
+    const formData = this.createSupporterFormData();
+    const validation = this.ticketService.validateSupporterData(formData, this.selectedFiles);
+
+    if (!validation.isValid) {
+      this.supporterFormState.error = validation.errors.join(', ');
+      return;
+    }
+
+    this.supporterFormState.isSaving = true;
+    this.supporterFormState.error = null;
+
+    this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
+      .subscribe({
+        next: (response: SaveSupporterResponse) => {
+          if (response.success) {
+            this.handleSaveSupporterSuccess(response);
+          } else {
+            this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูลได้';
+          }
+          this.supporterFormState.isSaving = false;
+        },
+        error: (error) => {
+          this.supporterFormState.error = error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+          this.supporterFormState.isSaving = false;
+        }
+      });
+  }
+
   // ===== ✅ ENHANCED: TICKET ACTION METHODS ===== 
 
   /**
@@ -333,15 +578,17 @@ export class TicketDetailComponent implements OnInit {
    */
   onEditTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
-      console.error('No ticket number available for edit');
       return;
     }
 
     // ✅ ตรวจสอบสิทธิ์ก่อนแก้ไข
-    if (!this.authService.hasPermission(permissionEnum.EDIT_TICKET) && 
-        !this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN])) {
-      console.warn('User does not have permission to edit tickets');
-      alert('คุณไม่มีสิทธิ์แก้ไข ticket นี้');
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasEditPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
+                             userPermissions.includes(9) ||  // ASSIGNEE
+                             this.authService.isAdmin();
+
+    if (!hasEditPermission) {
+      alert('คุณไม่มีสิทธิ์แก้ไข ticket นี้\nต้องการ permission: 8 (CHANGE_STATUS) หรือ 9 (ASSIGNEE)');
       return;
     }
 
@@ -366,15 +613,16 @@ export class TicketDetailComponent implements OnInit {
    */
   onDeleteTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
-      console.error('No ticket number available for deletion');
       return;
     }
 
     // ✅ ตรวจสอบสิทธิ์ก่อนลบ
-    if (!this.authService.hasPermission(permissionEnum.DELETE_TICKET) && 
-        !this.authService.isAdmin()) {
-      console.warn('User does not have permission to delete tickets');
-      alert('คุณไม่มีสิทธิ์ลบ ticket นี้');
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasDeletePermission = this.authService.isAdmin() ||
+                               userPermissions.includes(8);  // CHANGE_STATUS
+
+    if (!hasDeletePermission) {
+      alert('คุณไม่มีสิทธิ์ลบ ticket นี้\nต้องการ permission: Admin หรือ 8 (CHANGE_STATUS)');
       return;
     }
 
@@ -391,12 +639,10 @@ export class TicketDetailComponent implements OnInit {
    */
   escalateTicket(): void {
     if (!this.authService.isAdmin()) {
-      console.warn('Only admin can escalate tickets');
       alert('เฉพาะ Admin เท่านั้นที่สามารถ escalate ticket ได้');
       return;
     }
 
-    console.log('Escalating ticket (Admin action)');
     // TODO: Implement escalation logic
     alert('Ticket has been escalated');
   }
@@ -406,95 +652,14 @@ export class TicketDetailComponent implements OnInit {
    */
   forceCloseTicket(): void {
     if (!this.authService.isAdmin()) {
-      console.warn('Only admin can force close tickets');
       alert('เฉพาะ Admin เท่านั้นที่สามารถ force close ticket ได้');
       return;
     }
 
     if (confirm('คุณแน่ใจหรือไม่ที่ต้องการ force close ticket นี้?')) {
-      console.log('Force closing ticket (Admin action)');
       // TODO: Implement force close logic
       alert('Ticket has been force closed');
     }
-  }
-
-  /**
-   * ✅ NEW: View ticket (refresh) - FIXED: Made public
-   */
-  onViewTicket(ticketNo: string): void {
-    console.log('Refreshing ticket:', ticketNo);
-    this.loadTicketDetail(); // ✅ This can now call the public method
-  }
-
-  // ===== ✅ ENHANCED: SUPPORTER FORM METHODS ===== 
-
-  /**
-   * ✅ ENHANCED: แสดง/ซ่อน Supporter Form
-   */
-  toggleSupporterForm(): void {
-    // ✅ ตรวจสอบสิทธิ์ก่อนแสดง form
-    if (!this.canUserSaveSupporter) {
-      console.warn('User does not have supporter permissions');
-      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features');
-      return;
-    }
-
-    this.supporterFormState.isVisible = !this.supporterFormState.isVisible;
-    
-    if (this.supporterFormState.isVisible && this.ticketData?.ticket) {
-      this.populateFormWithTicketData();
-    }
-
-    console.log('Supporter form toggled:', this.supporterFormState.isVisible);
-  }
-
-  /**
-   * ✅ ENHANCED: บันทึกข้อมูล Supporter
-   */
-  onSaveSupporter(): void {
-    // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
-    if (!this.canUserSaveSupporter) {
-      console.warn('User does not have supporter permissions');
-      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter';
-      return;
-    }
-
-    if (!this.supporterForm.valid || !this.ticketData?.ticket) {
-      this.markFormGroupTouched();
-      return;
-    }
-
-    const formData = this.createSupporterFormData();
-    const validation = this.ticketService.validateSupporterData(formData, this.selectedFiles);
-
-    if (!validation.isValid) {
-      this.supporterFormState.error = validation.errors.join(', ');
-      return;
-    }
-
-    this.supporterFormState.isSaving = true;
-    this.supporterFormState.error = null;
-
-    console.log('Saving supporter data:', formData);
-
-    this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
-      .subscribe({
-        next: (response: SaveSupporterResponse) => {
-          console.log('SaveSupporter response:', response);
-          
-          if (response.success) {
-            this.handleSaveSupporterSuccess(response);
-          } else {
-            this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูลได้';
-          }
-          this.supporterFormState.isSaving = false;
-        },
-        error: (error) => {
-          console.error('SaveSupporter error:', error);
-          this.supporterFormState.error = error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
-          this.supporterFormState.isSaving = false;
-        }
-      });
   }
 
   // ===== ✅ ENHANCED: SATISFACTION METHODS ===== 
@@ -504,33 +669,35 @@ export class TicketDetailComponent implements OnInit {
    */
   setRating(rating: number): void {
     // ✅ ตรวจสอบสิทธิ์ก่อนให้คะแนน
-    if (!this.authService.hasPermission(permissionEnum.SATISFACTION)) {
-      console.warn('User does not have permission to rate satisfaction');
-      alert('คุณไม่มีสิทธิ์ประเมินความพึงพอใจ');
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasSatisfactionPermission = userPermissions.includes(14);
+
+    if (!hasSatisfactionPermission) {
+      alert('คุณไม่มีสิทธิ์ประเมินความพึงพอใจ\nต้องการ permission: 14 (SATISFACTION)');
       return;
     }
 
     if (!this.canEvaluate) {
-      console.log('Cannot evaluate this ticket:', this.satisfactionMessage);
       return;
     }
 
     if (this.hasExistingSatisfaction) {
-      console.log('Ticket already has satisfaction rating');
       return;
     }
 
     // ✅ ตั้งค่า rating ทันทีเพื่อให้ดาวเปลี่ยนสี
     this.currentRating = rating;
     this.satisfaction(rating);
-    console.log('Rating set to:', rating);
   }
 
   /**
    * ✅ ENHANCED: ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่ (with permission check)
    */
   canClickStar(): boolean {
-    return this.authService.hasPermission(permissionEnum.SATISFACTION) && 
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasSatisfactionPermission = userPermissions.includes(14);
+    
+    return hasSatisfactionPermission && 
            this.canEvaluate && 
            !this.hasExistingSatisfaction && 
            !this.isSavingRating;
@@ -542,11 +709,15 @@ export class TicketDetailComponent implements OnInit {
    * ✅ ENHANCED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check)
    */
   canEdit(): boolean {
+    // ✅ FIXED: เพิ่มการเช็ค undefined
     if (!this.ticketData?.ticket) return false;
     
+    const userPermissions = this.authService.getEffectivePermissions();
+    
     // ✅ ตรวจสอบสิทธิ์ก่อน
-    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-                             this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    const hasEditPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
+                             userPermissions.includes(9) ||  // ASSIGNEE
+                             this.authService.isAdmin();
     
     if (!hasEditPermission) return false;
     
@@ -558,11 +729,14 @@ export class TicketDetailComponent implements OnInit {
    * ✅ ENHANCED: ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check)
    */
   canDelete(): boolean {
+    // ✅ FIXED: เพิ่มการเช็ค undefined
     if (!this.ticketData?.ticket) return false;
     
+    const userPermissions = this.authService.getEffectivePermissions();
+    
     // ✅ ตรวจสอบสิทธิ์ก่อน
-    const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
-                               this.authService.isAdmin();
+    const hasDeletePermission = this.authService.isAdmin() ||
+                               userPermissions.includes(8);  // CHANGE_STATUS
     
     if (!hasDeletePermission) return false;
     
@@ -574,11 +748,15 @@ export class TicketDetailComponent implements OnInit {
    * ✅ ENHANCED: ได้รับข้อความปุ่ม Edit (with permission context)
    */
   getEditButtonText(): string {
+    // ✅ FIXED: เพิ่มการเช็ค undefined
     if (!this.ticketData?.ticket) return 'Edit';
     
+    const userPermissions = this.authService.getEffectivePermissions();
+    
     // ✅ ตรวจสอบสิทธิ์ก่อน
-    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-                             this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    const hasEditPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
+                             userPermissions.includes(9) ||  // ASSIGNEE
+                             this.authService.isAdmin();
     
     if (!hasEditPermission) return 'No Permission';
     
@@ -595,8 +773,10 @@ export class TicketDetailComponent implements OnInit {
    * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Edit (with permission context)
    */
   getEditButtonClass(): string {
-    const hasPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-                         this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
+                         userPermissions.includes(9) ||  // ASSIGNEE
+                         this.authService.isAdmin();
     
     if (!hasPermission) return 'btn-edit disabled no-permission';
     
@@ -607,8 +787,9 @@ export class TicketDetailComponent implements OnInit {
    * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Delete (with permission context)
    */
   getDeleteButtonClass(): string {
-    const hasPermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
-                         this.authService.isAdmin();
+    const userPermissions = this.authService.getEffectivePermissions();
+    const hasPermission = this.authService.isAdmin() ||
+                         userPermissions.includes(8);  // CHANGE_STATUS
     
     if (!hasPermission) return 'btn-delete disabled no-permission';
     
@@ -618,47 +799,11 @@ export class TicketDetailComponent implements OnInit {
   // ===== ✅ NEW: DEBUG METHODS FOR DEVELOPMENT ===== 
 
   /**
-   * ✅ NEW: Debug permissions (สำหรับ development) - FIXED: Removed duplicate
-   */
-  debugPermissions(): void {
-    console.group('🔍 Ticket Detail Permission Debug');
-    console.log('Component permissions:', {
-      canUserSaveSupporter: this.canUserSaveSupporter,
-      isSupporterMode: this.isSupporterMode,
-      hasViewAllTickets: this.hasViewAllTicketsPermission,
-      hasChangeStatus: this.hasChangeStatusPermission,
-      hasAssignee: this.hasAssigneePermission,
-      hasSolveProblem: this.hasSolveProblemPermission
-    });
-    
-    console.log('Auth service permissions:', {
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter(),
-      userRoles: this.authService.getUserRoles(),
-      effectivePermissions: this.authService.getEffectivePermissions().slice(0, 10)
-    });
-    
-    console.log('Action permissions:', {
-      canEdit: this.canEdit(),
-      canDelete: this.canDelete(),
-      canShowSupporterForm: this.canShowSupporterForm(),
-      canClickStar: this.canClickStar()
-    });
-    console.groupEnd();
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบว่าใช้งานใน development mode หรือไม่
+   * ✅ แก้ไข isDevelopment() Method
    */
   isDevelopment(): boolean {
-    return false; // ✅ ใช้ static value แทน environment
-  }
-
-  /**
-   * ✅ NEW: ได้รับ user roles สำหรับแสดงใน template
-   */
-  getUserRolesDisplay(): string {
-    return this.authService.getUserRoles().join(', ');
+    // ✅ ปิดใช้งาน debug features
+    return false;
   }
 
   // ===== EXISTING METHODS (เก็บไว้เหมือนเดิม) ===== ✅
@@ -747,29 +892,71 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * จัดการเมื่อบันทึกสำเร็จ
+   * ✅ NEW: ตรวจสอบและแยกไฟล์ใหม่ออกจากไฟล์เดิม
+   */
+  private separateNewAttachmentsFromExisting(newAttachments: any[]): void {
+    if (!newAttachments || newAttachments.length === 0) return;
+
+    // เก็บรายการ attachment_id ที่มีอยู่แล้วใน issue_attachment
+    const existingIssueIds = new Set(
+      this.ticketData!.issue_attachment.map(att => att.attachment_id)
+    );
+
+    // เก็บรายการ attachment_id ที่มีอยู่แล้วใน fix_attachment  
+    const existingFixIds = new Set(
+      this.ticketData!.fix_attachment.map(att => att.attachment_id)
+    );
+
+    // กรองเฉพาะไฟล์ใหม่ที่ยังไม่มีอยู่
+    const trulyNewAttachments = newAttachments.filter(att => 
+      !existingIssueIds.has(att.id) && !existingFixIds.has(att.id)
+    );
+
+    if (trulyNewAttachments.length === 0) {
+      console.log('No truly new attachments to add');
+      return;
+    }
+
+    // แปลงเป็นรูปแบบที่ถูกต้องและเพิ่มใน fix_attachment เท่านั้น
+    const formattedAttachments = trulyNewAttachments.map(att => ({
+      attachment_id: att.id,
+      path: att.path || `uploads/${att.filename}`,
+      filename: att.filename,
+      file_type: att.extension || att.file_type,
+      file_size: att.file_size || 0
+    }));
+
+    this.ticketData!.fix_attachment.push(...formattedAttachments);
+
+    console.log('✅ Added truly new attachments to fix_attachment:', {
+      total_new_from_api: newAttachments.length,
+      truly_new: trulyNewAttachments.length,
+      added_to_fix: formattedAttachments.length,
+      current_fix_count: this.ticketData!.fix_attachment.length,
+      current_issue_count: this.ticketData!.issue_attachment.length
+    });
+  }
+
+  /**
+   * จัดการเมื่อบันทึกสำเร็จ - ใช้ method แยกไฟล์ใหม่
    */
   private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
+    console.log('🔍 Full SaveSupporter Response:', response);
+
     // อัพเดท ticket data
     if (response.data.ticket) {
       Object.assign(this.ticketData!.ticket, response.data.ticket);
     }
 
-    // อัพเดท attachments
+    // ✅ ใช้ method ใหม่ในการแยกและเพิ่มไฟล์
     if (response.data.attachments && response.data.attachments.length > 0) {
-      this.ticketData!.fix_attachment.push(...response.data.attachments.map(att => ({
-        attachment_id: att.id,
-        path: `path/to/${att.filename}`,
-        filename: att.filename,
-        file_type: att.extension,
-        file_size: 0
-      })));
+      this.separateNewAttachmentsFromExisting(response.data.attachments);
     }
 
     // แสดง Success Modal
     this.showSuccessModal = true;
     this.modalTitle = 'Supporter Data Saved';
-    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว';
+    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว ไฟล์ถูกเพิ่มใน Fix Attachments';
     this.modalTicketNo = this.ticket_no;
 
     // ซ่อน form และรีเซ็ต
@@ -777,9 +964,6 @@ export class TicketDetailComponent implements OnInit {
     this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จ';
     this.resetSupporterForm();
 
-    // โหลดข้อมูล ticket ใหม่
-    this.loadTicketDetail();
-    
     console.log('Supporter data saved successfully');
   }
 
@@ -1313,7 +1497,7 @@ export class TicketDetailComponent implements OnInit {
     return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
   }
 
-  getFileIcon(path: string, attachmentId?: number): string {
+getFileIcon(path: string, attachmentId?: number): string {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
       const fileInfo = this.attachmentTypes[attachmentId];
       

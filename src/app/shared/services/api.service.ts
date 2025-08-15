@@ -24,7 +24,7 @@ export class AuthInterceptor implements HttpInterceptor {
         if (error.status === 401) {
           return this.handle401Error(req, next);
         }
-        
+
         return throwError(() => error);
       })
     );
@@ -32,13 +32,13 @@ export class AuthInterceptor implements HttpInterceptor {
 
   private addTokenHeader(request: HttpRequest<any>): HttpRequest<any> {
     const token = this.authService.getToken();
-    
+
     if (token && !this.authService.isTokenExpired()) {
       return request.clone({
         headers: request.headers.set('Authorization', `Bearer ${token}`)
       });
     }
-    
+
     return request;
   }
 
@@ -48,13 +48,13 @@ export class AuthInterceptor implements HttpInterceptor {
       this.refreshTokenSubject.next(null);
 
       const refreshToken = this.authService.getRefreshToken();
-      
+
       if (refreshToken) {
         return this.authService.refreshAccessToken().pipe(
           switchMap((tokenData: TokenData) => {
             this.isRefreshing = false;
             this.refreshTokenSubject.next(tokenData.access_token);
-            
+
             // ลองใหม่ด้วย token ใหม่
             return next.handle(this.addTokenHeader(request));
           }),
@@ -148,13 +148,18 @@ export interface MasterFilterData {
 }
 
 export interface MasterFilterRequest {
-  // ไม่มีพารามิเตอร์เพิ่มเติม
+  // ถ้า backend ไม่ต้องการอะไรเป็นพิเศษ ให้เป็น empty object
+}
+
+export interface MasterFilterDataWrapper {
+  code: number;
+  data: MasterFilterData;
 }
 
 export interface MasterFilterResponse {
-  code: number;
-  message: string;
-  data: MasterFilterData | null;
+  success: boolean;
+  data: MasterFilterDataWrapper;
+  message?: string;
 }
 
 // ✅ เพิ่ม interfaces สำหรับ getAllTicket API
@@ -181,7 +186,7 @@ export interface AllTicketData {
   create_by: number;
   create_date: string;
   // เพิ่มข้อมูลที่อาจจะได้จาก join หรือ mapping
-  category_name?: string;
+  categories_name?: string;
   project_name?: string;
   user_name?: string;
   priority?: string;
@@ -219,30 +224,30 @@ export interface PendingTicketSync {
 
 // ✅ เพิ่ม interfaces สำหรับ saveTicket API
 export interface SaveTicketRequest {
-  ticket_id?: number;           
+  ticket_id?: number;
   project_id: number;
   categories_id: number;
   issue_description: string;
 }
 
 export interface SaveTicketResponse {
-  code: number;                 
+  code: number;
   message: string;
-  ticket_id: number;           
-  ticket_no: string;           
+  ticket_id: number;
+  ticket_no: string;
 }
 
 // ✅ เพิ่ม interfaces สำหรับ updateAttachment API
 export interface UpdateAttachmentRequest {
-  ticket_id?: number | null;    
-  project_id?: number;          
-  categories_id?: number;       
-  issue_description?: string;   
-  files?: File[];               
+  ticket_id?: number | null;
+  project_id?: number;
+  categories_id?: number;
+  issue_description?: string;
+  files?: File[];
 }
 
 export interface UpdateAttachmentResponse {
-  code: number;                 
+  code: number;
   message: string;
   ticket_id: number;
   attachment_id?: number;
@@ -271,7 +276,7 @@ export interface GetTicketDataRequest {
 }
 
 export interface GetTicketDataResponse {
-  code: number;                 
+  code: number;
   message: string;
   data: {
     ticket: {
@@ -389,6 +394,19 @@ export interface satisfactionResponse {
   error?: string;
 }
 
+// ✅ NEW: Interfaces สำหรับ getStatusDDL API
+export interface StatusDDLItem {
+  id: number;
+  name: string;
+  language_id: string;
+}
+
+export interface StatusDDLResponse {
+  code: number;
+  message: string;
+  data: StatusDDLItem[];
+}
+
 export interface ProjectData {
   id: number;
   name: string;
@@ -450,7 +468,7 @@ export class ApiService {
   constructor(private http: HttpClient) {
     // ✅ NEW: โหลด sync queue ที่ค้างอยู่
     this.loadSyncQueue();
-    
+
     // ลอง process sync queue เมื่อ online
     if (navigator.onLine) {
       setTimeout(() => this.processSyncQueue(), 1000);
@@ -464,11 +482,11 @@ export class ApiService {
    */
   getAllTicketsWithCache(): Observable<AllTicketData[]> {
     console.log('=== Getting Tickets with Cache Support ===');
-    
+
     // ตรวจสอบ network status
     const isOnline = navigator.onLine;
     const cachedData = this.getCachedTickets();
-    
+
     if (isOnline) {
       // Online: พยายามโหลดจาก API ก่อน
       return this.getAllTicketsWithDetails().pipe(
@@ -479,8 +497,8 @@ export class ApiService {
         catchError(error => {
           console.warn('⚠️ Online API failed, using cache:', error);
           if (cachedData) {
-            this.addNotificationViaPWA('cache-used', 
-              'ใช้ข้อมูลที่เก็บไว้', 
+            this.addNotificationViaPWA('cache-used',
+              'ใช้ข้อมูลที่เก็บไว้',
               'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้');
             return of(cachedData);
           }
@@ -491,8 +509,8 @@ export class ApiService {
       // Offline: ใช้ cache เท่านั้น
       console.log('📱 Offline mode: Using cached data');
       if (cachedData) {
-        this.addNotificationViaPWA('offline', 
-          'โหมดออฟไลน์', 
+        this.addNotificationViaPWA('offline',
+          'โหมดออฟไลน์',
           'กำลังใช้ข้อมูลที่เก็บไว้ในเครื่อง');
         return of(cachedData);
       } else {
@@ -521,7 +539,7 @@ export class ApiService {
 
       // บันทึกใน localStorage สำหรับ persistence
       localStorage.setItem(this.ticketCacheKey, JSON.stringify(cacheData));
-      
+
       console.log('✅ Cached tickets:', {
         count: tickets.length,
         timestamp: cacheData.timestamp,
@@ -548,17 +566,17 @@ export class ApiService {
       const cachedStr = localStorage.getItem(this.ticketCacheKey);
       if (cachedStr) {
         const cachedData: CachedTicketData = JSON.parse(cachedStr);
-        
+
         // ตรวจสอบว่าข้อมูลยังไม่เก่าเกินไป
         if (!this.isTicketCacheStale(cachedData)) {
           this.ticketCache = cachedData; // โหลดกลับเข้า memory
-          console.log('📱 Using localStorage cache');
+          console.log('📱 Using localStorage cache', cachedData);
           return cachedData.tickets;
         } else {
-          console.log('📱 Cache is stale, will refresh');
+          console.log('📱 Cache is stale, will refresh', cachedData);
           // ถ้าข้อมูลเก่า แต่ offline ก็ยังใช้ได้
           if (!navigator.onLine) {
-            console.log('📱 Offline: Using stale cache anyway');
+            console.log('📱 Offline: Using stale cache anyway', cachedData);
             return cachedData.tickets;
           }
         }
@@ -576,11 +594,11 @@ export class ApiService {
    */
   private isTicketCacheStale(cacheData: CachedTicketData): boolean {
     if (!cacheData || !cacheData.timestamp) return true;
-    
+
     const now = new Date().getTime();
     const cacheTime = new Date(cacheData.timestamp).getTime();
     const age = now - cacheTime;
-    
+
     return age > this.ticketCacheConfig.maxAge;
   }
 
@@ -604,7 +622,7 @@ export class ApiService {
     ageInMinutes: number;
   } {
     const cachedData = this.ticketCache || this.getStoredCacheData();
-    
+
     if (!cachedData) {
       return {
         hasCache: false,
@@ -653,7 +671,7 @@ export class ApiService {
 
     this.pendingSyncQueue.push(syncItem);
     this.saveSyncQueue();
-    
+
     console.log('📤 Queued for sync:', syncItem.type, syncItem.id);
   }
 
@@ -667,7 +685,7 @@ export class ApiService {
     }
 
     console.log('🔄 Processing sync queue:', this.pendingSyncQueue.length, 'items');
-    
+
     let successCount = 0;
     const failedItems: PendingTicketSync[] = [];
 
@@ -679,7 +697,7 @@ export class ApiService {
       } catch (error) {
         console.warn('⚠️ Sync failed:', item.type, item.id, error);
         item.retryCount++;
-        
+
         // ลองใหม่ไม่เกิน 3 ครั้ง
         if (item.retryCount < 3) {
           failedItems.push(item);
@@ -695,7 +713,7 @@ export class ApiService {
 
     const isFullSuccess = failedItems.length === 0;
     console.log(`🎯 Sync completed: ${successCount} success, ${failedItems.length} failed`);
-    
+
     return isFullSuccess;
   }
 
@@ -709,28 +727,28 @@ export class ApiService {
         // Refresh data - จริงๆ แค่โหลดใหม่
         await this.getAllTicketsWithDetails().toPromise();
         break;
-        
+
       case 'create':
         // สร้าง ticket ใหม่ (ถ้ามี API)
         if (item.data.ticketData) {
           await this.saveTicket(item.data.ticketData).toPromise();
         }
         break;
-        
+
       case 'update':
         // อัปเดต ticket (ถ้ามี API)
         if (item.data.ticket_no && item.data.updateData) {
           await this.updateTicketByTicketNo(item.data.ticket_no, item.data.updateData).toPromise();
         }
         break;
-        
+
       case 'delete':
         // ลบ ticket (ถ้ามี API)
         if (item.data.ticket_no) {
           await this.deleteTicketByTicketNo(item.data.ticket_no).toPromise();
         }
         break;
-        
+
       default:
         throw new Error(`Unknown sync type: ${item.type}`);
     }
@@ -785,7 +803,7 @@ export class ApiService {
   private getAuthHeaders(): HttpHeaders {
     const token = this.authService.getToken();
     const language = localStorage.getItem('language') || 'th';
-    
+
     return new HttpHeaders({
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : '',
@@ -797,7 +815,7 @@ export class ApiService {
   private getMultipartHeaders(): HttpHeaders {
     const token = this.authService.getToken();
     const language = localStorage.getItem('language') || 'th';
-    
+
     return new HttpHeaders({
       'Authorization': token ? `Bearer ${token}` : '',
       'language': language
@@ -809,7 +827,7 @@ export class ApiService {
   private handleError(error: HttpErrorResponse) {
     console.error('API Error:', error);
     let errorMessage = 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
-    
+
     if (error.error instanceof ErrorEvent) {
       // Client-side error
       errorMessage = `Client Error: ${error.error.message}`;
@@ -838,12 +856,106 @@ export class ApiService {
           errorMessage = error.error?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
       }
     }
-    
+
     return throwError(() => errorMessage);
   }
 
+  // ===== NEW: getStatusDDL API ===== ✅
+
+  /**
+   * ✅ เรียก API getStatusDDL
+   * @param languageId - Language ID (default: 'th')
+   * @returns Observable<StatusDDLResponse>
+   */
+  getStatusDDL(languageId: string = 'th'): Observable<StatusDDLResponse> {
+    const url = `${this.apiUrl}/getStatusDDL`;
+    const headers = this.getAuthHeaders();
+
+    // ✅ ส่ง language ใน request body ตาม API spec
+    const body = {
+      language: languageId
+    };
+
+    console.log('Calling getStatusDDL API:', { url, body });
+
+    return this.http.post<StatusDDLResponse>(url, body, { headers }).pipe(
+      tap(response => {
+        console.log('getStatusDDL response:', response);
+
+        // ✅ อัพเดท status cache เมื่อได้ข้อมูลใหม่
+        if (response.code === 1 && response.data) {
+          response.data.forEach(status => {
+            this.statusCache.set(status.id, status.name);
+          });
+          console.log('✅ Updated status cache from getStatusDDL:', this.statusCache.size, 'items');
+        }
+      }),
+      catchError(error => {
+        console.error('getStatusDDL error:', error);
+
+        // ✅ ส่งกลับ fallback data แทนการ throw error
+        const fallbackData: StatusDDLItem[] = [
+          { id: 1, name: 'Created', language_id: languageId },
+          { id: 2, name: 'Open Ticket', language_id: languageId },
+          { id: 3, name: 'In Progress', language_id: languageId },
+          { id: 4, name: 'Resolved', language_id: languageId },
+          { id: 5, name: 'Completed', language_id: languageId },
+          { id: 6, name: 'Cancel', language_id: languageId }
+        ];
+
+        console.log('✅ Using fallback status data');
+        return of({
+          code: 2,
+          message: 'Using fallback status data',
+          data: fallbackData
+        });
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: โหลดและอัพเดท status cache จาก getStatusDDL
+   * @param languageId - Language ID (default: 'th')
+   * @returns Observable<boolean> - true หากโหลดสำเร็จ
+   */
+  loadStatusDDLToCache(languageId: string = 'th'): Observable<boolean> {
+    return this.getStatusDDL(languageId).pipe(
+      map(response => {
+        if (response.code === 1 && response.data) {
+          console.log('✅ Successfully loaded status DDL to cache');
+          return true;
+        }
+        console.log('⚠️ Status DDL loaded with fallback data');
+        return true; // แม้ fallback ก็ยังใช้งานได้
+      }),
+      catchError(error => {
+        console.error('❌ Failed to load status DDL:', error);
+        return of(false);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงรายการ status ทั้งหมดจาก cache (สำหรับ dropdown)
+   * @returns StatusDDLItem[] - รายการ status ทั้งหมด
+   */
+  getCachedStatusList(): StatusDDLItem[] {
+    const statusList: StatusDDLItem[] = [];
+
+    this.statusCache.forEach((name, id) => {
+      statusList.push({
+        id: id,
+        name: name,
+        language_id: localStorage.getItem('language') || 'th'
+      });
+    });
+
+    // เรียงตาม ID
+    return statusList.sort((a, b) => a.id - b.id);
+  }
+
   // ===== NEW: satisfaction API ===== ✅
-  
+
   /**
    * ✅ NEW: บันทึกคะแนนความพึงพอใจสำหรับ ticket
    * @param ticket_no - หมายเลข ticket
@@ -852,13 +964,13 @@ export class ApiService {
    */
   satisfaction(ticket_no: string, rating: number): Observable<satisfactionResponse> {
     console.log('Calling satisfaction API with:', { ticket_no, rating });
-    
+
     const requestBody: satisfactionRequest = {
       rating: rating
     };
-    
+
     return this.http.post<satisfactionResponse>(
-      `${this.apiUrl}/satisfaction/${ticket_no}`, 
+      `${this.apiUrl}/satisfaction/${ticket_no}`,
       requestBody,
       { headers: this.getAuthHeaders() }
     ).pipe(
@@ -872,10 +984,10 @@ export class ApiService {
       }),
       catchError((error: HttpErrorResponse) => {
         console.error('❌ satisfaction API error:', error);
-        
+
         // จัดการ error messages ตาม API spec
         let errorMessage = 'ไม่สามารถบันทึกการประเมินได้';
-        
+
         if (error.status === 403) {
           errorMessage = 'ไม่มีสิทธิ์ในการประเมินความพึงพอใจ';
         } else if (error.error?.error) {
@@ -883,14 +995,14 @@ export class ApiService {
         } else if (error.error?.message) {
           errorMessage = error.error.message;
         }
-        
+
         // ส่งกลับ error response ในรูปแบบที่คาดหวัง
         const errorResponse: satisfactionResponse = {
           success: false,
           message: errorMessage,
           error: errorMessage
         };
-        
+
         return of(errorResponse);
       })
     );
@@ -922,14 +1034,14 @@ export class ApiService {
   }
 
   // ===== NEW: Get Ticket Status APIs ===== ✅ แก้ไขแล้ว
-  
+
   /**
    * ✅ COMPLETELY FIXED: เรียก API getTicketStatus - ใช้ fallback อย่างเดียว
    * เนื่องจาก endpoint หลักไม่มีอยู่จริง
    */
   getTicketStatus(ticketId: number): Observable<TicketStatusResponse> {
     console.log('Getting ticket status for ticketId:', ticketId);
-    
+
     // ✅ Skip primary endpoint และใช้ fallback เลย
     return this.getFallbackTicketStatus(ticketId).pipe(
       tap(response => {
@@ -957,7 +1069,7 @@ export class ApiService {
    */
   getTicketHistory(ticketId: number): Observable<TicketHistoryResponse> {
     console.log('Getting ticket history for ticketId:', ticketId);
-    
+
     // ✅ Skip primary endpoint และใช้ mock data เลย
     return this.getMockHistoryResponse(ticketId).pipe(
       tap(response => {
@@ -975,7 +1087,7 @@ export class ApiService {
   private getMockHistoryResponse(ticketId: number): Observable<TicketHistoryResponse> {
     const now = new Date();
     const createdTime = new Date('2025-06-25T16:36:00.000Z'); // ใช้วันที่จาก ticket
-    
+
     // ✅ สร้าง complete history progression
     const mockHistory: TicketStatusHistory[] = [
       {
@@ -1056,7 +1168,7 @@ export class ApiService {
    */
   getAllTicketStatuses(): Observable<AllTicketStatusesResponse> {
     console.log('Getting all ticket statuses - using fallback');
-    
+
     // ✅ ใช้ fallback เลยเพื่อหลีกเลี่ยง 404
     return this.getFallbackAllTicketStatuses().pipe(
       tap(response => {
@@ -1181,13 +1293,13 @@ export class ApiService {
   }
 
   // ===== NEW: Update และ Delete Ticket Methods ===== ✅
-  
+
   /**
    * อัปเดต ticket โดยใช้ ticket_no (สำหรับการเปลี่ยนสถานะเป็น Resolved)
    */
   updateTicketByTicketNo(ticket_no: string, data: UpdateTicketRequest): Observable<UpdateTicketResponse> {
     console.log('Calling updateTicketByTicketNo API with:', { ticket_no, data });
-    
+
     return this.http.put<UpdateTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, data, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1201,7 +1313,7 @@ export class ApiService {
    */
   deleteTicketByTicketNo(ticket_no: string): Observable<DeleteTicketResponse> {
     console.log('Calling deleteTicketByTicketNo API with ticket_no:', ticket_no);
-    
+
     return this.http.delete<DeleteTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1251,9 +1363,9 @@ export class ApiService {
    */
   getAllTickets(): Observable<GetAllTicketResponse> {
     console.log('Calling getAllTicket API');
-    
+
     const requestBody: GetAllTicketRequest = {};
-    
+
     return this.http.post<GetAllTicketResponse>(`${this.apiUrl}/getAllTicket`, requestBody, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1302,54 +1414,51 @@ export class ApiService {
           return of([]);
         }
 
-        // ดึงข้อมูล master filter เพื่อ map ชื่อ category และ project
         return this.getAllMasterFilter().pipe(
           map(masterResponse => {
-            const categories = masterResponse.data?.categories || [];
-            const projects = masterResponse.data?.projects || [];
+            const categories = masterResponse.data?.data?.categories || [];
+            const projects = masterResponse.data?.data?.projects || [];
 
             const enrichedTickets = ticketResponse.data!.map(ticket => ({
               ...ticket,
-              category_name: categories.find(c => c.id === ticket.categories_id)?.name || 'Unknown Category',
-              project_name: projects.find(p => p.id === ticket.project_id)?.name || 'Unknown Project',
+              categories_name: categories.find(c => String(c.id) === String(ticket.categories_id))?.name
+                || ticket.categories_name
+                || 'Unknown Category',
+              project_name: projects.find(p => String(p.id) === String(ticket.project_id))?.name
+                || ticket.project_name
+                || 'Unknown Project',
               user_name: 'Current User',
               priority: ticket.priority || this.generateRandomPriority(),
               status_name: this.getCachedStatusName(ticket.status_id)
             }));
 
-            // ✅ Cache ข้อมูลที่ได้
+
             this.cacheTickets(enrichedTickets);
-            
             return enrichedTickets;
           }),
           catchError(error => {
             console.warn('Error loading master filter, using basic ticket data:', error);
-            const basicTickets = this.processTicketData(ticketResponse.data!);
-            
-            // ✅ Cache แม้จะเป็นข้อมูลพื้นฐาน
+            const basicTickets = this.processTicketData(ticketResponse.data || []); // fallback []
             this.cacheTickets(basicTickets);
-            
             return of(basicTickets);
           })
         );
       }),
       catchError(error => {
         console.error('Error in getAllTicketsWithDetails:', error);
-        
-        // ✅ ลอง fallback ไปที่ cache
         const cachedTickets = this.getCachedTickets();
         if (cachedTickets) {
           console.log('📱 Using cached tickets as fallback');
-          this.addNotificationViaPWA('cache-used', 
-            'ใช้ข้อมูลที่เก็บไว้', 
+          this.addNotificationViaPWA('cache-used',
+            'ใช้ข้อมูลที่เก็บไว้',
             'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้');
           return of(cachedTickets);
         }
-        
         return of([]);
       })
     );
   }
+
 
   // ===== Get All Master Filter API ===== ✅
   /**
@@ -1357,9 +1466,9 @@ export class ApiService {
    */
   getAllMasterFilter(): Observable<MasterFilterResponse> {
     console.log('Calling getAllMasterFilter API');
-    
+
     const requestBody: MasterFilterRequest = {};
-    
+
     return this.http.post<MasterFilterResponse>(`${this.apiUrl}/getAllMasterFilter`, requestBody, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1374,8 +1483,8 @@ export class ApiService {
   getMasterFilterCategories(): Observable<MasterFilterCategory[]> {
     return this.getAllMasterFilter().pipe(
       map(response => {
-        if (response.code === 1 && response.data) {
-          return response.data.categories || [];
+        if (response.data?.code === 1 && response.data.data) {
+          return response.data.data.categories || [];
         }
         return [];
       }),
@@ -1392,8 +1501,8 @@ export class ApiService {
   getMasterFilterProjects(): Observable<MasterFilterProject[]> {
     return this.getAllMasterFilter().pipe(
       map(response => {
-        if (response.code === 1 && response.data) {
-          return response.data.projects || [];
+        if (response.data?.code === 1 && response.data.data) {
+          return response.data.data.projects || [];
         }
         return [];
       }),
@@ -1407,7 +1516,7 @@ export class ApiService {
   // ===== Save Ticket API ===== ✅
   saveTicket(data: SaveTicketRequest): Observable<SaveTicketResponse> {
     console.log('Calling saveTicket API with data:', data);
-    
+
     return this.http.post<SaveTicketResponse>(`${this.apiUrl}/saveTicket`, data, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1483,8 +1592,8 @@ export class ApiService {
     formData.append('type', 'reporter');
 
     return this.http.post<UpdateAttachmentResponse>(
-      `${this.apiUrl}/updateAttachment`, 
-      formData, 
+      `${this.apiUrl}/updateAttachment`,
+      formData,
       { headers: this.getMultipartHeaders() }
     ).pipe(
       tap(response => console.log('updateAttachment API response:', response)),
@@ -1500,7 +1609,7 @@ export class ApiService {
    */
   deleteAttachment(attachmentId: number): Observable<DeleteAttachmentResponse> {
     console.log('Calling deleteAttachment API with attachmentId:', attachmentId);
-    
+
     return this.http.delete<DeleteAttachmentResponse>(`${this.apiUrl}/images/issue_attachment/${attachmentId}`, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1515,11 +1624,11 @@ export class ApiService {
   retryDeleteAttachment(attachmentId: number, maxRetries: number = 3): Observable<boolean> {
     return new Observable(observer => {
       let attempts = 0;
-      
+
       const attemptDelete = () => {
         attempts++;
         console.log(`Delete attempt ${attempts} for attachment ${attachmentId}`);
-        
+
         this.deleteAttachment(attachmentId).subscribe({
           next: (response) => {
             if (response.code === 1 || response.code === 200) {
@@ -1534,7 +1643,7 @@ export class ApiService {
           },
           error: (error) => {
             console.warn(`Delete attempt ${attempts} failed:`, error);
-            
+
             if (attempts < maxRetries) {
               setTimeout(attemptDelete, 1000 * attempts);
             } else {
@@ -1544,7 +1653,7 @@ export class ApiService {
           }
         });
       };
-      
+
       attemptDelete();
     });
   }
@@ -1552,7 +1661,7 @@ export class ApiService {
   // ===== Get Ticket Data API ===== ✅
   getTicketData(request: GetTicketDataRequest): Observable<GetTicketDataResponse> {
     console.log('Calling getTicketData API with:', request);
-    
+
     return this.http.post<GetTicketDataResponse>(`${this.apiUrl}/getTicketData`, request, {
       headers: this.getAuthHeaders()
     }).pipe(
@@ -1562,7 +1671,7 @@ export class ApiService {
   }
 
   // ===== Project DDL Methods =====
-  
+
   getProjectDDL(request: ProjectDDLRequest = { status: 'active' }): Observable<ProjectDDLResponse> {
     return this.http.post<ProjectDDLResponse>(`${this.apiUrl}/getProjectDDL`, request, {
       headers: this.getAuthHeaders()
@@ -1588,7 +1697,7 @@ export class ApiService {
   }
 
   // ===== Categories DDL Methods =====
-  
+
   getCategoriesDDL(request: CategoryDDLRequest = { status: 'active' }): Observable<CategoryDDLResponse> {
     return this.http.post<CategoryDDLResponse>(`${this.apiUrl}/getCategoriesDDL`, request, {
       headers: this.getAuthHeaders()
@@ -1720,7 +1829,7 @@ export class ApiService {
   }
 
   // ===== Ticket APIs ===== ✅ แก้ไขใหม่
-  
+
   getTickets(params?: {
     page?: number;
     limit?: number;
@@ -1729,12 +1838,12 @@ export class ApiService {
     category_id?: number;
     search?: string;
   }): Observable<ApiResponse<TicketData[]>> {
-    
+
     // สร้าง query parameters
     let queryParams = '';
     if (params) {
       const paramArray: string[] = [];
-      
+
       if (params.page !== undefined) {
         paramArray.push(`page=${params.page}`);
       }
@@ -1753,7 +1862,7 @@ export class ApiService {
       if (params.search !== undefined && params.search.trim()) {
         paramArray.push(`search=${encodeURIComponent(params.search)}`);
       }
-      
+
       if (paramArray.length > 0) {
         queryParams = '?' + paramArray.join('&');
       }
@@ -1781,7 +1890,7 @@ export class ApiService {
       date_to?: string;
     };
   }): Observable<ApiResponse<TicketData[]>> {
-    
+
     const requestBody = {
       page: request.page || 1,
       limit: request.limit || 50,

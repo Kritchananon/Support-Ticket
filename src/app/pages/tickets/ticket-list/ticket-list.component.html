@@ -107,6 +107,21 @@
       </select>
     </div>
 
+                    <!-- <select id="action" 
+                        class="form-select"
+                        formControlName="action"
+                        [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
+                        [disabled]="isLoadingActions"
+                        *ngIf="!isLoadingActions">
+                  <option value="">เลือก Action...</option>
+                  <option *ngFor="let option of actionDropdownOptions" 
+                          [value]="option.statusId"
+                          [disabled]="option.disabled">
+                    {{ option.label }}
+                    <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>
+                  </option>
+                </select> -->
+
     <!-- Project Filter -->
     <div class="filter-item project-item">
       <label class="filter-label">Project</label>
@@ -204,7 +219,7 @@
             <div class="ticket-info">
               <span class="ticket-id">{{ ticket.ticket_no }}</span>
               <div class="ticket-divider"></div>
-              <span class="ticket-category">{{ ticket.category_name || 'Unknown Category' }}</span>
+              <span class="ticket-category">{{ ticket.categories_name }}</span>
               <div class="ticket-divider" *ngIf="ticket.priority === 'high'"></div>
               <div class="priority-warning" *ngIf="ticket.priority === 'high'">
                 <i class="bi bi-exclamation-triangle-fill priority-icon"></i>
