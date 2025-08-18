@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 // ✅ Import interfaces ใหม่
@@ -109,10 +109,10 @@ export class TicketService {
     return throwError(() => errorMessage);
   }
 
-  // ✅ ============ NEW: saveSupporter Method ============
+  // ✅ ============ ENHANCED: saveSupporter Method with Status Update ============
 
   /**
-   * บันทึกข้อมูล supporter สำหรับ ticket
+   * ✅ ENHANCED: บันทึกข้อมูล supporter สำหรับ ticket พร้อมการเปลี่ยน status
    * @param ticketNo หมายเลข ticket
    * @param formData ข้อมูลฟอร์ม supporter
    * @param files ไฟล์แนบ (optional)
@@ -131,6 +131,8 @@ export class TicketService {
 
     // ✅ สร้าง FormData สำหรับส่งไปยัง API
     const requestFormData = new FormData();
+    console.log(`formData2312313232 ${JSON.stringify(formData,null,2)}`);
+    
 
     // ✅ เพิ่มข้อมูลพื้นฐาน
     if (formData.estimate_time !== undefined) {
@@ -157,10 +159,16 @@ export class TicketService {
       requestFormData.append('related_ticket_id', formData.related_ticket_id.toString());
     }
 
+    // ✅ เพิ่ม status_id สำคัญมาก! สำหรับการเปลี่ยนสถานะ
+    if (formData.status_id !== undefined) {
+      requestFormData.append('status_id', formData.status_id.toString());
+      console.log('✅ Adding status_id to request:', formData.status_id);
+    }
+
     // ✅ เพิ่มไฟล์แนบ (ถ้ามี)
     if (files && files.length > 0) {
       files.forEach((file, index) => {
-        requestFormData.append('attachments', file);
+        requestFormData.append('files', file);
         console.log(`Added file ${index + 1}: ${file.name}`);
       });
     }
@@ -170,6 +178,9 @@ export class TicketService {
     if (currentUser.id) {
       requestFormData.append('user_id', currentUser.id.toString());
     }
+
+    // ✅ เพิ่ม type parameter สำหรับ supporter attachments
+    requestFormData.append('type', 'supporter');
 
     // ✅ Debug: แสดงข้อมูลใน FormData
     console.log('FormData contents:');
@@ -189,8 +200,14 @@ export class TicketService {
         headers: this.getAuthHeaders() // ไม่ระบุ Content-Type ให้ browser ตั้งเอง
       }
     ).pipe(
+      tap(response => {
+        console.log('✅ saveSupporter API response:', response);
+        if (response.success && response.data.ticket) {
+          console.log('✅ Ticket status updated to:', response.data.ticket.status_id);
+        }
+      }),
       catchError((error) => {
-        console.error('saveSupporter error:', error);
+        console.error('❌ saveSupporter error:', error);
         return this.handleError(error);
       })
     );
@@ -214,7 +231,7 @@ export class TicketService {
 
     // ตรวจสอบ permissions
     const permissions = currentUser.permissions || [];
-    return permissions.includes('SOLVE_PROBLEM');
+    return permissions.includes('SOLVE_PROBLEM') || permissions.includes(8);
   }
 
   /**
@@ -235,7 +252,7 @@ export class TicketService {
   }
 
   /**
-   * ✅ Validate ข้อมูลก่อนส่ง saveSupporter
+   * ✅ ENHANCED: Validate ข้อมูลก่อนส่ง saveSupporter พร้อม status validation
    * @param formData ข้อมูลที่ต้องการ validate
    * @param files ไฟล์แนบ
    * @returns object ผลการ validate
@@ -280,6 +297,14 @@ export class TicketService {
     if (formData.fix_issue_description) {
       if (formData.fix_issue_description.length > 5000) {
         errors.push('รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร');
+      }
+    }
+
+    // ✅ ตรวจสอบ status_id
+    if (formData.status_id !== undefined) {
+      const validStatuses = [1, 2, 3, 4, 5, 6]; // Valid status IDs
+      if (!validStatuses.includes(formData.status_id)) {
+        errors.push('สถานะที่เลือกไม่ถูกต้อง');
       }
     }
 

@@ -16,7 +16,7 @@ import { HasPermissionDirective, HasRoleDirective } from '../../../shared/direct
   selector: 'app-ticket-list',
   standalone: true,
   imports: [
-    CommonModule, 
+    CommonModule,
     FormsModule,
     HasPermissionDirective,  // ✅ Import permission directives
     HasRoleDirective
@@ -92,16 +92,16 @@ export class TicketListComponent implements OnInit {
 
   ngOnInit(): void {
     console.log('🎫 TicketListComponent initialized');
-    
+
     // ✅ Load user data and permissions
     this.loadUserData();
-    
+
     // ✅ Determine view mode from route data
     this.determineViewMode();
-    
+
     // ✅ Check permissions
     this.checkPermissions();
-    
+
     // ✅ Load data
     this.loadStatusCache();
     this.loadMasterFilters();
@@ -114,7 +114,7 @@ export class TicketListComponent implements OnInit {
     this.currentUser = this.authService.getCurrentUserWithPermissions();
     this.userPermissions = this.authService.getUserPermissions();
     this.userRoles = this.authService.getUserRoles();
-    
+
     console.log('👤 User data loaded:', {
       username: this.currentUser?.username,
       permissions: this.userPermissions.length,
@@ -183,16 +183,16 @@ export class TicketListComponent implements OnInit {
   canEditTicket(ticket: AllTicketData): boolean {
     // ✅ Admin/Supporter can edit any ticket
     if (this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER])) {
-      return this.hasPermission(permissionEnum.EDIT_TICKET) || 
-             this.hasPermission(permissionEnum.CHANGE_STATUS);
+      return this.hasPermission(permissionEnum.EDIT_TICKET) ||
+        this.hasPermission(permissionEnum.CHANGE_STATUS);
     }
-    
+
     // ✅ Users can edit their own tickets
     if (this.hasRole(ROLES.USER)) {
-      return this.hasPermission(permissionEnum.EDIT_TICKET) && 
-             ticket.create_by === this.currentUser?.id;
+      return this.hasPermission(permissionEnum.EDIT_TICKET) &&
+        ticket.create_by === this.currentUser?.id;
     }
-    
+
     return false;
   }
 
@@ -201,48 +201,48 @@ export class TicketListComponent implements OnInit {
     if (this.hasRole(ROLES.ADMIN)) {
       return this.hasPermission(permissionEnum.DELETE_TICKET);
     }
-    
+
     // ✅ Users can delete their own tickets (if not in progress)
     if (this.hasRole(ROLES.USER)) {
-      return this.hasPermission(permissionEnum.DELETE_TICKET) && 
-             ticket.create_by === this.currentUser?.id &&
-             ticket.status_id === 1; // Only if status is "Created"
+      return this.hasPermission(permissionEnum.DELETE_TICKET) &&
+        ticket.create_by === this.currentUser?.id &&
+        ticket.status_id === 1; // Only if status is "Created"
     }
-    
+
     return false;
   }
 
   canChangeStatus(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.CHANGE_STATUS) &&
-           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+      this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
   }
 
   canAssignTicket(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.ASSIGNEE) &&
-           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+      this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
   }
 
   canReplyToTicket(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.REPLY_TICKET) &&
-           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+      this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
   }
 
   canSolveProblem(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.SOLVE_PROBLEM) &&
-           this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
+      this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER]);
   }
 
   canRateSatisfaction(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.SATISFACTION) &&
-           ticket.create_by === this.currentUser?.id &&
-           ticket.status_id === 5; // Completed status
+      ticket.create_by === this.currentUser?.id &&
+      ticket.status_id === 5; // Completed status
   }
 
   // ===== DATA LOADING ===== ✅
 
   private loadStatusCache(): void {
     console.log('=== Loading Status Cache ===');
-    
+
     if (this.apiService.isStatusCacheLoaded()) {
       this.statusCacheLoaded = true;
       console.log('✅ Status cache already loaded');
@@ -278,17 +278,17 @@ export class TicketListComponent implements OnInit {
     this.noTicketsFound = false;
 
     // ✅ Use different methods based on view mode
-    const ticketObservable = this.viewMode === 'all' 
+    const ticketObservable = this.viewMode === 'all'
       ? this.apiService.getAllTicketsWithDetails()
       : this.apiService.getAllTicketsWithDetails(); // TODO: Implement getOwnTickets() if needed
 
     ticketObservable.subscribe({
       next: (tickets) => {
         console.log('✅ Tickets loaded successfully:', tickets.length);
-        
+
         // ✅ Filter tickets based on view mode and permissions
         const filteredTickets = this.filterTicketsByPermission(tickets);
-        
+
         if (filteredTickets.length === 0) {
           this.noTicketsFound = true;
           this.tickets = [];
@@ -299,9 +299,9 @@ export class TicketListComponent implements OnInit {
           this.applyFilters();
           this.noTicketsFound = false;
         }
-        
+
         this.isLoading = false;
-        
+
         console.log('📊 Ticket loading summary:', {
           totalLoaded: tickets.length,
           afterPermissionFilter: filteredTickets.length,
@@ -340,16 +340,30 @@ export class TicketListComponent implements OnInit {
     this.apiService.getAllMasterFilter().subscribe({
       next: (response) => {
         console.log('Master filter response:', response);
-        
-        if (response.code === 1 && response.data) {
-          this.categories = response.data.categories || [];
-          this.projects = response.data.projects || [];
+
+        // if (response.code === 1 && response.data) {
+        //   this.categories = response.data.categories || [];
+        //   console.log(`this.categories5555 ${this.categories}`);
+
+        //   this.projects = response.data.projects || [];
+        //   console.log('Categories loaded:', this.categories.length);
+        //   console.log('Projects loaded:', this.projects.length);
+        // } else {
+        //   this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
+        // }
+
+        const resData = response.data?.data;
+
+        if (response.data?.code === 1 && resData) {
+          this.categories = resData.categories || [];
+          this.projects = resData.projects || [];
           console.log('Categories loaded:', this.categories.length);
           console.log('Projects loaded:', this.projects.length);
         } else {
           this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
         }
-        
+
+
         this.loadingFilters = false;
       },
       error: (error) => {
@@ -366,7 +380,7 @@ export class TicketListComponent implements OnInit {
     if (this.statusCacheLoaded) {
       return this.apiService.getCachedStatusName(statusId);
     }
-    
+
     // Fallback ถ้า cache ยังไม่โหลด
     switch (statusId) {
       case 1: return 'Created';
@@ -440,12 +454,12 @@ export class TicketListComponent implements OnInit {
 
     if (this.searchText.trim()) {
       const searchLower = this.searchText.toLowerCase();
-      filtered = filtered.filter(ticket => 
+      filtered = filtered.filter(ticket =>
         ticket.ticket_no.toLowerCase().includes(searchLower) ||
         ticket.issue_description.toLowerCase().includes(searchLower) ||
         (ticket.project_name && ticket.project_name.toLowerCase().includes(searchLower)) ||
         (ticket.user_name && ticket.user_name.toLowerCase().includes(searchLower)) ||
-        (ticket.category_name && ticket.category_name.toLowerCase().includes(searchLower))
+        (ticket.categories_name && ticket.categories_name.toLowerCase().includes(searchLower))
       );
     }
 
@@ -516,7 +530,7 @@ export class TicketListComponent implements OnInit {
       console.warn('User cannot edit this ticket');
       return;
     }
-    
+
     console.log('Editing ticket:', ticket.ticket_no);
     this.router.navigate(['/tickets/edit', ticket.ticket_no]);
   }
@@ -526,7 +540,7 @@ export class TicketListComponent implements OnInit {
       console.warn('User cannot create tickets');
       return;
     }
-    
+
     console.log('Creating new ticket');
     this.router.navigate(['/tickets/new']);
   }
@@ -545,7 +559,7 @@ export class TicketListComponent implements OnInit {
 
     if (confirmDelete) {
       console.log('Deleting ticket:', ticket.ticket_no);
-      
+
       this.apiService.deleteTicketByTicketNo(ticket.ticket_no).subscribe({
         next: (response) => {
           if (response.code === 1) {
@@ -572,7 +586,7 @@ export class TicketListComponent implements OnInit {
     }
 
     console.log('Changing ticket status:', ticket.ticket_no, 'to', newStatusId);
-    
+
     this.apiService.updateTicketByTicketNo(ticket.ticket_no, {
       status_id: newStatusId
     }).subscribe({
