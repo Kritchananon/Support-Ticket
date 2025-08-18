@@ -27,12 +27,20 @@ import {
   ROLES 
 } from '../../../shared/models/permission.model';
 
-// ✅ Import Existing Interfaces (ใช้ที่มีอยู่แล้ว)
+// ✅ Import utility functions จาก ticket.model.ts
 import { 
   SaveSupporterFormData, 
   SaveSupporterResponse, 
-  SupporterActionType
+  SupporterActionType,
+  canChangeStatus,
+  statusIdToActionType,
+  actionTypeToStatusId,
+  getStatusName,
+  getStatusBadgeClass,
+  getStatusIcon,
+  TICKET_STATUS_IDS
 } from '../../../shared/models/ticket.model';
+
 import { 
   SupporterFormState,
   FileUploadProgress,
@@ -111,6 +119,24 @@ enum LocalSupporterActionType {
   RESOLVED = 'RESOLVED',
   COMPLETE = 'COMPLETE',
   CANCEL = 'CANCEL'
+}
+
+// ===================== DEBUG / LOG HELPERS =====================
+
+function debugSaveSupporterResponse(response: any, message?: string) {
+  console.log('DEBUG SaveSupporterResponse:', message, response);
+}
+
+function debugStatusChange(oldStatusId: number, newStatusId: number, context?: any) {
+  console.log('DEBUG Status Change:', oldStatusId, '->', newStatusId, context);
+}
+
+function debugComponentState(component: any, label?: string) {
+  console.log(`DEBUG Component State: ${label}`, component);
+}
+
+function logError(error: any, context?: string) {
+  console.error(`ERROR ${context || ''}:`, error);
 }
 
 // ===== COMPONENT DECLARATION ===== ✅
@@ -399,7 +425,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ สร้าง Action dropdown options จากข้อมูล Status ที่ได้จาก API
+   * ✅ ENHANCED: สร้าง Action dropdown options จากข้อมูล Status ที่ได้จาก API พร้อม utility functions
    */
   private buildActionDropdownOptions(): void {
     if (!this.statusList || this.statusList.length === 0) {
@@ -407,53 +433,39 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ แปลง StatusDDLItem เป็น ActionDropdownOption
-    this.actionDropdownOptions = this.statusList.map(status => ({
-      value: this.getActionTypeFromStatusId(status.id),
-      label: status.name,
-      statusId: status.id,
-      disabled: this.isActionDisabled(status.id)
-    }));
+    const currentStatusId = this.getCurrentStatusId();
+    
+    // ✅ ใช้ utility functions จาก ticket.model.ts
+    this.actionDropdownOptions = this.statusList
+      .filter(status => canChangeStatus(currentStatusId, status.id))
+      .map(status => ({
+        value: statusIdToActionType(status.id),
+        label: status.name,
+        statusId: status.id,
+        disabled: false
+      }));
 
     // ✅ เรียงลำดับตาม workflow ที่เหมาะสม
     this.sortActionOptions();
+    
+    console.log('✅ Built action dropdown options:', this.actionDropdownOptions);
   }
 
   /**
-   * ✅ แปลง Status ID เป็น Action Type
+   * ✅ ENHANCED: แปลง Status ID เป็น Action Type โดยใช้ utility function
    */
   private getActionTypeFromStatusId(statusId: number): string {
-    switch (statusId) {
-      case 1: return LocalSupporterActionType.PENDING;
-      case 2: return LocalSupporterActionType.OPEN_TICKET;
-      case 3: return LocalSupporterActionType.IN_PROGRESS;
-      case 4: return LocalSupporterActionType.RESOLVED;
-      case 5: return LocalSupporterActionType.COMPLETE;
-      case 6: return LocalSupporterActionType.CANCEL;
-      default: return `ACTION_${statusId}`;
-    }
+    return statusIdToActionType(statusId);
   }
 
   /**
-   * ✅ ตรวจสอบว่า Action นั้นถูก disable หรือไม่
+   * ✅ ENHANCED: ตรวจสอบว่า Action นั้นถูก disable หรือไม่ โดยใช้ utility function
    */
   private isActionDisabled(statusId: number): boolean {
     if (!this.ticketData?.ticket) return false;
 
     const currentStatusId = this.getCurrentStatusId();
-    
-    // ✅ ไม่สามารถเปลี่ยนเป็น status เดียวกันได้
-    if (statusId === currentStatusId) return true;
-
-    // ✅ Business rules สำหรับการเปลี่ยน status
-    switch (currentStatusId) {
-      case 5: // Completed - ไม่สามารถเปลี่ยนเป็นอะไรได้
-        return true;
-      case 6: // Cancelled - ไม่สามารถเปลี่ยนเป็นอะไรได้
-        return true;
-      default:
-        return false;
-    }
+    return !canChangeStatus(currentStatusId, statusId);
   }
 
   /**
@@ -523,9 +535,11 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ FIXED: บันทึกข้อมูล Supporter
+   * ✅ ENHANCED: ปรับให้ refresh ข้อมูลหลังจากบันทึก action สำเร็จ พร้อม debugging
    */
   onSaveSupporter(): void {
+    console.time('SaveSupporter Process');
+    
     const userPermissions = this.authService.getEffectivePermissions();
     
     // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
@@ -551,22 +565,45 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
+    // ✅ Debug ข้อมูลก่อนส่ง
+    console.log('🔍 Debug: Before Save Supporter');
+    console.log('🔍 Debug Pre-Save State', { component: this });
+    
+    const oldStatusId = this.getCurrentStatusId();
+    
     this.supporterFormState.isSaving = true;
     this.supporterFormState.error = null;
 
     this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
       .subscribe({
         next: (response: SaveSupporterResponse) => {
+          // ✅ Debug response
+          debugSaveSupporterResponse(response, 'SaveSupporter API Response');
+          
           if (response.success) {
+            // ✅ Debug status change
+            const newStatusId = response.data.ticket?.status_id;
+            if (newStatusId && newStatusId !== oldStatusId) {
+              debugStatusChange(oldStatusId, newStatusId, formData.status_id?.toString());
+            }
+            
             this.handleSaveSupporterSuccess(response);
+            
+            // ✅ รีเฟรชข้อมูล ticket เพื่อให้แน่ใจว่าได้ข้อมูลล่าสุด
+            setTimeout(() => {
+              this.refreshTicketData();
+            }, 500);
           } else {
             this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูลได้';
           }
           this.supporterFormState.isSaving = false;
+          console.timeEnd('SaveSupporter Process');
         },
         error: (error) => {
+          console.error('❌ SaveSupporter API Call', error);
           this.supporterFormState.error = error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
           this.supporterFormState.isSaving = false;
+          console.timeEnd('SaveSupporter Process');
         }
       });
   }
@@ -706,7 +743,7 @@ export class TicketDetailComponent implements OnInit {
   // ===== ✅ ENHANCED: PERMISSION-AWARE HELPER METHODS ===== 
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check)
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check and constants)
    */
   canEdit(): boolean {
     // ✅ FIXED: เพิ่มการเช็ค undefined
@@ -722,11 +759,12 @@ export class TicketDetailComponent implements OnInit {
     if (!hasEditPermission) return false;
     
     const status = this.getCurrentStatusId();
-    return [1, 2, 3, 4].includes(status);
+    // ✅ ใช้ constants แทนการ hardcode
+    return !([TICKET_STATUS_IDS.COMPLETED, TICKET_STATUS_IDS.CANCEL] as number[]).includes(status);
   }
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check)
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check and constants)
    */
   canDelete(): boolean {
     // ✅ FIXED: เพิ่มการเช็ค undefined
@@ -741,11 +779,12 @@ export class TicketDetailComponent implements OnInit {
     if (!hasDeletePermission) return false;
     
     const status = this.getCurrentStatusId();
-    return ![5, 6].includes(status);
+    // ✅ ใช้ constants แทนการ hardcode
+    return !([TICKET_STATUS_IDS.COMPLETED, TICKET_STATUS_IDS.CANCEL] as number[]).includes(status);
   }
 
   /**
-   * ✅ ENHANCED: ได้รับข้อความปุ่ม Edit (with permission context)
+   * ✅ ENHANCED: ได้รับข้อความปุ่ม Edit (with permission context and constants)
    */
   getEditButtonText(): string {
     // ✅ FIXED: เพิ่มการเช็ค undefined
@@ -762,15 +801,16 @@ export class TicketDetailComponent implements OnInit {
     
     const status = this.getCurrentStatusId();
     
+    // ✅ ใช้ constants แทนการ hardcode
     switch (status) {
-      case 5: return 'Completed';
-      case 6: return 'Cancelled';
+      case TICKET_STATUS_IDS.COMPLETED: return 'Completed';
+      case TICKET_STATUS_IDS.CANCEL: return 'Cancelled';
       default: return 'Edit';
     }
   }
 
   /**
-   * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Edit (with permission context)
+   * ✅ ได้รับ CSS class สำหรับปุ่ม Edit (with permission context)
    */
   getEditButtonClass(): string {
     const userPermissions = this.authService.getEffectivePermissions();
@@ -784,7 +824,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ENHANCED: ได้รับ CSS class สำหรับปุ่ม Delete (with permission context)
+   * ✅ ได้รับ CSS class สำหรับปุ่ม Delete (with permission context)
    */
   getDeleteButtonClass(): string {
     const userPermissions = this.authService.getEffectivePermissions();
@@ -847,7 +887,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * สร้าง FormData สำหรับส่ง API
+   * ✅ ENHANCED: สร้าง FormData สำหรับส่ง API พร้อม status mapping ที่ถูกต้อง
    */
   private createSupporterFormData(): SaveSupporterFormData {
     const formValue = this.supporterForm.value;
@@ -878,13 +918,18 @@ export class TicketDetailComponent implements OnInit {
       formData.related_ticket_id = formValue.related_ticket_id;
     }
 
-    // อัพเดท status ตาม action ที่เลือก
+    // ✅ อัพเดท status ตาม action ที่เลือก โดยใช้ utility function
     if (formValue.action) {
       const selectedAction = this.actionDropdownOptions.find(
         option => option.value === formValue.action
       );
       if (selectedAction) {
         formData.status_id = selectedAction.statusId;
+        console.log('✅ Setting status_id from action:', {
+          action: formValue.action,
+          statusId: selectedAction.statusId,
+          label: selectedAction.label
+        });
       }
     }
 
@@ -938,14 +983,38 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * จัดการเมื่อบันทึกสำเร็จ - ใช้ method แยกไฟล์ใหม่
+   * จัดการเมื่อบันทึกสำเร็จ - ใช้ method แยกไฟล์ใหม่ + อัปเดต status และ history
    */
   private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
     console.log('🔍 Full SaveSupporter Response:', response);
 
-    // อัพเดท ticket data
+    // ✅ อัพเดท ticket data รวมทั้ง status
     if (response.data.ticket) {
+      const oldStatusId = this.ticketData?.ticket?.status_id;
       Object.assign(this.ticketData!.ticket, response.data.ticket);
+      
+      // ✅ อัปเดต current status info
+      const newStatusId = response.data.ticket.status_id;
+      if (newStatusId && newStatusId !== oldStatusId) {
+        console.log('✅ Status changed from', oldStatusId, 'to', newStatusId);
+        
+        this.currentStatusInfo = {
+          status_id: newStatusId,
+          status_name: this.apiService.getCachedStatusName(newStatusId),
+          language_id: 'th'
+        };
+        
+        // ✅ อัปเดต status ใน ticket data
+        this.ticketData!.ticket.status_id = newStatusId;
+        this.ticketData!.ticket.status_name = this.currentStatusInfo.status_name;
+        
+        // ✅ รีเฟรช history และ evaluation status
+        this.buildDisplayHistory();
+        this.updateEvaluationStatus();
+        this.refreshActionDropdown();
+        
+        console.log('🔄 Updated status info:', this.currentStatusInfo);
+      }
     }
 
     // ✅ ใช้ method ใหม่ในการแยกและเพิ่มไฟล์
@@ -965,6 +1034,58 @@ export class TicketDetailComponent implements OnInit {
     this.resetSupporterForm();
 
     console.log('Supporter data saved successfully');
+  }
+
+  /**
+   * ✅ ENHANCED: NEW method with debugging - Refresh ticket data เพื่อให้ได้ข้อมูลล่าสุด
+   */
+  private refreshTicketData(): void {
+    console.log('🔄 Refreshing ticket data...');
+    
+    // เรียก API เพื่อดึงข้อมูล ticket ล่าสุด
+    const requestData: GetTicketDataRequest = { ticket_no: this.ticket_no };
+    
+    this.apiService.getTicketData(requestData).subscribe({
+      next: (response: any) => {
+        if (response && response.code === 1 && response.data) {
+          console.log('✅ Refreshed ticket data:', response.data);
+          
+          // ✅ Debug การเปลี่ยนแปลง status
+          const oldStatusId = this.ticketData?.ticket?.status_id;
+          const newStatusId = response.data.ticket.status_id;
+          
+          if (oldStatusId && newStatusId !== oldStatusId) {
+            debugStatusChange(oldStatusId, newStatusId, 'After Refresh');
+          }
+          
+          // อัปเดตข้อมูล ticket
+          this.ticketData = response.data;
+          
+          // อัปเดต status info
+          if (newStatusId) {
+            this.currentStatusInfo = {
+              status_id: newStatusId,
+              status_name: this.apiService.getCachedStatusName(newStatusId),
+              language_id: 'th'
+            };
+            
+            console.log('🔄 Status updated after refresh:', this.currentStatusInfo);
+          }
+          
+          // รีเฟรช history และ evaluation
+          this.buildDisplayHistory();
+          this.updateEvaluationStatus();
+          this.analyzeAllAttachments();
+          
+          // ✅ Debug final state
+          debugComponentState(this, 'After Refresh');
+        }
+      },
+      error: (error) => {
+        console.warn('⚠️ Failed to refresh ticket data:', error);
+        logError(error, 'Refresh Ticket Data');
+      }
+    });
   }
 
   /**
@@ -1217,16 +1338,11 @@ export class TicketDetailComponent implements OnInit {
            this.getDefaultStatusName(statusId);
   }
 
+  /**
+   * ✅ ENHANCED: ใช้ utility function จาก ticket.model.ts
+   */
   private getDefaultStatusName(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'Created';
-      case 2: return 'Open Ticket';
-      case 3: return 'In Progress';
-      case 4: return 'Resolved';
-      case 5: return 'Completed';
-      case 6: return 'Cancel';
-      default: return `Status ${statusId}`;
-    }
+    return getStatusName(statusId, 'en'); // ใช้ภาษาอังกฤษเป็นค่าเริ่มต้น
   }
 
   formatDate(dateString: string): string {
@@ -1351,6 +1467,7 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
+
   /**
    * ได้รับ tooltip สำหรับดาว
    */
@@ -1410,12 +1527,12 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * อัพเดทสถานะการประเมิน
+   * ✅ ENHANCED: ตรวจสอบว่าสามารถประเมินได้หรือไม่ โดยใช้ constants
    */
   private updateEvaluationStatus(): void {
     const statusId = this.getCurrentStatusId();
     
-    this.canEvaluate = this.apiService.canEvaluateTicket(statusId);
+    this.canEvaluate = statusId === TICKET_STATUS_IDS.COMPLETED; // ใช้ constant แทนการ hardcode
     this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
     
     console.log('✅ Evaluation status updated:', {
@@ -1456,32 +1573,15 @@ export class TicketDetailComponent implements OnInit {
 
   // ===== STATUS & HISTORY METHODS (EXISTING) ===== ✅
 
+  // ✅ ENHANCED: ใช้ utility functions จาก ticket.model.ts
   getStatusBadgeClass(statusId?: number): string {
     const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'badge-pending';
-      case 2: return 'badge-in-progress';
-      case 3: return 'badge-hold';
-      case 4: return 'badge-resolved';
-      case 5: return 'badge-complete';
-      case 6: return 'badge-cancel';
-      default: return 'badge-pending';
-    }
+    return getStatusBadgeClass(currentStatusId);
   }
 
   getStatusIcon(statusId?: number): string {
     const currentStatusId = statusId || this.getCurrentStatusId();
-    
-    switch (currentStatusId) {
-      case 1: return 'bi-plus-circle';
-      case 2: return 'bi-clock';
-      case 3: return 'bi-play-circle';
-      case 4: return 'bi-clipboard-check';
-      case 5: return 'bi-check-circle';
-      case 6: return 'bi-x-circle';
-      default: return 'bi-clock';
-    }
+    return getStatusIcon(currentStatusId);
   }
 
   // ===== ATTACHMENT METHODS (EXISTING) ===== ✅
@@ -1853,11 +1953,17 @@ getFileIcon(path: string, attachmentId?: number): string {
     });
   }
 
+  /**
+   * ✅ ENHANCED: History Building with Real-time Status Updates
+   */
   private buildDisplayHistory(): void {
     if (!this.ticketData?.ticket) return;
 
     const currentStatusId = this.getCurrentStatusId();
     console.log('Building display history for current status:', currentStatusId);
+    
+    // ✅ สร้าง new history entry ถ้า status เปลี่ยน
+    this.updateHistoryWithCurrentStatus(currentStatusId);
     
     this.displayHistory = this.STATUS_WORKFLOW.map((workflowStatus) => {
       const historyItem = this.ticketHistory.find(h => h.status_id === workflowStatus.id);
@@ -1875,13 +1981,39 @@ getFileIcon(path: string, attachmentId?: number): string {
       return {
         status_id: workflowStatus.id,
         status_name: statusName,
-        create_date: historyItem?.create_date || '',
+        create_date: historyItem?.create_date || (isActive ? new Date().toISOString() : ''),
         is_active: isActive,
         is_completed: isCompleted
       };
     });
 
-    console.log('Built display history with status from cache:', this.displayHistory);
+    console.log('Built display history with real-time status updates:', this.displayHistory);
+  }
+
+  /**
+   * ✅ NEW: อัปเดต history เมื่อ status เปลี่ยน
+   */
+  private updateHistoryWithCurrentStatus(currentStatusId: number): void {
+    // ตรวจสอบว่ามี history entry สำหรับ status ปัจจุบันหรือยัง
+    const hasCurrentStatusInHistory = this.ticketHistory.some(h => h.status_id === currentStatusId);
+    
+    if (!hasCurrentStatusInHistory) {
+      // เพิ่ม history entry ใหม่สำหรับ status ปัจจุบัน
+      const newHistoryEntry: TicketStatusHistory = {
+        id: this.ticketHistory.length + 1,
+        ticket_id: this.ticketData!.ticket.id,
+        status_id: currentStatusId,
+        create_date: new Date().toISOString(),
+        create_by: 1,
+        status: {
+          id: currentStatusId,
+          name: this.apiService.getCachedStatusName(currentStatusId)
+        }
+      };
+      
+      this.ticketHistory.push(newHistoryEntry);
+      console.log('✅ Added new history entry for status:', currentStatusId);
+    }
   }
 
   private buildHistoryFromExistingData(): void {
