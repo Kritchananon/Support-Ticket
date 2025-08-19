@@ -443,7 +443,7 @@
                         *ngIf="!isLoadingActions">
                   <option value="">เลือก Action...</option>
                   <option *ngFor="let option of actionDropdownOptions" 
-                          [value]="option.value"
+                          [value]="option.statusId"
                           [disabled]="option.disabled">
                     {{ option.label }}
                     <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>

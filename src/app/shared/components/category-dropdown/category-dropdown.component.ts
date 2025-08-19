@@ -148,7 +148,9 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
 
   getCategoryDisplayName(category: CategoryDDL): string {
     // รองรับทั้ง format จาก API ใหม่ (categoryName) และ API เก่า (name)
-    return category.categoryName || category.name || 'Unknown Category';
+    console.log(`category21212121212121 ${category}`);
+    
+    return `${category.categoryName}` || `${category.categories_name}`;
   }
 
   // Method สำหรับ reset

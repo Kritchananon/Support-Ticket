@@ -14,8 +14,8 @@ export interface Category {
 // ===== Category DDL (Dropdown List) Interface =====
 export interface CategoryDDL {
   id: number;
-  categoryName?: string; // API ใหม่
-  name?: string;         // API เก่า - fallback
+  categoryName?: string; // API à¹ƒà¸«à¸¡à¹ˆ
+  categories_name?: string;         // API à¹€à¸à¹ˆà¸² - fallback
   status?: string;
   isenabled?: boolean;
 }
@@ -87,14 +87,14 @@ export const DEFAULT_CATEGORY_DDL_REQUEST: CategoryDDLRequest = {
 };
 
 export const CATEGORY_STATUS_OPTIONS = [
-  { value: 'active', label: 'ใช้งาน', labelEn: 'Active' },
-  { value: 'inactive', label: 'ไม่ใช้งาน', labelEn: 'Inactive' },
-  { value: 'all', label: 'ทั้งหมด', labelEn: 'All' }
+  { value: 'active', label: 'à¹ƒà¸Šà¹‰à¸‡à¸²à¸™', labelEn: 'Active' },
+  { value: 'inactive', label: 'à¹„à¸¡à¹ˆà¹ƒà¸Šà¹‰à¸‡à¸²à¸™', labelEn: 'Inactive' },
+  { value: 'all', label: 'à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”', labelEn: 'All' }
 ] as const;
 
 // ===== Helper Functions =====
 export function getCategoryDisplayName(category: CategoryDDL): string {
-  return category.categoryName || category.name || 'Unknown Category';
+  return `${category.categoryName}` || `${category.categories_name}`;
 }
 
 export function isCategoryActive(category: CategoryDDL): boolean {
