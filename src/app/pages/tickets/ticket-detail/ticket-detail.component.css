@@ -1,498 +1,100 @@
-/* ===== GLOBAL MODAL OVERRIDE ===== */
+/* ===== ✅ SUPPORT DETAILS SECTION ===== */
 
-/* Modal positioning and z-index */
-body.modal-open {
-  overflow: hidden;
-}
-
-.modal-open .modal {
-  z-index: 99999 !important;
-}
-
-.modal-open .modal-backdrop {
-  z-index: 99998 !important;
-}
-
-.ticket-detail-page.modal-open {
-  overflow: hidden;
-  height: 100vh;
-}
-
-/* ===== SUCCESS MODAL STYLES ===== */
-
-/* Modal Base Styles */
-.modal {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  z-index: 99999 !important;
-  width: 100% !important;
-  height: 100% !important;
-  overflow-x: hidden;
-  overflow-y: auto;
-  outline: 0;
-  display: block !important;
-}
-
-.modal.fade {
-  transition: opacity 0.15s linear;
-}
-
-.modal.show {
-  opacity: 1 !important;
-}
-
-.modal-dialog {
-  position: relative;
-  width: auto;
-  margin: 0.5rem;
-  pointer-events: none;
-  z-index: 100000 !important;
-}
-
-.modal-dialog-centered {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: calc(100% - 1rem) !important;
-}
-
-/* Success Modal Content */
-.success-modal .modal-content {
-  position: relative !important;
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  max-width: 420px !important;
-  margin: 0 auto !important;
-  pointer-events: auto !important;
-  background-color: #FFFFFF !important;
-  background-clip: padding-box;
-  border: none !important;
-  border-radius: 16px !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
-  outline: 0;
-  animation: modalSlideIn 0.3s ease-out;
-  z-index: 100001 !important;
-}
-
-.success-modal .modal-body {
-  position: relative;
-  flex: 1 1 auto;
-  padding: 3rem 2.5rem 2.5rem !important;
-  text-align: center !important;
-}
-
-/* Success Icon */
-.success-icon-container {
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  margin-bottom: 1.5rem !important;
-}
-
-.success-star {
-  width: 80px !important;
-  height: 80px !important;
-  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-  border-radius: 50% !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  animation: starPulse 0.6s ease-out;
-  box-shadow: 0 8px 30px rgba(255, 215, 0, 0.4) !important;
-}
-
-.success-star i {
-  font-size: 40px !important;
-  color: #FFFFFF !important;
-  animation: starRotate 0.8s ease-out 0.2s both;
-}
-
-/* Modal Text Styles */
-.success-title {
-  font-weight: 600 !important;
-  font-size: 24px !important;
-  line-height: 1.2 !important;
-  color: #212121 !important;
-  margin-bottom: 0.75rem !important;
-  animation: textSlideUp 0.4s ease-out 0.3s both;
-}
-
-.success-ticket-info {
-  font-weight: 500 !important;
-  font-size: 16px !important;
-  color: #5873F8 !important;
-  margin-bottom: 1rem !important;
-  animation: textSlideUp 0.4s ease-out 0.4s both;
-}
-
-.success-message {
-  font-weight: 400 !important;
-  font-size: 16px !important;
-  line-height: 1.4 !important;
-  color: #737373 !important;
-  margin-bottom: 2.5rem !important;
-  animation: textSlideUp 0.4s ease-out 0.5s both;
-}
-
-/* Modal Button */
-.success-btn {
-  background: #5873F8 !important;
-  border: none !important;
-  border-radius: 8px !important;
-  color: #FFFFFF !important;
-  font-weight: 600 !important;
-  font-size: 16px !important;
-  padding: 14px 36px !important;
-  min-width: 140px !important;
-  transition: all 0.2s ease !important;
-  animation: buttonSlideUp 0.4s ease-out 0.6s both;
-  cursor: pointer !important;
-}
-
-.success-btn:hover {
-  background: #4A63E8 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 6px 20px rgba(88, 115, 248, 0.3) !important;
-}
-
-.success-btn:active {
-  transform: translateY(0) !important;
-  box-shadow: 0 2px 10px rgba(88, 115, 248, 0.2) !important;
-}
-
-/* Modal Backdrop */
-.modal-backdrop {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  z-index: 99998 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  background-color: rgba(0, 0, 0, 0.6) !important;
-}
-
-.modal-backdrop.fade {
-  opacity: 0;
-  transition: opacity 0.15s linear;
-}
-
-.modal-backdrop.show {
-  opacity: 1 !important;
-}
-
-/* ✅ ===== NEW: SUPPORTER FORM STYLES ===== */
-
-/* Supporter Action Button */
-.supporter-action {
-  margin-left: auto;
-}
-
-.supporter-action .btn {
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 8px 16px;
-  transition: all 0.2s ease;
-}
-
-.supporter-action .btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 115, 248, 0.2);
-}
-
-/* Supporter Form Section */
-.supporter-form-section {
-  margin-top: 24px;
-  padding: 24px;
-  background: #F8F9FA;
-  border-radius: 12px;
-  border: 1px solid #E9ECEF;
-  animation: slideInDown 0.3s ease-out;
-}
-
-/* Form Header */
-.supporter-form-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #E9ECEF;
-}
-
-.supporter-form-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #212121;
-  margin: 0;
-  display: flex;
-  align-items: center;
-}
-
-.supporter-form-title i {
-  color: #5873F8;
-}
-
-.supporter-form-loading {
-  display: flex;
-  align-items: center;
-  color: #6C757D;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Form Styles */
-.supporter-form {
-  background: #FFFFFF;
-  padding: 24px;
-  border-radius: 8px;
-  border: 1px solid #DEE2E6;
-}
-
-.supporter-form .form-label {
-  font-weight: 600;
-  color: #495057;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.supporter-form .form-label i {
-  color: #6C757D;
-  margin-right: 6px;
-}
-
-.supporter-form .form-control,
-.supporter-form .form-select {
-  border-radius: 6px;
-  border: 1.5px solid #DEE2E6;
-  padding: 12px 16px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.supporter-form .form-control:focus,
-.supporter-form .form-select:focus {
-  border-color: #5873F8;
-  box-shadow: 0 0 0 0.2rem rgba(88, 115, 248, 0.1);
-}
-
-.supporter-form .form-control.is-invalid,
-.supporter-form .form-select.is-invalid {
-  border-color: #DC3545;
-  background-image: none;
-}
-
-.supporter-form .invalid-feedback {
-  display: block;
-  font-size: 12px;
-  margin-top: 6px;
-}
-
-.supporter-form .form-text {
-  color: #6C757D;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-/* Selected Files Preview */
-.selected-files-preview {
-  background: #FFFFFF;
-  border: 1px solid #DEE2E6;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.selected-files-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.selected-files-header h6 {
-  color: #495057;
-  font-weight: 600;
-  margin: 0;
-  display: flex;
-  align-items: center;
-}
-
-.selected-files-header i {
-  color: #5873F8;
-}
-
-.selected-files-list {
+.support-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.selected-file-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  background: #F8F9FA;
-  border: 1px solid #E9ECEF;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.selected-file-item:hover {
-  background: #E9ECEF;
-  transform: translateX(4px);
-}
-
-.selected-file-item .file-info {
-  display: flex;
-  align-items: center;
-  flex: 1;
-}
-
-.selected-file-item .file-icon {
-  font-size: 18px;
-  color: #6C757D;
-}
-
-.selected-file-item .file-details {
-  display: flex;
-  flex-direction: column;
-  margin-left: 8px;
-}
-
-.selected-file-item .file-name {
-  font-weight: 500;
-  font-size: 13px;
-  color: #212121;
-  margin-bottom: 2px;
-}
-
-.selected-file-item .file-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  color: #6C757D;
-}
-
-.selected-file-item .file-size {
-  font-weight: 500;
-}
-
-.selected-file-item .file-type {
-  background: #E9ECEF;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-/* Form Actions */
-.supporter-form-actions {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #E9ECEF;
-}
-
-.supporter-form-actions .btn {
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 10px 20px;
-  transition: all 0.2s ease;
-}
-
-.supporter-form-actions .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.supporter-form-actions .btn-primary {
-  background: #5873F8;
-  border-color: #5873F8;
-}
-
-.supporter-form-actions .btn-primary:hover:not(:disabled) {
-  background: #4A63E8;
-  border-color: #4A63E8;
-  box-shadow: 0 4px 12px rgba(88, 115, 248, 0.3);
-}
-
-.supporter-form-actions .btn-outline-secondary:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.2);
-}
-
-.supporter-form-actions .btn-outline-warning:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
-}
-
-/* Alert Styles */
-.supporter-form-section .alert {
-  border-radius: 8px;
-  border: none;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.supporter-form-section .alert-danger {
-  background: #F8D7DA;
-  color: #721C24;
-}
-
-.supporter-form-section .alert-success {
-  background: #D1E7DD;
-  color: #0F5132;
-}
-
-.supporter-form-section .alert i {
-  margin-right: 8px;
-}
-
-/* Support Header Update */
-.support-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  gap: 24px; /* เพิ่มจาก 0px */
   width: 100%;
+  margin-top: 20px;
 }
 
-.support-header .support-title {
+.support-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start; /* เปลี่ยนจาก center */
+  padding: 20px; /* เพิ่ม padding */
+  gap: 32px; /* เพิ่มจาก 48px */
+  width: 100%;
+  min-height: 80px; /* เพิ่มจาก 48px */
+  background: #F8F9FF;
+  border-radius: 12px;
+  border: 1px solid #E3E7FF;
+  margin-bottom: 16px;
+}
+
+.support-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 0px;
+  gap: 12px; /* เพิ่มจาก 10px */
+  min-height: 60px; /* เพิ่มจาก 48px */
   flex: 1;
 }
 
-/* File Icon Colors for Selected Files */
-.selected-file-item .file-icon.bi-file-earmark-pdf-fill { color: #DC3545 !important; }
-.selected-file-item .file-icon.bi-file-earmark-excel-fill { color: #28A745 !important; }
-.selected-file-item .file-icon.bi-file-earmark-word-fill { color: #2B5CE6 !important; }
-.selected-file-item .file-icon.bi-image-fill { color: #FF6B35 !important; }
-.selected-file-item .file-icon.bi-file-earmark-text-fill { color: #6C757D !important; }
-.selected-file-item .file-icon.bi-file-earmark-zip-fill { color: #FFC107 !important; }
-
-/* Form Loading States */
-.supporter-form.loading {
-  opacity: 0.7;
-  pointer-events: none;
+.support-label {
+  font-weight: 600; /* เพิ่มจาก 500 */
+  font-size: 16px;
+  line-height: 120%;
+  color: #5873F8;
+  margin-bottom: 4px;
 }
 
-.supporter-form .form-control:disabled,
-.supporter-form .form-select:disabled {
-  background-color: #E9ECEF;
-  opacity: 0.7;
+.support-value {
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 140%; /* เพิ่ม line-height */
+  color: #1E2A5E;
+  word-wrap: break-word;
+  max-width: 100%;
 }
 
-/* Required Field Indicator */
-.supporter-form .form-label .text-danger {
-  font-weight: 700;
-  margin-left: 2px;
+.support-divider {
+  width: 2px; /* เปลี่ยนจาก 42px */
+  height: 40px; /* เปลี่ยนจาก 0px */
+  background: #E3E7FF;
+  transform: none; /* ลบ rotate */
+  border: none;
+  border-radius: 1px;
 }
 
-/* Textarea Resize */
-.supporter-form textarea.form-control {
-  resize: vertical;
-  min-height: 100px;
+/* Fix Attachments ใน Support Details */
+.fix-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* เพิ่มจาก 8px */
+  padding: 10px 16px; /* เพิ่มจาก 4px 8px */
+  background: #FFFFFF;
+  border: 2px solid #E3E7FF;
+  border-radius: 8px; /* เพิ่มจาก 4px */
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 8px; /* เพิ่มจาก 4px */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.fix-attachment-item:hover {
+  background: #F8F9FF;
+  border-color: #5873F8;
+  transform: translateX(6px);
+  box-shadow: 0 4px 16px rgba(88, 115, 248, 0.1);
+}
+
+.fix-attachment-item i {
+  font-size: 18px; /* เพิ่มจาก 14px */
+  color: #5873F8;
+}
+
+.fix-attachment-item span {
+  font-size: 14px; /* เพิ่มจาก 12px */
+  font-weight: 600; /* เพิ่มจาก 500 */
+  color: #1E2A5E;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px; /* เพิ่มจาก 120px */
 }
 
 /* ===== MAIN CONTAINER ===== */
@@ -1429,131 +1031,6 @@ i.status-icon {
   animation: pulse 1s infinite;
 }
 
-/* ===== SUPPORT INFORMATION CARD ===== */
-
-.support-info-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 20px;
-  gap: 24px;
-  width: 100%;
-  background: #FFFFFF;
-  border-radius: 12px;
-}
-
-.support-title {
-  font-weight: 600;
-  font-size: 19px;
-  line-height: 100%;
-  color: #212121;
-  margin: 0;
-}
-
-.support-progress-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  padding: 0px;
-  width: 100%;
-  height: 2px;
-}
-
-.support-progress-fill {
-  width: 160px;
-  height: 2px;
-  background: #5873F8;
-}
-
-.support-progress-remaining {
-  width: 712px;
-  height: 1px;
-  background: rgba(88, 115, 248, 0.1);
-  flex: 1;
-}
-
-.support-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0px;
-  width: 100%;
-}
-
-.support-row {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0px;
-  gap: 48px;
-  width: 100%;
-  height: 48px;
-  margin-bottom: 0px;
-}
-
-.support-item {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 0px;
-  gap: 10px;
-  height: 48px;
-  flex: 1;
-}
-
-.support-label {
-  font-weight: 500;
-  font-size: 16px;
-  line-height: 120%;
-  color: #737373;
-}
-
-.support-value {
-  font-weight: 500;
-  font-size: 16px;
-  line-height: 120%;
-  color: #212121;
-}
-
-.support-divider {
-  width: 42px;
-  height: 0px;
-  border: 0.5px solid #D9D9D9;
-  transform: rotate(90deg);
-}
-
-/* Fix Attachments */
-.fix-attachment-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: #F8F9FA;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 4px;
-}
-
-.fix-attachment-item:hover {
-  background: #E9ECEF;
-  transform: translateX(4px);
-}
-
-.fix-attachment-item i {
-  font-size: 14px;
-}
-
-.fix-attachment-item span {
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-}
-
 /* ===== HISTORY SECTION ===== */
 
 .history-card {
@@ -1992,50 +1469,55 @@ i.status-icon {
   }
 }
 
-/* ✅ Supporter Form Responsive */
+/* ===== ✅ SUPPORTER FORM RESPONSIVE ===== */
 @media (max-width: 768px) {
-  .supporter-form-section {
-    padding: 16px;
-    margin-top: 16px;
+  .support-info-card {
+    padding: 24px;
+    gap: 24px;
+    min-height: auto;
   }
   
-  .supporter-form-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+  .support-title {
+    font-size: 20px;
+  }
+  
+  .supporter-form-section {
+    padding: 24px;
+    margin-top: 24px;
   }
   
   .supporter-form {
+    padding: 24px;
+  }
+  
+  .supporter-form-title {
+    font-size: 20px;
+  }
+  
+  .support-row {
+    flex-direction: column;
+    gap: 16px;
     padding: 16px;
+    min-height: auto;
+  }
+  
+  .support-item {
+    width: 100%;
+    min-height: auto;
+  }
+  
+  .support-divider {
+    display: none;
   }
   
   .supporter-form-actions {
     flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    gap: 12px;
   }
   
   .supporter-form-actions .btn {
     width: 100%;
     margin: 0 !important;
-  }
-  
-  .selected-files-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  
-  .selected-file-item {
-    padding: 8px;
-  }
-  
-  .selected-file-item .file-name {
-    font-size: 12px;
-  }
-  
-  .selected-file-item .file-meta {
-    font-size: 10px;
   }
   
   .support-header {
@@ -2052,18 +1534,27 @@ i.status-icon {
 }
 
 @media (max-width: 576px) {
-  .supporter-form-title {
-    font-size: 18px;
+  .support-info-card {
+    padding: 20px;
+  }
+  
+  .supporter-form-section {
+    padding: 20px;
+  }
+  
+  .supporter-form {
+    padding: 20px;
   }
   
   .supporter-form .form-control,
   .supporter-form .form-select {
-    padding: 10px 12px;
-    font-size: 13px;
+    padding: 14px 16px;
+    font-size: 15px;
   }
   
-  .supporter-form .form-label {
-    font-size: 13px;
+  .supporter-form-actions .btn {
+    padding: 12px 20px;
+    font-size: 15px;
   }
   
   .selected-files-preview {
@@ -2182,21 +1673,6 @@ i.status-icon {
   
   .evaluation-section {
     width: 100%;
-  }
-  
-  .support-row {
-    flex-direction: column;
-    gap: 16px;
-    height: auto;
-    width: 100%;
-  }
-  
-  .support-item {
-    width: 100%;
-  }
-  
-  .support-divider {
-    display: none;
   }
   
   .issue-content {
@@ -2410,5 +1886,639 @@ i.status-icon {
     left: 9px;
     top: 26px;
     height: calc(100% + 2px);
+  }
+}/* ===== ✅ IMPROVED SUPPORT INFORMATION STYLES ===== */
+
+/* Support Information Card - ขนาดใหญ่ขึ้นและมีพื้นที่เพียงพอ */
+.support-info-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 32px; /* เพิ่มจาก 20px เป็น 32px */
+  gap: 32px; /* เพิ่มจาก 24px เป็น 32px */
+  width: 100%;
+  min-height: 600px; /* กำหนดความสูงขั้นต่ำ */
+  background: #FFFFFF;
+  border-radius: 16px; /* เพิ่มจาก 12px เป็น 16px */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Support Header - ปรับให้สมส่วนกับการ์ด */
+.support-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.support-title {
+  font-weight: 700; /* เพิ่มจาก 600 */
+  font-size: 24px; /* เพิ่มจาก 19px */
+  line-height: 120%;
+  color: #212121;
+  margin: 0;
+}
+
+/* Supporter Action Button - ปรับขนาดและสี */
+.supporter-action .btn {
+  font-weight: 600;
+  font-size: 16px; /* เพิ่มขนาดฟอนต์ */
+  border-radius: 10px;
+  padding: 12px 24px; /* เพิ่มจาก 8px 16px */
+  border: 2px solid #5873F8;
+  background: #5873F8;
+  color: #FFFFFF;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(88, 115, 248, 0.2);
+}
+
+.supporter-action .btn:hover {
+  background: #4A63E8;
+  border-color: #4A63E8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(88, 115, 248, 0.3);
+}
+
+/* Progress Bar - ปรับขนาด */
+.support-progress-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 0px;
+  width: 100%;
+  height: 3px; /* เพิ่มจาก 2px */
+  margin-bottom: 28px;
+}
+
+.support-progress-fill {
+  width: 200px; /* เพิ่มจาก 160px */
+  height: 3px;
+  background: #5873F8;
+  border-radius: 2px;
+}
+
+.support-progress-remaining {
+  height: 2px;
+  background: rgba(88, 115, 248, 0.15);
+  flex: 1;
+  border-radius: 1px;
+}
+
+/* ===== ✅ SUPPORTER FORM SECTION - ปรับให้ใหญ่และสวยงาม ===== */
+
+.supporter-form-section {
+  margin-top: 32px;
+  padding: 32px; /* เพิ่มจาก 24px */
+  background: linear-gradient(135deg, #F8F9FF 0%, #F0F2FF 100%);
+  border-radius: 16px; /* เพิ่มจาก 12px */
+  border: 2px solid #E3E7FF;
+  animation: slideInDown 0.4s ease-out;
+  box-shadow: 0 8px 32px rgba(88, 115, 248, 0.08);
+  width: 100%;
+}
+
+/* Form Header - ปรับให้สวยงาม */
+.supporter-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px; /* เพิ่มจาก 24px */
+  padding-bottom: 20px; /* เพิ่มจาก 16px */
+  border-bottom: 2px solid #E3E7FF;
+}
+
+.supporter-form-title {
+  font-size: 24px; /* เพิ่มจาก 20px */
+  font-weight: 700; /* เพิ่มจาก 600 */
+  color: #1E2A5E;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.supporter-form-title i {
+  color: #5873F8;
+  font-size: 28px;
+}
+
+/* Form Container - ปรับขนาดและสี */
+.supporter-form {
+  background: #FFFFFF;
+  padding: 32px; /* เพิ่มจาก 24px */
+  border-radius: 12px;
+  border: 1px solid #E3E7FF;
+  box-shadow: 0 4px 16px rgba(88, 115, 248, 0.05);
+}
+
+/* Form Row Spacing */
+.supporter-form .row {
+  margin-bottom: 28px; /* เพิ่ม spacing ระหว่างแถว */
+}
+
+/* Form Labels - ปรับขนาดและสี */
+.supporter-form .form-label {
+  font-weight: 600;
+  font-size: 16px; /* เพิ่มจาก 14px */
+  color: #1E2A5E;
+  margin-bottom: 12px; /* เพิ่มจาก 8px */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.supporter-form .form-label i {
+  color: #5873F8;
+  font-size: 18px;
+}
+
+.supporter-form .form-label .text-danger {
+  color: #DC3545;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* Form Inputs - ปรับขนาดและสี */
+.supporter-form .form-control,
+.supporter-form .form-select {
+  border-radius: 8px; /* เพิ่มจาก 6px */
+  border: 2px solid #E3E7FF; /* เพิ่มความหนาของ border */
+  padding: 16px 20px; /* เพิ่มจาก 12px 16px */
+  font-size: 16px; /* เพิ่มจาก 14px */
+  font-weight: 500;
+  color: #1E2A5E;
+  background: #FFFFFF;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.supporter-form .form-control:focus,
+.supporter-form .form-select:focus {
+  border-color: #5873F8;
+  background: #FAFBFF;
+  box-shadow: 0 0 0 4px rgba(88, 115, 248, 0.1), 0 4px 16px rgba(88, 115, 248, 0.08);
+  transform: translateY(-1px);
+}
+
+.supporter-form .form-control::placeholder {
+  color: #8B95B7;
+  font-weight: 400;
+}
+
+/* Invalid States */
+.supporter-form .form-control.is-invalid,
+.supporter-form .form-select.is-invalid {
+  border-color: #DC3545;
+  background: #FFF5F5;
+  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.1);
+}
+
+.supporter-form .invalid-feedback {
+  display: block;
+  font-size: 14px; /* เพิ่มจาก 12px */
+  font-weight: 500;
+  margin-top: 8px; /* เพิ่มจาก 6px */
+  color: #DC3545;
+}
+
+/* Form Text */
+.supporter-form .form-text {
+  color: #8B95B7;
+  font-size: 14px; /* เพิ่มจาก 12px */
+  font-weight: 500;
+  margin-top: 8px; /* เพิ่มจาก 4px */
+}
+
+/* Textarea Specific */
+.supporter-form textarea.form-control {
+  resize: vertical;
+  min-height: 120px; /* เพิ่มจาก 100px */
+  line-height: 1.6;
+  font-family: inherit;
+}
+
+/* Select Dropdown */
+.supporter-form .form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%235873F8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m1 6 7 7 7-7'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px 12px;
+  padding-right: 48px;
+}
+
+/* ===== ✅ FILE UPLOAD SECTION ===== */
+
+/* File Input */
+.supporter-form input[type="file"] {
+  padding: 20px;
+  border: 2px dashed #5873F8;
+  border-radius: 12px;
+  background: #FAFBFF;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  color: #5873F8;
+  font-weight: 600;
+}
+
+.supporter-form input[type="file"]:hover {
+  border-color: #4A63E8;
+  background: #F0F2FF;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(88, 115, 248, 0.15);
+}
+
+/* Selected Files Preview - ปรับขนาดและสี */
+.selected-files-preview {
+  background: #FFFFFF;
+  border: 2px solid #E3E7FF;
+  border-radius: 12px;
+  padding: 24px; /* เพิ่มจาก 16px */
+  margin-top: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+.selected-files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px; /* เพิ่มจาก 12px */
+}
+
+.selected-files-header h6 {
+  color: #1E2A5E;
+  font-weight: 700;
+  font-size: 18px; /* เพิ่มขนาด */
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selected-files-header i {
+  color: #5873F8;
+  font-size: 20px;
+}
+
+.selected-files-header .btn {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+/* Selected File Items */
+.selected-file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px; /* เพิ่มจาก 12px */
+  background: #F8F9FF;
+  border: 2px solid #E9ECFF;
+  border-radius: 10px; /* เพิ่มจาก 6px */
+  transition: all 0.3s ease;
+  margin-bottom: 12px;
+}
+
+.selected-file-item:hover {
+  background: #E9ECFF;
+  border-color: #D1D6FF;
+  transform: translateX(6px);
+  box-shadow: 0 4px 12px rgba(88, 115, 248, 0.1);
+}
+
+.selected-file-item .file-icon {
+  font-size: 24px; /* เพิ่มจาก 18px */
+  margin-right: 12px;
+}
+
+.selected-file-item .file-name {
+  font-weight: 600;
+  font-size: 15px; /* เพิ่มจาก 13px */
+  color: #1E2A5E;
+  margin-bottom: 4px;
+}
+
+.selected-file-item .file-meta {
+  display: flex;
+  gap: 12px; /* เพิ่มจาก 8px */
+  font-size: 13px; /* เพิ่มจาก 11px */
+  color: #8B95B7;
+}
+
+.selected-file-item .file-type {
+  background: #E3E7FF;
+  color: #5873F8;
+  padding: 2px 8px; /* เพิ่มจาก 1px 6px */
+  border-radius: 6px; /* เพิ่มจาก 3px */
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ===== ✅ FORM ACTIONS ===== */
+
+.supporter-form-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 32px; /* เพิ่มจาก 24px */
+  padding-top: 24px; /* เพิ่มจาก 20px */
+  border-top: 2px solid #E3E7FF;
+  gap: 16px; /* เพิ่ม gap ระหว่างปุ่ม */
+}
+
+.supporter-form-actions .btn {
+  font-weight: 700; /* เพิ่มจาก 600 */
+  font-size: 16px;
+  border-radius: 10px; /* เพิ่มจาก 6px */
+  padding: 14px 28px; /* เพิ่มจาก 10px 20px */
+  transition: all 0.3s ease;
+  border: 2px solid;
+  min-width: 120px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.supporter-form-actions .btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.supporter-form-actions .btn-primary {
+  background: linear-gradient(135deg, #5873F8 0%, #4A63E8 100%);
+  border-color: #5873F8;
+  color: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(88, 115, 248, 0.3);
+}
+
+.supporter-form-actions .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4A63E8 0%, #3B52D9 100%);
+  border-color: #4A63E8;
+  box-shadow: 0 8px 32px rgba(88, 115, 248, 0.4);
+}
+
+.supporter-form-actions .btn-outline-secondary {
+  background: #FFFFFF;
+  border-color: #8B95B7;
+  color: #8B95B7;
+}
+
+.supporter-form-actions .btn-outline-secondary:hover:not(:disabled) {
+  background: #F8F9FA;
+  border-color: #6C757D;
+  color: #6C757D;
+  box-shadow: 0 8px 24px rgba(108, 117, 125, 0.2);
+}
+
+.supporter-form-actions .btn-outline-warning {
+  background: #FFFFFF;
+  border-color: #FFC107;
+  color: #FFC107;
+}
+
+.supporter-form-actions .btn-outline-warning:hover:not(:disabled) {
+  background: #FFF9E6;
+  border-color: #FFB700;
+  color: #FFB700;
+  box-shadow: 0 8px 24px rgba(255, 193, 7, 0.25);
+}
+
+/* Disabled Button States */
+.supporter-form-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== ✅ ALERT IMPROVEMENTS ===== */
+
+.supporter-form-section .alert {
+  border-radius: 12px; /* เพิ่มจาก 8px */
+  border: none;
+  font-size: 15px; /* เพิ่มจาก 14px */
+  font-weight: 500;
+  margin-bottom: 24px; /* เพิ่มจาก 20px */
+  padding: 16px 20px; /* เพิ่ม padding */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.supporter-form-section .alert-danger {
+  background: linear-gradient(135deg, #FDF2F2 0%, #FFEAEA 100%);
+  color: #C53030;
+  border-left: 4px solid #DC3545;
+}
+
+.supporter-form-section .alert-success {
+  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+  color: #166534;
+  border-left: 4px solid #10B981;
+}
+
+.supporter-form-section .alert i {
+  margin-right: 12px; /* เพิ่มจาก 8px */
+  font-size: 18px;
+}
+
+/* ===== ✅ SUPPORT DETAILS SECTION ===== */
+
+.support-details {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* เพิ่มจาก 0px */
+  width: 100%;
+  margin-top: 20px;
+}
+
+.support-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start; /* เปลี่ยนจาก center */
+  padding: 20px; /* เพิ่ม padding */
+  gap: 32px; /* เพิ่มจาก 48px */
+  width: 100%;
+  min-height: 80px; /* เพิ่มจาก 48px */
+  background: #F8F9FF;
+  border-radius: 12px;
+  border: 1px solid #E3E7FF;
+  margin-bottom: 16px;
+}
+
+.support-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 0px;
+  gap: 12px; /* เพิ่มจาก 10px */
+  min-height: 60px; /* เพิ่มจาก 48px */
+  flex: 1;
+}
+
+.support-label {
+  font-weight: 600; /* เพิ่มจาก 500 */
+  font-size: 16px;
+  line-height: 120%;
+  color: #5873F8;
+  margin-bottom: 4px;
+}
+
+.support-value {
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 140%; /* เพิ่ม line-height */
+  color: #1E2A5E;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.support-divider {
+  width: 2px; /* เปลี่ยนจาก 42px */
+  height: 40px; /* เปลี่ยนจาก 0px */
+  background: #E3E7FF;
+  transform: none; /* ลบ rotate */
+  border: none;
+  border-radius: 1px;
+}
+
+/* Fix Attachments ใน Support Details */
+.fix-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* เพิ่มจาก 8px */
+  padding: 10px 16px; /* เพิ่มจาก 4px 8px */
+  background: #FFFFFF;
+  border: 2px solid #E3E7FF;
+  border-radius: 8px; /* เพิ่มจาก 4px */
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 8px; /* เพิ่มจาก 4px */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.fix-attachment-item:hover {
+  background: #F8F9FF;
+  border-color: #5873F8;
+  transform: translateX(6px);
+  box-shadow: 0 4px 16px rgba(88, 115, 248, 0.1);
+}
+
+.fix-attachment-item i {
+  font-size: 18px; /* เพิ่มจาก 14px */
+  color: #5873F8;
+}
+
+.fix-attachment-item span {
+  font-size: 14px; /* เพิ่มจาก 12px */
+  font-weight: 600; /* เพิ่มจาก 500 */
+  color: #1E2A5E;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px; /* เพิ่มจาก 120px */
+}
+
+/* ===== ✅ LOADING STATES ===== */
+
+.supporter-form-loading {
+  display: flex;
+  align-items: center;
+  color: #5873F8;
+  font-size: 16px; /* เพิ่มจาก 14px */
+  font-weight: 600; /* เพิ่มจาก 500 */
+  gap: 10px;
+}
+
+.supporter-form-loading .spinner-border-sm {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  color: #5873F8;
+}
+
+.supporter-form.loading {
+  opacity: 0.7;
+  pointer-events: none;
+  filter: blur(1px);
+}
+
+/* ===== ✅ RESPONSIVE IMPROVEMENTS ===== */
+
+@media (max-width: 768px) {
+  .support-info-card {
+    padding: 24px;
+    gap: 24px;
+    min-height: auto;
+  }
+  
+  .support-title {
+    font-size: 20px;
+  }
+  
+  .supporter-form-section {
+    padding: 24px;
+    margin-top: 24px;
+  }
+  
+  .supporter-form {
+    padding: 24px;
+  }
+  
+  .supporter-form-title {
+    font-size: 20px;
+  }
+  
+  .support-row {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    min-height: auto;
+  }
+  
+  .support-item {
+    width: 100%;
+    min-height: auto;
+  }
+  
+  .support-divider {
+    display: none;
+  }
+  
+  .supporter-form-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .supporter-form-actions .btn {
+    width: 100%;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .support-info-card {
+    padding: 20px;
+  }
+  
+  .supporter-form-section {
+    padding: 20px;
+  }
+  
+  .supporter-form {
+    padding: 20px;
+  }
+  
+  .supporter-form .form-control,
+  .supporter-form .form-select {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+  
+  .supporter-form-actions .btn {
+    padding: 12px 20px;
+    font-size: 15px;
   }
 }
