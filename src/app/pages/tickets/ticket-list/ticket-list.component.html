@@ -45,11 +45,7 @@
       <label class="filter-label">Search</label>
       <div class="search-input-wrapper">
         <i class="bi bi-search search-icon"></i>
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Search for ticket"
-          [(ngModel)]="searchText"
+        <input type="text" class="search-input" placeholder="Search for ticket" [(ngModel)]="searchText"
           (input)="onSearchChange()">
       </div>
     </div>
@@ -57,10 +53,7 @@
     <!-- Priority Filter -->
     <div class="filter-item priority-item">
       <label class="filter-label">Priority</label>
-      <select 
-        class="filter-select"
-        [value]="selectedPriority"
-        (change)="onPriorityChange($event)">
+      <select class="filter-select" [value]="selectedPriority" (change)="onPriorityChange($event)">
         <option *ngFor="let option of priorityOptions" [value]="option.value">
           {{ option.label }}
         </option>
@@ -70,18 +63,15 @@
     <!-- ✅ UPDATED: Status Filter - ใช้ข้อมูลจาก status cache -->
     <div class="filter-item status-item">
       <label class="filter-label">Status</label>
-      <select 
-        class="filter-select"
-        [value]="selectedStatus"
-        (change)="onStatusChange($event)"
+      <select class="filter-select" [value]="selectedStatus" (change)="onStatusChange($event)"
         [disabled]="isLoadingStatuses">
-        
+
         <!-- Option แรกคงเดิม -->
         <option value="">All Status</option>
-        
+
         <!-- ✅ NEW: แสดง loading เมื่อกำลังโหลด status -->
         <option value="" *ngIf="isLoadingStatuses" disabled>Loading statuses...</option>
-        
+
         <!-- ✅ UPDATED: ใช้ข้อมูลจาก status cache แทน hardcode -->
         <option value="1">{{ getStatusText(1) }}</option>
         <option value="2">{{ getStatusText(2) }}</option>
@@ -95,10 +85,7 @@
     <!-- Categories Filter -->
     <div class="filter-item category-item">
       <label class="filter-label">Categories</label>
-      <select 
-        class="filter-select"
-        [value]="selectedCategory"
-        (change)="onCategoryChange($event)"
+      <select class="filter-select" [value]="selectedCategory" (change)="onCategoryChange($event)"
         [disabled]="loadingFilters">
         <option value="">All Categories</option>
         <option *ngFor="let category of categories" [value]="category.id">
@@ -107,7 +94,7 @@
       </select>
     </div>
 
-                    <!-- <select id="action" 
+    <!-- <select id="action" 
                         class="form-select"
                         formControlName="action"
                         [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
@@ -125,10 +112,7 @@
     <!-- Project Filter -->
     <div class="filter-item project-item">
       <label class="filter-label">Project</label>
-      <select 
-        class="filter-select"
-        [value]="selectedProject"
-        (change)="onProjectChange($event)"
+      <select class="filter-select" [value]="selectedProject" (change)="onProjectChange($event)"
         [disabled]="loadingFilters">
         <option value="">All Projects</option>
         <option *ngFor="let project of projects" [value]="project.id">
@@ -163,7 +147,7 @@
     <div class="alert alert-danger" role="alert">
       <i class="bi bi-exclamation-triangle me-2"></i>
       <strong>เกิดข้อผิดพลาด:</strong> {{ ticketsError }}
-      <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="loadAllTickets()">
+      <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="reloadTickets()">
         <i class="bi bi-arrow-clockwise me-1"></i>
         ลองใหม่
       </button>
@@ -208,11 +192,8 @@
 
     <!-- Tickets Grid -->
     <div *ngIf="filteredTickets.length > 0" class="tickets-grid">
-      <div 
-        *ngFor="let ticket of filteredTickets" 
-        class="ticket-card"
-        (click)="viewTicket(ticket)">
-        
+      <div *ngFor="let ticket of filteredTickets" class="ticket-card" (click)="viewTicket(ticket)">
+
         <!-- Ticket Header -->
         <div class="ticket-header">
           <div class="ticket-header-left">
@@ -234,16 +215,15 @@
             <div class="ticket-date-status">
               <span class="ticket-date">{{ formatDate(ticket.create_date) }}</span>
               <div class="ticket-divider"></div>
-              
+
               <!-- ✅ UPDATED: Status Badge - ใช้ getStatusText() ที่อัปเดตแล้ว -->
               <div class="status-badge" [ngClass]="getStatusBadgeClass(ticket.status_id)">
                 <!-- ✅ NEW: แสดง warning ถ้า status cache ยังไม่โหลด -->
-                <i class="bi bi-exclamation-triangle text-warning me-1" 
-                   *ngIf="!statusCacheLoaded && !isLoadingStatuses"
-                   title="Status cache not loaded"></i>
-                
+                <i class="bi bi-exclamation-triangle text-warning me-1" *ngIf="!statusCacheLoaded && !isLoadingStatuses"
+                  title="Status cache not loaded"></i>
+
                 <i class="status-icon" [ngClass]="getStatusIcon(ticket.status_id)"></i>
-                
+
                 <!-- ✅ UPDATED: ใช้ getStatusText() แทน getStatusText() เดิม -->
                 <span class="status-text">{{ getStatusText(ticket.status_id) }}</span>
               </div>

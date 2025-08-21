@@ -142,9 +142,15 @@ export interface MasterFilterProject {
   name: string;
 }
 
+export interface MasterFilterStatus {
+  id: number;
+  name: string;
+}
+
 export interface MasterFilterData {
   categories: MasterFilterCategory[];
   projects: MasterFilterProject[];
+  status?: MasterFilterStatus[]; // ✅ เพิ่มตรงนี้
 }
 
 export interface MasterFilterRequest {
@@ -154,6 +160,7 @@ export interface MasterFilterRequest {
 export interface MasterFilterDataWrapper {
   code: number;
   data: MasterFilterData;
+  message?: string; // ✅ เพิ่ม message
 }
 
 export interface MasterFilterResponse {
@@ -441,6 +448,34 @@ export interface UserData {
   update_date: string;
   update_by: number;
   isenabled: boolean;
+}
+
+// ✅ NEW: Interfaces สำหรับ assignTicket API
+export interface AssignTicketRequest {
+  assignedTo: number;
+}
+
+export interface AssignTicketResponse {
+  message: string;
+  ticket_no: string;
+  assigned_to: number;
+}
+
+// ✅ NEW: Interfaces สำหรับ getUsersList API (สำหรับ assignee dropdown)
+export interface UserListItem {
+  id: number;
+  username: string;
+  firstname: string;
+  lastname: string;
+  email: string;
+  phone?: string;
+  isenabled: boolean;
+}
+
+export interface UserListResponse {
+  code: number;
+  message: string;
+  data: UserListItem[];
 }
 
 @Injectable({
@@ -1963,5 +1998,15 @@ export class ApiService {
     return this.http.post<ApiResponse<any>>(`${this.apiUrl}/upload`, formData, {
       headers: this.getMultipartHeaders()
     }).pipe(catchError(this.handleError));
+  }
+
+  // ===== เพิ่ม method assignTicket ที่นี่ =====
+  assignTicket(requestData: { ticket_no: string; assignee_id: number }): Observable<any> {
+    return this.http.post('/api/tickets/assign', requestData);
+  }
+
+  // ===== เพิ่ม getAssigneeList =====
+  getAssigneeList(): Observable<{ id: number; full_name: string; username: string }[]> {
+    return this.http.get<{ id: number; full_name: string; username: string }[]>('/api/users/assignees');
   }
 }

@@ -18,8 +18,8 @@ import { HasPermissionDirective, HasRoleDirective } from '../../../shared/direct
   imports: [
     CommonModule,
     FormsModule,
-    HasPermissionDirective,  // ✅ Import permission directives
-    HasRoleDirective
+    // HasPermissionDirective,  // ✅ Import permission directives
+    // HasRoleDirective
   ],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css']
@@ -341,34 +341,26 @@ export class TicketListComponent implements OnInit {
       next: (response) => {
         console.log('Master filter response:', response);
 
-        // if (response.code === 1 && response.data) {
-        //   this.categories = response.data.categories || [];
-        //   console.log(`this.categories5555 ${this.categories}`);
-
-        //   this.projects = response.data.projects || [];
-        //   console.log('Categories loaded:', this.categories.length);
-        //   console.log('Projects loaded:', this.projects.length);
-        // } else {
-        //   this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
-        // }
-
         const resData = response.data?.data;
 
         if (response.data?.code === 1 && resData) {
-          this.categories = resData.categories || [];
-          this.projects = resData.projects || [];
+          this.categories = resData.categories ?? [];
+          this.projects = resData.projects ?? [];
+
           console.log('Categories loaded:', this.categories.length);
           console.log('Projects loaded:', this.projects.length);
+          console.log('Statuses loaded:', resData.status?.length ?? 0);
         } else {
-          this.filterError = response.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
+          this.filterError = response.data?.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
         }
-
 
         this.loadingFilters = false;
       },
       error: (error) => {
         console.error('Error loading master filters:', error);
-        this.filterError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
+        this.filterError = typeof error === 'string'
+          ? error
+          : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
         this.loadingFilters = false;
       }
     });

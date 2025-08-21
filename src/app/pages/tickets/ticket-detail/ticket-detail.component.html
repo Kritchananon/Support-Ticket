@@ -1,13 +1,7 @@
 <!-- ===== SUCCESS MODAL ===== ✅ -->
-<div class="modal fade" 
-     [class.show]="showSuccessModal" 
-     [style.display]="showSuccessModal ? 'block' : 'none'" 
-     [style.z-index]="showSuccessModal ? '99999' : 'auto'"
-     tabindex="-1" 
-     role="dialog" 
-     aria-labelledby="successModalLabel" 
-     aria-hidden="!showSuccessModal" 
-     *ngIf="showSuccessModal">
+<div class="modal fade" [class.show]="showSuccessModal" [style.display]="showSuccessModal ? 'block' : 'none'"
+  [style.z-index]="showSuccessModal ? '99999' : 'auto'" tabindex="-1" role="dialog" aria-labelledby="successModalLabel"
+  aria-hidden="!showSuccessModal" *ngIf="showSuccessModal">
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content success-modal">
       <div class="modal-body text-center">
@@ -17,21 +11,18 @@
             <i class="bi bi-star-fill"></i>
           </div>
         </div>
-        
+
         <!-- Modal Title -->
         <h4 class="success-title">{{ modalTitle }}</h4>
-        
+
         <!-- Ticket Number -->
         <p class="success-ticket-info">Ticket ID : {{ modalTicketNo }}</p>
-        
+
         <!-- Success Message -->
         <p class="success-message">{{ modalMessage }}</p>
-        
+
         <!-- Close Button -->
-        <button type="button" 
-                class="btn btn-primary success-btn" 
-                (click)="closeSuccessModal()"
-                autofocus>
+        <button type="button" class="btn btn-primary success-btn" (click)="closeSuccessModal()" autofocus>
           ตกลง
         </button>
       </div>
@@ -40,11 +31,8 @@
 </div>
 
 <!-- Modal Backdrop -->
-<div class="modal-backdrop fade" 
-     [class.show]="showSuccessModal" 
-     [style.z-index]="showSuccessModal ? '99998' : 'auto'"
-     *ngIf="showSuccessModal" 
-     (click)="closeSuccessModal()"></div>
+<div class="modal-backdrop fade" [class.show]="showSuccessModal" [style.z-index]="showSuccessModal ? '99998' : 'auto'"
+  *ngIf="showSuccessModal" (click)="closeSuccessModal()"></div>
 
 <!-- ===== LOADING STATE ===== ✅ -->
 <div *ngIf="isLoading" class="loading-container">
@@ -68,7 +56,7 @@
 
 <!-- ===== MAIN CONTENT ===== ✅ -->
 <div *ngIf="ticketData && !isLoading" class="ticket-detail-page">
-  
+
   <!-- ===== BREADCRUMB ===== ✅ -->
   <div class="breadcrumb-container">
     <nav aria-label="breadcrumb">
@@ -85,54 +73,48 @@
 
   <!-- ===== LAYOUT CONTAINER ===== ✅ -->
   <div class="layout-container">
-    
+
     <!-- ===== MAIN CONTENT AREA ===== ✅ -->
     <div class="main-content-area">
-      
+
       <!-- ===== TICKET INFORMATION CARD ===== ✅ -->
       <div class="ticket-card" [attr.data-updating]="isUpdating">
-        
+
         <!-- Ticket Header -->
         <div class="ticket-header">
           <div class="ticket-header-left">
             <div class="ticket-title-container">
               <h1 class="ticket-title">Ticket {{ ticketData.ticket.ticket_no }}</h1>
-              
+
               <!-- Status Badge -->
               <div class="status-badge" [ngClass]="getStatusBadgeClass()">
                 <span *ngIf="isLoadingStatus" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="status-icon" [ngClass]="getStatusIcon()" *ngIf="!isLoadingStatus"></i>
                 <span class="status-text">{{ getCurrentStatusName() }}</span>
-                <i class="bi bi-exclamation-triangle text-warning ms-1" 
-                   *ngIf="statusError && !isLoadingStatus"
-                   [title]="statusError"></i>
+                <i class="bi bi-exclamation-triangle text-warning ms-1" *ngIf="statusError && !isLoadingStatus"
+                  [title]="statusError"></i>
               </div>
             </div>
           </div>
-          
+
           <!-- Action Buttons -->
           <div class="ticket-header-right">
             <div class="action-buttons">
               <!-- Delete Button -->
-              <button 
-                [class]="getDeleteButtonClass()" 
-                (click)="onDeleteTicket()"
+              <button [class]="getDeleteButtonClass()" (click)="onDeleteTicket()"
                 [disabled]="!canDelete() || isDeleting"
                 [title]="canDelete() ? 'ลบ ticket นี้' : 'ไม่สามารถลบ ticket ในสถานะนี้ได้'">
-                
+
                 <span *ngIf="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-trash" *ngIf="!isDeleting"></i>
                 <span *ngIf="!isDeleting">Delete</span>
                 <span *ngIf="isDeleting">Deleting...</span>
               </button>
-              
+
               <!-- Edit Button -->
-              <button 
-                [class]="getEditButtonClass()" 
-                (click)="onEditTicket()"
-                [disabled]="!canEdit() || isEditing"
+              <button [class]="getEditButtonClass()" (click)="onEditTicket()" [disabled]="!canEdit() || isEditing"
                 [title]="canEdit() ? 'แก้ไข ticket นี้' : 'ไม่สามารถแก้ไขในสถานะนี้ได้'">
-                
+
                 <span *ngIf="isEditing" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-pencil" *ngIf="!isEditing"></i>
                 <span>{{ getEditButtonText() }}</span>
@@ -140,16 +122,13 @@
 
               <!-- ✅ FIXED: Admin-only buttons -->
               <div *ngIf="authService.isAdmin()" class="admin-actions ms-2">
-                <button class="btn btn-warning btn-sm" 
-                        (click)="escalateTicket()"
-                        title="Escalate ticket (Admin only)">
+                <button class="btn btn-warning btn-sm" (click)="escalateTicket()" title="Escalate ticket (Admin only)">
                   <i class="bi bi-arrow-up-circle me-1"></i>
                   Escalate
                 </button>
-                
-                <button class="btn btn-danger btn-sm ms-2" 
-                        (click)="forceCloseTicket()"
-                        title="Force close ticket (Admin only)">
+
+                <button class="btn btn-danger btn-sm ms-2" (click)="forceCloseTicket()"
+                  title="Force close ticket (Admin only)">
                   <i class="bi bi-x-circle me-1"></i>
                   Force Close
                 </button>
@@ -170,23 +149,23 @@
             <div class="detail-label">Ticket no:</div>
             <div class="detail-value">{{ ticketData.ticket.ticket_no }}</div>
           </div>
-          
+
           <div class="detail-divider"></div>
-          
+
           <div class="detail-item">
             <div class="detail-label">Priority:</div>
             <div class="detail-value priority-high">{{ ticketData.ticket.priority || 'Medium' }}</div>
           </div>
-          
+
           <div class="detail-divider"></div>
-          
+
           <div class="detail-item">
             <div class="detail-label">Categories:</div>
             <div class="detail-value">{{ ticketData.ticket.categories_name }}</div>
           </div>
-          
+
           <div class="detail-divider"></div>
-          
+
           <div class="detail-item">
             <div class="detail-label">Project:</div>
             <div class="detail-value">{{ ticketData.ticket.project_name }}</div>
@@ -200,7 +179,7 @@
               <i class="bi bi-chat-dots-fill"></i>
             </div>
           </div>
-          
+
           <div class="issue-content">
             <div class="issue-label">Issue Description:</div>
             <div class="issue-description">{{ ticketData.ticket.issue_description }}</div>
@@ -211,65 +190,60 @@
         <div class="attachments-section">
           <div class="attachment-label">
             <i class="bi bi-paperclip me-1"></i>
-            Original Issue Attachments: 
+            Original Issue Attachments:
             <small class="text-muted">(ไฟล์ที่แนบมาตอนสร้าง ticket)</small>
           </div>
           <div class="attachment-grid">
-            
+
             <!-- Attachment Items -->
-            <div *ngFor="let attachment of ticketData.issue_attachment" 
-                 class="attachment-item"
-                 (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-              
+            <div *ngFor="let attachment of ticketData.issue_attachment" class="attachment-item"
+              (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
+
               <!-- Loading State -->
-              <div class="attachment-loading" 
-                   *ngIf="getFileInfo(attachment.attachment_id).isLoading">
+              <div class="attachment-loading" *ngIf="getFileInfo(attachment.attachment_id).isLoading">
                 <i class="bi bi-hourglass-split"></i>
                 <div class="loading-text">Analyzing...</div>
               </div>
-              
+
               <!-- Image Preview -->
-              <div class="attachment-preview" 
-                   *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
-                <img [src]="attachment.path" 
-                     [alt]="getDisplayFileName(attachment.path, attachment.attachment_id)"
-                     (error)="onImageError(attachment.attachment_id)"
-                     (load)="onImageLoad(attachment.attachment_id)"
-                     loading="lazy"
-                     style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
-                
+              <div class="attachment-preview"
+                *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
+                <img [src]="attachment.path" [alt]="getDisplayFileName(attachment.path, attachment.attachment_id)"
+                  (error)="onImageError(attachment.attachment_id)" (load)="onImageLoad(attachment.attachment_id)"
+                  loading="lazy" style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
+
                 <div class="file-info-overlay">
                   <div class="file-name-small">{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</div>
                   <div class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</div>
                 </div>
               </div>
-              
+
               <!-- File Icon -->
-              <div class="attachment-file" 
-                   *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
-                
+              <div class="attachment-file"
+                *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
+
                 <div class="file-icon-container">
-                  <i [class]="getFileIcon(attachment.path, attachment.attachment_id)" 
-                     [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
+                  <i [class]="getFileIcon(attachment.path, attachment.attachment_id)"
+                    [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
                 </div>
-                
+
                 <div class="file-details">
                   <div class="file-name" [title]="getDisplayFileName(attachment.path, attachment.attachment_id)">
                     {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
                   </div>
-                  
+
                   <div class="file-meta">
                     <span class="file-type">{{ getFileInfo(attachment.attachment_id).type.toUpperCase() }}</span>
                     <span class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</span>
                   </div>
                 </div>
-                
+
                 <div class="download-indicator">
                   <i class="bi bi-download"></i>
                 </div>
               </div>
             </div>
-            
+
             <!-- No attachments -->
             <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
               <i class="bi bi-paperclip"></i>
@@ -280,7 +254,7 @@
 
         <!-- Ticket Footer -->
         <div class="ticket-footer">
-          
+
           <!-- Reporter Information -->
           <div class="footer-section">
             <div class="footer-item">
@@ -296,40 +270,32 @@
               <div class="footer-value">{{ formatDate(ticketData.ticket.update_date) }}</div>
             </div>
           </div>
-          
+
           <!-- ✅ FIXED: Enhanced Evaluation Section -->
           <div class="evaluation-section" *ngIf="hasSpecificPermission(14)">
             <div class="evaluation-label">Evaluation</div>
-            
+
             <!-- Evaluation Status Message -->
-            <div class="evaluation-status" 
-                 *ngIf="(!canEvaluate || hasExistingSatisfaction) && getEvaluationMessage()"
-                 [ngClass]="{
+            <div class="evaluation-status" *ngIf="(!canEvaluate || hasExistingSatisfaction) && getEvaluationMessage()"
+              [ngClass]="{
                    'text-success': hasExistingSatisfaction,
                    'text-muted': !canEvaluate && !hasExistingSatisfaction
                  }">
               <small>{{ getEvaluationMessage() }}</small>
             </div>
-            
+
             <!-- Star Rating -->
             <div class="star-rating">
-              <div class="star" 
-                   *ngFor="let i of [1,2,3,4,5]" 
-                   [ngClass]="getStarClass(i)"
-                   (click)="canClickStar() ? setRating(i) : null"
-                   (mouseenter)="onStarMouseEnter(i)"
-                   (mouseleave)="onStarMouseLeave()"
-                   [title]="getStarTooltip(i)">
-                
+              <div class="star" *ngFor="let i of [1,2,3,4,5]" [ngClass]="getStarClass(i)"
+                (click)="canClickStar() ? setRating(i) : null" (mouseenter)="onStarMouseEnter(i)"
+                (mouseleave)="onStarMouseLeave()" [title]="getStarTooltip(i)">
+
                 <!-- Loading spinner เมื่อกำลังบันทึก -->
-                <span *ngIf="isSavingRating && i === currentRating" 
-                      class="spinner-border spinner-border-sm" 
-                      role="status"></span>
-                
+                <span *ngIf="isSavingRating && i === currentRating" class="spinner-border spinner-border-sm"
+                  role="status"></span>
+
                 <!-- Star icons -->
-                <i *ngIf="!isSavingRating || i !== currentRating"
-                   class="bi"
-                   [ngClass]="{
+                <i *ngIf="!isSavingRating || i !== currentRating" class="bi" [ngClass]="{
                      'bi-star-fill': isStarFilled(i),
                      'bi-star': !isStarFilled(i)
                    }"></i>
@@ -341,40 +307,36 @@
 
       <!-- ===== SUPPORT INFORMATION CARD ===== ✅ -->
       <div class="support-info-card">
-        
+
         <!-- Support Header -->
         <div class="support-header">
           <h2 class="support-title">Support Information</h2>
-          
+
           <!-- ✅ Supporter Action Button -->
           <div class="supporter-action">
-            <button type="button" 
-                    class="btn btn-outline-primary" 
-                    (click)="toggleSupporterForm()"
-                    [disabled]="supporterFormState.isSaving"
-                    *ngIf="canShowSupporterForm()">
+            <button type="button" class="btn btn-outline-primary" (click)="toggleSupporterForm()"
+              [disabled]="supporterFormState.isSaving" *ngIf="canShowSupporterForm()">
               <i class="bi bi-gear-fill me-2"></i>
               {{ supporterFormState.isVisible ? 'ซ่อนฟอร์ม' : 'จัดการ Supporter' }}
             </button>
           </div>
         </div>
-        
+
         <div class="support-progress-bar">
           <div class="support-progress-fill"></div>
           <div class="support-progress-remaining"></div>
         </div>
 
         <!-- ✅ FIXED: Supporter Form Section -->
-        <div *ngIf="supporterFormState.isVisible && canShowSupporterForm()" 
-             class="supporter-form-section">
-          
+        <div *ngIf="supporterFormState.isVisible && canShowSupporterForm()" class="supporter-form-section">
+
           <!-- Form Header -->
           <div class="supporter-form-header">
             <h3 class="supporter-form-title">
               <i class="bi bi-tools me-2"></i>
               Supporter Actions
             </h3>
-            
+
             <!-- Loading Indicator -->
             <div *ngIf="supporterFormState.isSaving" class="supporter-form-loading">
               <span class="spinner-border spinner-border-sm me-2"></span>
@@ -383,34 +345,25 @@
           </div>
 
           <!-- Error Alert -->
-          <div *ngIf="supporterFormState.error" 
-               class="alert alert-danger alert-dismissible fade show" 
-               role="alert">
+          <div *ngIf="supporterFormState.error" class="alert alert-danger alert-dismissible fade show" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>
             {{ supporterFormState.error }}
-            <button type="button" 
-                    class="btn-close" 
-                    (click)="supporterFormState.error = null"
-                    aria-label="Close"></button>
+            <button type="button" class="btn-close" (click)="supporterFormState.error = null"
+              aria-label="Close"></button>
           </div>
 
           <!-- Success Alert -->
-          <div *ngIf="supporterFormState.successMessage" 
-               class="alert alert-success alert-dismissible fade show" 
-               role="alert">
+          <div *ngIf="supporterFormState.successMessage" class="alert alert-success alert-dismissible fade show"
+            role="alert">
             <i class="bi bi-check-circle-fill me-2"></i>
             {{ supporterFormState.successMessage }}
-            <button type="button" 
-                    class="btn-close" 
-                    (click)="supporterFormState.successMessage = null"
-                    aria-label="Close"></button>
+            <button type="button" class="btn-close" (click)="supporterFormState.successMessage = null"
+              aria-label="Close"></button>
           </div>
 
           <!-- Supporter Form -->
-          <form [formGroup]="supporterForm" 
-                (ngSubmit)="onSaveSupporter()" 
-                class="supporter-form">
-            
+          <form [formGroup]="supporterForm" (ngSubmit)="onSaveSupporter()" class="supporter-form">
+
             <!-- Row 1: Action และ Estimate Time -->
             <div class="row mb-3">
               <!-- ✅ Action Dropdown - ดึงข้อมูลจาก API -->
@@ -419,13 +372,13 @@
                   <i class="bi bi-list-check me-1"></i>
                   Action <span class="text-danger">*</span>
                 </label>
-                
+
                 <!-- Loading State -->
                 <div *ngIf="isLoadingActions" class="form-control d-flex align-items-center">
                   <span class="spinner-border spinner-border-sm me-2"></span>
                   <span class="text-muted">กำลังโหลดตัวเลือก...</span>
                 </div>
-                
+
                 <!-- Error State -->
                 <div *ngIf="actionError && !isLoadingActions" class="alert alert-warning p-2 mb-2">
                   <small>
@@ -433,53 +386,42 @@
                     {{ actionError }}
                   </small>
                 </div>
-                
+
                 <!-- Action Dropdown -->
-                <select id="action" 
-                        class="form-select"
-                        formControlName="action"
-                        [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
-                        [disabled]="isLoadingActions"
-                        *ngIf="!isLoadingActions">
+                <select id="action" class="form-select" formControlName="action"
+                  [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
+                  [disabled]="isLoadingActions" *ngIf="!isLoadingActions">
                   <option value="">เลือก Action...</option>
-                  <option *ngFor="let option of actionDropdownOptions" 
-                          [value]="option.value"
-                          [disabled]="option.disabled">
+                  <option *ngFor="let option of actionDropdownOptions" [value]="option.statusId"
+                    [disabled]="option.disabled">
                     {{ option.label }}
                     <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>
                   </option>
                 </select>
-                
+
                 <!-- Validation Error -->
-                <div *ngIf="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched" 
-                     class="invalid-feedback">
+                <div *ngIf="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
+                  class="invalid-feedback">
                   กรุณาเลือก Action
                 </div>
-                
+
                 <!-- Refresh Button (เฉพาะเมื่อมี error) -->
-                <button type="button" 
-                        class="btn btn-outline-secondary btn-sm mt-1" 
-                        (click)="refreshActionDropdown()"
-                        *ngIf="actionError && !isLoadingActions">
+                <button type="button" class="btn btn-outline-secondary btn-sm mt-1" (click)="refreshActionDropdown()"
+                  *ngIf="actionError && !isLoadingActions">
                   <i class="bi bi-arrow-clockwise me-1"></i>
                   โหลดใหม่
                 </button>
               </div>
-              
+
               <!-- ✅ Estimate Time -->
               <div class="col-md-6">
                 <label for="estimate_time" class="form-label">
                   <i class="bi bi-clock me-1"></i>
                   Estimate Time (ชั่วโมง)
                 </label>
-                <input type="number" 
-                       id="estimate_time" 
-                       class="form-control"
-                       formControlName="estimate_time"
-                       [class.is-invalid]="hasFieldError('estimate_time')"
-                       placeholder="เวลาประมาณการ (0-1000 ชั่วโมง)"
-                       min="0" 
-                       max="1000">
+                <input type="number" id="estimate_time" class="form-control" formControlName="estimate_time"
+                  [class.is-invalid]="hasFieldError('estimate_time')" placeholder="เวลาประมาณการ (0-1000 ชั่วโมง)"
+                  min="0" max="1000">
                 <div *ngIf="hasFieldError('estimate_time')" class="invalid-feedback">
                   {{ getFieldError('estimate_time') }}
                 </div>
@@ -493,29 +435,21 @@
                   <i class="bi bi-calendar-date me-1"></i>
                   Due Date
                 </label>
-                <input type="date" 
-                       id="due_date" 
-                       class="form-control"
-                       formControlName="due_date"
-                       [class.is-invalid]="hasFieldError('due_date')">
+                <input type="date" id="due_date" class="form-control" formControlName="due_date"
+                  [class.is-invalid]="hasFieldError('due_date')">
                 <div *ngIf="hasFieldError('due_date')" class="invalid-feedback">
                   {{ getFieldError('due_date') }}
                 </div>
               </div>
-              
+
               <div class="col-md-6">
                 <label for="lead_time" class="form-label">
                   <i class="bi bi-speedometer2 me-1"></i>
                   Lead Time (ชั่วโมง)
                 </label>
-                <input type="number" 
-                       id="lead_time" 
-                       class="form-control"
-                       formControlName="lead_time"
-                       [class.is-invalid]="hasFieldError('lead_time')"
-                       placeholder="เวลาที่ใช้จริง (0-10000 ชั่วโมง)"
-                       min="0" 
-                       max="10000">
+                <input type="number" id="lead_time" class="form-control" formControlName="lead_time"
+                  [class.is-invalid]="hasFieldError('lead_time')" placeholder="เวลาที่ใช้จริง (0-10000 ชั่วโมง)" min="0"
+                  max="10000">
                 <div *ngIf="hasFieldError('lead_time')" class="invalid-feedback">
                   {{ getFieldError('lead_time') }}
                 </div>
@@ -530,30 +464,89 @@
                   <i class="bi bi-calendar-check me-1"></i>
                   Close Estimate
                 </label>
-                <input type="datetime-local" 
-                       id="close_estimate" 
-                       class="form-control"
-                       formControlName="close_estimate"
-                       [class.is-invalid]="hasFieldError('close_estimate')">
+                <input type="datetime-local" id="close_estimate" class="form-control" formControlName="close_estimate"
+                  [class.is-invalid]="hasFieldError('close_estimate')">
                 <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
                   {{ getFieldError('close_estimate') }}
                 </div>
               </div>
-              
+
               <!-- ✅ Related Tickets -->
               <div class="col-md-6">
                 <label for="related_ticket_id" class="form-label">
                   <i class="bi bi-link-45deg me-1"></i>
                   Related Tickets
                 </label>
-                <input type="text" 
-                       id="related_ticket_id" 
-                       class="form-control"
-                       formControlName="related_ticket_id"
-                       [class.is-invalid]="hasFieldError('related_ticket_id')"
-                       placeholder="หมายเลข ticket ที่เกี่ยวข้อง">
+                <input type="text" id="related_ticket_id" class="form-control" formControlName="related_ticket_id"
+                  [class.is-invalid]="hasFieldError('related_ticket_id')" placeholder="หมายเลข ticket ที่เกี่ยวข้อง">
                 <div *ngIf="hasFieldError('related_ticket_id')" class="invalid-feedback">
                   {{ getFieldError('related_ticket_id') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- ✅ NEW: Row 3.5: Assignee Section in Supporter Form -->
+            <div class="row mb-3" *ngIf="canAssignTicket()">
+              <div class="col-12">
+                <label class="form-label">
+                  <i class="bi bi-person-badge me-1"></i>
+                  Assignee / Support Team
+                </label>
+
+                <!-- Current Assignee Display -->
+                <div class="current-assignee-display mb-2">
+                  <small class="text-muted">Current: </small>
+                  <span class="current-assignee-name">{{ ticketData.ticket.update_by || 'Not Assigned' }}</span>
+                </div>
+
+                <!-- Assignee Selection -->
+                <div class="assignee-selection">
+                  <!-- Loading State -->
+                  <div *ngIf="isLoadingAssignees" class="form-control d-flex align-items-center">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span class="text-muted">กำลังโหลดรายชื่อ...</span>
+                  </div>
+
+                  <!-- Error State -->
+                  <div *ngIf="assigneeError && !isLoadingAssignees" class="alert alert-warning p-2 mb-2">
+                    <small>
+                      <i class="bi bi-exclamation-triangle me-1"></i>
+                      {{ assigneeError }}
+                    </small>
+                  </div>
+
+                  <!-- Assignee Select and Button -->
+                  <div class="d-flex" *ngIf="!isLoadingAssignees && !assigneeError">
+                    <select class="form-select" id="assignee-select" [(ngModel)]="selectedAssigneeId"
+                      [disabled]="isAssigning">
+                      <option [value]="null">เลือกผู้รับมอบหมาย...</option>
+                      <option *ngFor="let user of assigneeList" [value]="user.id">
+                        {{ getUserDisplayName(user) }}
+                      </option>
+                    </select>
+
+                    <!-- Assign Button -->
+                    <button type="button" class="btn btn-outline-primary ms-2" (click)="onAssignTicket()"
+                      [disabled]="!selectedAssigneeId || isAssigning">
+                      <span *ngIf="isAssigning" class="spinner-border spinner-border-sm me-1"></span>
+                      <i *ngIf="!isAssigning" class="bi bi-person-plus me-1"></i>
+                      {{ isAssigning ? 'กำลังมอบหมาย...' : 'Assign' }}
+                    </button>
+                  </div>
+
+                  <!-- Refresh Button (เฉพาะเมื่อมี error) -->
+                  <button type="button" class="btn btn-outline-secondary btn-sm mt-2" (click)="refreshAssigneeList()"
+                    *ngIf="assigneeError && !isLoadingAssignees">
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                    โหลดใหม่
+                  </button>
+                </div>
+
+                <div class="form-text">
+                  <small>
+                    <i class="bi bi-info-circle me-1"></i>
+                    มอบหมาย ticket นี้ให้กับสมาชิกในทีม Support
+                  </small>
                 </div>
               </div>
             </div>
@@ -565,13 +558,9 @@
                   <i class="bi bi-chat-square-text me-1"></i>
                   Fix Description
                 </label>
-                <textarea id="fix_issue_description" 
-                          class="form-control"
-                          formControlName="fix_issue_description"
-                          [class.is-invalid]="hasFieldError('fix_issue_description')"
-                          placeholder="อธิบายวิธีการแก้ไขปัญหา..."
-                          rows="4"
-                          maxlength="5000"></textarea>
+                <textarea id="fix_issue_description" class="form-control" formControlName="fix_issue_description"
+                  [class.is-invalid]="hasFieldError('fix_issue_description')" placeholder="อธิบายวิธีการแก้ไขปัญหา..."
+                  rows="4" maxlength="5000"></textarea>
                 <div *ngIf="hasFieldError('fix_issue_description')" class="invalid-feedback">
                   {{ getFieldError('fix_issue_description') }}
                 </div>
@@ -591,13 +580,9 @@
                   Support Attachments
                   <small class="text-info">(ไฟล์เหล่านี้จะแสดงใน Fix Attachments)</small>
                 </label>
-                <input type="file" 
-                       id="attachments" 
-                       class="form-control"
-                       multiple
-                       accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                       (change)="onFileSelected($event)"
-                       [class.is-invalid]="hasFieldError('attachments')">
+                <input type="file" id="attachments" class="form-control" multiple
+                  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onFileSelected($event)"
+                  [class.is-invalid]="hasFieldError('attachments')">
                 <div *ngIf="hasFieldError('attachments')" class="invalid-feedback">
                   {{ getFieldError('attachments') }}
                 </div>
@@ -618,20 +603,16 @@
                   <i class="bi bi-files me-1"></i>
                   ไฟล์ที่เลือก ({{ selectedFiles.length }}/{{ maxFiles }})
                 </h6>
-                <button type="button" 
-                        class="btn btn-outline-secondary btn-sm" 
-                        (click)="clearAllFiles()">
+                <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearAllFiles()">
                   <i class="bi bi-trash me-1"></i>
                   ล้างทั้งหมด
                 </button>
               </div>
-              
+
               <div class="selected-files-list">
-                <div *ngFor="let file of selectedFiles; let i = index" 
-                     class="selected-file-item">
+                <div *ngFor="let file of selectedFiles; let i = index" class="selected-file-item">
                   <div class="file-info">
-                    <i [class]="getFileDisplayInfo(file).icon" 
-                       class="file-icon me-2"></i>
+                    <i [class]="getFileDisplayInfo(file).icon" class="file-icon me-2"></i>
                     <div class="file-details">
                       <div class="file-name">{{ getFileDisplayInfo(file).name }}</div>
                       <div class="file-meta">
@@ -640,10 +621,8 @@
                       </div>
                     </div>
                   </div>
-                  <button type="button" 
-                          class="btn btn-outline-danger btn-sm" 
-                          (click)="removeSelectedFile(i)"
-                          title="ลบไฟล์นี้">
+                  <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeSelectedFile(i)"
+                    title="ลบไฟล์นี้">
                     <i class="bi bi-x"></i>
                   </button>
                 </div>
@@ -652,27 +631,21 @@
 
             <!-- Form Actions -->
             <div class="supporter-form-actions">
-              <button type="submit" 
-                      class="btn btn-primary"
-                      [disabled]="supporterForm.invalid || supporterFormState.isSaving">
-                <span *ngIf="supporterFormState.isSaving" 
-                      class="spinner-border spinner-border-sm me-2"></span>
+              <button type="submit" class="btn btn-primary"
+                [disabled]="supporterForm.invalid || supporterFormState.isSaving">
+                <span *ngIf="supporterFormState.isSaving" class="spinner-border spinner-border-sm me-2"></span>
                 <i *ngIf="!supporterFormState.isSaving" class="bi bi-check-lg me-2"></i>
                 {{ supporterFormState.isSaving ? 'กำลังบันทึก...' : 'บันทึก' }}
               </button>
-              
-              <button type="button" 
-                      class="btn btn-outline-secondary ms-2" 
-                      (click)="toggleSupporterForm()"
-                      [disabled]="supporterFormState.isSaving">
+
+              <button type="button" class="btn btn-outline-secondary ms-2" (click)="toggleSupporterForm()"
+                [disabled]="supporterFormState.isSaving">
                 <i class="bi bi-x-lg me-2"></i>
                 ยกเลิก
               </button>
-              
-              <button type="button" 
-                      class="btn btn-outline-warning ms-2" 
-                      (click)="resetSupporterForm()"
-                      [disabled]="supporterFormState.isSaving">
+
+              <button type="button" class="btn btn-outline-warning ms-2" (click)="resetSupporterForm()"
+                [disabled]="supporterFormState.isSaving">
                 <i class="bi bi-arrow-clockwise me-2"></i>
                 รีเซ็ต
               </button>
@@ -682,63 +655,63 @@
 
         <!-- Support Details -->
         <div class="support-details">
-          
+
           <!-- Row 1: Time Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Close Estimate:</div>
               <div class="support-value">{{ ticketData.ticket.close_estimate || '-' }}</div>
             </div>
-            
+
             <div class="support-divider"></div>
-            
+
             <div class="support-item">
               <div class="support-label">Estimate time:</div>
               <div class="support-value">{{ ticketData.ticket.estimate_time || '-' }}</div>
             </div>
-            
+
             <div class="support-divider"></div>
-            
+
             <div class="support-item">
               <div class="support-label">Due date:</div>
               <div class="support-value">{{ ticketData.ticket.due_date || '-' }}</div>
             </div>
-            
+
             <div class="support-divider"></div>
-            
+
             <div class="support-item">
               <div class="support-label">Lead Time:</div>
               <div class="support-value">{{ ticketData.ticket.lead_time || '-' }}</div>
             </div>
           </div>
-          
+
           <!-- Row 2: Team Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Assignee / Support Team:</div>
               <div class="support-value">{{ ticketData.ticket.update_by || '-' }}</div>
             </div>
-            
+
             <div class="support-divider"></div>
-            
+
             <div class="support-item">
               <div class="support-label">Related Tickets:</div>
               <div class="support-value">{{ ticketData.ticket.related_ticket_id || '-' }}</div>
             </div>
           </div>
-          
+
           <!-- Row 3: Additional Information -->
           <div class="support-row">
             <div class="support-item">
               <div class="support-label">Change Request:</div>
               <div class="support-value">{{ ticketData.ticket.change_request || '-' }}</div>
             </div>
-            
+
             <div class="support-item">
               <div class="support-label">Fix Description:</div>
               <div class="support-value">{{ ticketData.ticket.fix_issue_description || '-' }}</div>
             </div>
-            
+
             <div class="support-item">
               <div class="support-label">
                 <i class="bi bi-tools me-1"></i>
@@ -746,21 +719,20 @@
                 <small class="text-muted">(ไฟล์ที่ Supporter แนบมาตอนแก้ไข)</small>
               </div>
               <div class="support-value">
-                
+
                 <!-- Fix Attachments -->
                 <div *ngIf="ticketData.fix_attachment.length > 0; else noFixAttachments">
-                  <div *ngFor="let attachment of ticketData.fix_attachment" 
-                       class="fix-attachment-item"
-                       (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-                    <i [class]="getFileIcon(attachment.path, attachment.attachment_id)" 
-                       [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
+                  <div *ngFor="let attachment of ticketData.fix_attachment" class="fix-attachment-item"
+                    (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
+                    <i [class]="getFileIcon(attachment.path, attachment.attachment_id)"
+                      [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
                     <span>{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</span>
                     <small class="text-muted ms-2">
                       (จาก Supporter: {{ ticketData.ticket.update_by || 'Unknown' }})
                     </small>
                   </div>
                 </div>
-                
+
                 <!-- No Fix Attachments -->
                 <ng-template #noFixAttachments>
                   <span class="text-muted">
@@ -777,7 +749,7 @@
 
     <!-- ===== HISTORY SIDEBAR ===== ✅ -->
     <div class="history-card">
-      
+
       <!-- History Header -->
       <div class="history-header">
         <h2 class="history-title">History</h2>
@@ -797,27 +769,25 @@
 
       <!-- Status History Timeline -->
       <div *ngIf="!isLoadingHistory && displayHistory && displayHistory.length > 0" class="history-timeline">
-        <div *ngFor="let historyItem of displayHistory; let i = index" 
-             class="history-item"
-             [class.current-status]="historyItem.is_active"
-             [class.completed-status]="historyItem.is_completed"
-             [class.pending-status]="!historyItem.is_active && !historyItem.is_completed">
-          
+        <div *ngFor="let historyItem of displayHistory; let i = index" class="history-item"
+          [class.current-status]="historyItem.is_active" [class.completed-status]="historyItem.is_completed"
+          [class.pending-status]="!historyItem.is_active && !historyItem.is_completed">
+
           <!-- History Badge -->
           <div class="history-badge" [ngClass]="getHistoryBadgeClass(historyItem)">
             <i [class]="getHistoryIcon(historyItem.status_name)"></i>
           </div>
-          
+
           <!-- History Content -->
           <div class="history-content">
             <div class="history-status" [class.active-status]="historyItem.is_active">
               {{ historyItem.status_name }}
             </div>
-            
+
             <div class="history-date" *ngIf="hasHistoryDate(historyItem)">
               {{ formatHistoryDate(historyItem.create_date) }}
             </div>
-            
+
             <div class="history-date pending" *ngIf="!hasHistoryDate(historyItem) && !historyItem.is_completed">
               <span class="text-muted">-</span>
             </div>
@@ -840,44 +810,47 @@
             <small><i class="bi bi-lightning me-1"></i> Quick Actions</small>
           </div>
           <div class="card-body p-2">
-            
+
             <!-- ✅ User Actions - ทุกคนใช้ได้ -->
-            <button class="btn btn-sm btn-outline-primary w-100 mb-1" 
-                    (click)="loadTicketDetail()"
-                    title="Refresh ticket details">
+            <button class="btn btn-sm btn-outline-primary w-100 mb-1" (click)="loadTicketDetail()"
+              title="Refresh ticket details">
               <i class="bi bi-arrow-clockwise me-1"></i>
               Refresh
             </button>
-            
+
             <!-- ✅ Supporter Actions - ต้องมี permission -->
             <div *ngIf="canShowSupporterForm()">
-              <button class="btn btn-sm btn-outline-success w-100 mb-1" 
-                      (click)="toggleSupporterForm()"
-                      [disabled]="supporterFormState.isSaving">
+              <button class="btn btn-sm btn-outline-success w-100 mb-1" (click)="toggleSupporterForm()"
+                [disabled]="supporterFormState.isSaving">
                 <i class="bi bi-tools me-1"></i>
                 Support Tools
               </button>
             </div>
-            
+
+            <!-- ✅ NEW: Assignee Quick Action -->
+            <div *ngIf="canAssignTicket()">
+              <button class="btn btn-sm btn-outline-info w-100 mb-1" title="มอบหมายงาน" [disabled]="isAssigning">
+                <i class="bi bi-person-plus me-1"></i>
+                Assign Ticket
+              </button>
+            </div>
+
             <!-- ✅ Evaluation Button - permission 14 -->
             <div *ngIf="hasSpecificPermission(14) && canEvaluate">
-              <button class="btn btn-sm btn-outline-info w-100 mb-1" 
-                      title="ประเมินความพึงพอใจ">
+              <button class="btn btn-sm btn-outline-info w-100 mb-1" title="ประเมินความพึงพอใจ">
                 <i class="bi bi-star me-1"></i>
                 Evaluate
               </button>
             </div>
-            
+
             <!-- ✅ Admin Actions -->
             <div *ngIf="authService.isAdmin()">
-              <button class="btn btn-sm btn-outline-warning w-100 mb-1" 
-                      (click)="escalateTicket()">
+              <button class="btn btn-sm btn-outline-warning w-100 mb-1" (click)="escalateTicket()">
                 <i class="bi bi-arrow-up-circle me-1"></i>
                 Escalate
               </button>
-              
-              <button class="btn btn-sm btn-outline-danger w-100" 
-                      (click)="forceCloseTicket()">
+
+              <button class="btn btn-sm btn-outline-danger w-100" (click)="forceCloseTicket()">
                 <i class="bi bi-x-circle me-1"></i>
                 Force Close
               </button>
