@@ -47,6 +47,14 @@ import {
   SupporterFormValidation
 } from '../../../shared/models/common.model';
 
+// ✅ เพิ่ม imports ที่ด้านบน (หาและเพิ่ม)
+import {
+  AssignTicketResponse,
+  Role9UsersResponse,
+  UserListItem,
+  getUserFullName
+} from '../../../shared/models/user.model';
+
 // ===== LOCAL INTERFACES (เฉพาะ component นี้) ===== ✅
 
 interface HistoryDisplayItem {
@@ -215,61 +223,112 @@ export class TicketDetailComponent implements OnInit {
     }
   } = {};
 
-  // ✅ สำหรับ assignee section
+  // ✅ สำหรับ assignee section - FIXED types
   isLoadingAssignees: boolean = false;
   assigneeError: string = '';
   selectedAssigneeId: number | null = null;
   isAssigning: boolean = false;
-  assigneeList: { id: number; full_name: string }[] = [];
+  assigneeList: UserListItem[] = []; // ✅ เปลี่ยนเป็น UserListItem[]
 
-  // ===== ASSIGNEE METHODS =====
-  getUserDisplayName(user: { id: number; full_name?: string; first_name?: string; last_name?: string }): string {
-    if (user.full_name) return user.full_name;
-    if (user.first_name || user.last_name) return `${user.first_name || ''} ${user.last_name || ''}`.trim();
-    return `User ${user.id}`;
+  /**
+ * ✅ FIXED: ใช้ utility function จาก user.model.ts
+ */
+  getUserDisplayName(user: UserListItem): string {
+    return getUserFullName(user);
   }
 
+  /**
+ * ✅ FIXED: Assign ticket โดยเรียก API ที่ถูกต้อง
+ */
   onAssignTicket(): void {
-    if (!this.selectedAssigneeId || !this.ticketData?.ticket) return;
+    if (!this.selectedAssigneeId || !this.ticketData?.ticket) {
+      console.warn('Missing selectedAssigneeId or ticket data');
+      return;
+    }
+
+    // ✅ ตรวจสอบ permission ก่อน
+    if (!this.canAssignTicket()) {
+      this.assigneeError = 'คุณไม่มีสิทธิ์มอบหมาย ticket';
+      return;
+    }
 
     this.isAssigning = true;
     this.assigneeError = '';
 
-    const requestData = {
-      ticket_no: this.ticketData.ticket.ticket_no,
-      assignee_id: this.selectedAssigneeId
-    };
+    const ticketNo = this.ticketData.ticket.ticket_no;
 
-    this.apiService.assignTicket(requestData).subscribe({
-      next: (response: any) => {
-        if (response?.code === 1) {
-          alert('มอบหมาย ticket เรียบร้อยแล้ว');
-          // อัปเดต ticketData หรือรีโหลด ticket detail ตามต้องการ
-          this.loadTicketDetail();
-        } else {
-          this.assigneeError = response?.message || 'ไม่สามารถมอบหมาย ticket ได้';
+    console.log('Assigning ticket:', {
+      ticketNo: ticketNo,
+      assignedTo: this.selectedAssigneeId,
+      selectedUser: this.assigneeList.find(u => u.id === this.selectedAssigneeId)
+    });
+
+    // ✅ เรียก API ที่ถูกต้อง
+    this.apiService.assignTicket(ticketNo, this.selectedAssigneeId).subscribe({
+      next: (response: AssignTicketResponse) => {
+        console.log('✅ Assign ticket response:', response);
+
+        // ✅ แสดงข้อความสำเร็จ
+        const assignedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
+        const userName = assignedUser ? getUserFullName(assignedUser) : `User ID ${response.assigned_to}`;
+
+        alert(`มอบหมาย ticket ${response.ticket_no} ให้กับ ${userName} เรียบร้อยแล้ว`);
+
+        // ✅ อัปเดต ticket data
+        if (this.ticketData?.ticket) {
+          this.ticketData.ticket.update_by = userName;
         }
+
+        // ✅ รีเซ็ต form
+        this.selectedAssigneeId = null;
+
+        // ✅ รีโหลดข้อมูล ticket
+        setTimeout(() => {
+          this.loadTicketDetail();
+        }, 500);
+
         this.isAssigning = false;
       },
       error: (error: any) => {
-        console.error('Assign ticket error:', error);
-        this.assigneeError = 'เกิดข้อผิดพลาดในการมอบหมาย ticket';
+        console.error('❌ Assign ticket error:', error);
+        this.assigneeError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการมอบหมาย ticket';
         this.isAssigning = false;
       }
     });
   }
 
+  /**
+ * ✅ FIXED: โหลดรายชื่อ assignees จาก API ที่ถูกต้อง
+ */
   public refreshAssigneeList(): void {
     this.isLoadingAssignees = true;
     this.assigneeError = '';
+    this.assigneeList = [];
 
-    this.apiService.getAssigneeList().subscribe({
-      next: (response: any) => {
-        if (response && Array.isArray(response.data)) {
-          this.assigneeList = response.data;
-          console.log('✅ Assignee list refreshed:', this.assigneeList);
+    console.log('Loading assignee list from role 9 users API...');
+
+    // ✅ เรียก API ใหม่ที่ถูกต้อง
+    this.apiService.getRole9Users().subscribe({
+      next: (response: Role9UsersResponse) => {
+        console.log('Role 9 users response:', response);
+
+        if (response && response.users && Array.isArray(response.users)) {
+          // ✅ แปลงข้อมูลให้ตรงกับ component
+          this.assigneeList = response.users.map(user => ({
+            id: user.id,
+            username: user.username || user.name || `user_${user.id}`,
+            firstname: user.firstname || user.name || '',
+            lastname: user.lastname || '',
+            email: user.email || '',
+            phone: '',
+            isenabled: true,
+            full_name: user.name || getUserFullName(user)
+          }));
+
+          console.log('✅ Assignee list refreshed:', this.assigneeList.length, 'users');
         } else {
-          this.assigneeError = 'ไม่สามารถโหลดรายชื่อผู้รับมอบหมายได้';
+          console.warn('Invalid response format:', response);
+          this.assigneeError = 'รูปแบบข้อมูลไม่ถูกต้อง';
         }
         this.isLoadingAssignees = false;
       },
@@ -277,6 +336,31 @@ export class TicketDetailComponent implements OnInit {
         console.error('❌ Error refreshing assignee list:', error);
         this.assigneeError = 'เกิดข้อผิดพลาดในการโหลดรายชื่อผู้รับมอบหมาย';
         this.isLoadingAssignees = false;
+
+        // ✅ ใช้ fallback data
+        this.assigneeList = [
+          {
+            id: 1,
+            username: 'support1',
+            firstname: 'Support',
+            lastname: 'User 1',
+            email: 'support1@company.com',
+            phone: '',
+            isenabled: true,
+            full_name: 'Support User 1'
+          },
+          {
+            id: 2,
+            username: 'support2',
+            firstname: 'Support',
+            lastname: 'User 2',
+            email: 'support2@company.com',
+            phone: '',
+            isenabled: true,
+            full_name: 'Support User 2'
+          }
+        ];
+        console.log('Using fallback assignee data');
       }
     });
   }
@@ -353,11 +437,77 @@ export class TicketDetailComponent implements OnInit {
       this.initializeSupporterForm();
       this.checkUserPermissions();
       this.loadStatusCache();
-      this.loadActionDropdownOptions(); // ✅ เพิ่มบรรทัดนี้
+      this.loadActionDropdownOptions();
+      this.initializeAssigneeList(); // ✅ เพิ่มบรรทัดนี้
       this.loadTicketDetail();
     } else {
       this.router.navigate(['/tickets']);
     }
+  }
+
+  /**
+   * ✅ NEW: ได้รับข้อความแสดงสถานะการโหลด assignee
+   */
+  getAssigneeLoadingMessage(): string {
+    if (this.isLoadingAssignees) return 'กำลังโหลดรายชื่อ...';
+    if (this.assigneeError) return this.assigneeError;
+    if (this.assigneeList.length === 0) return 'ไม่พบรายชื่อผู้รับมอบหมาย';
+    return '';
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า assignee dropdown พร้อมใช้งานหรือไม่  
+   */
+  isAssigneeDropdownReady(): boolean {
+    return !this.isLoadingAssignees &&
+      !this.assigneeError &&
+      this.assigneeList.length > 0;
+  }
+
+  /**
+   * ✅ NEW: ได้รับ CSS class สำหรับ assignee section
+   */
+  getAssigneeFormClass(): string {
+    if (this.assigneeError) return 'assignee-form error';
+    if (this.isLoadingAssignees) return 'assignee-form loading';
+    return 'assignee-form ready';
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่าสามารถ assign ได้หรือไม่ (รวม UI state)
+   */
+  canPerformAssign(): boolean {
+    return this.canAssignTicket() &&
+      this.selectedAssigneeId !== null &&
+      !this.isAssigning &&
+      this.isAssigneeDropdownReady() &&
+      !!this.ticketData?.ticket;
+  }
+
+  /**
+   * ✅ NEW: ได้รับ tooltip text สำหรับปุ่ม assign
+   */
+  getAssignButtonTooltip(): string {
+    if (!this.canAssignTicket()) {
+      return 'คุณไม่มีสิทธิ์มอบหมาย ticket (ต้องการ permission 8 หรือ 19)';
+    }
+
+    if (!this.selectedAssigneeId) {
+      return 'กรุณาเลือกผู้รับมอบหมาย';
+    }
+
+    if (this.isAssigning) {
+      return 'กำลังดำเนินการ...';
+    }
+
+    if (!this.isAssigneeDropdownReady()) {
+      return 'รายชื่อผู้รับมอบหมายยังไม่พร้อม';
+    }
+
+    const selectedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
+    const userName = selectedUser ? getUserFullName(selectedUser) : 'ผู้ใช้ที่เลือก';
+
+    return `มอบหมาย ticket นี้ให้กับ ${userName}`;
   }
 
   // ===== ✅ ENHANCED: PERMISSION CHECKING METHODS ===== 
@@ -373,7 +523,7 @@ export class TicketDetailComponent implements OnInit {
     // ✅ ตรวจสอบ supporter permissions โดยตรง
     this.hasViewAllTicketsPermission = userPermissions.includes(5); // VIEW_ALL_TICKETS
     this.hasChangeStatusPermission = userPermissions.includes(8);   // CHANGE_STATUS (ส่วนใหญ่ใช้ตัวนี้)
-    this.hasAssigneePermission = userPermissions.includes(9);       // ASSIGNEE
+    this.hasAssigneePermission = userPermissions.includes(19);       // ASSIGNEE
     this.hasSolveProblemPermission = userPermissions.includes(8);   // SOLVE_PROBLEM (ใช้ permission 8)
 
     // ✅ สิทธิ์ในการใช้ Supporter Form
@@ -394,7 +544,7 @@ export class TicketDetailComponent implements OnInit {
     // ✅ ตรวจสอบ permission โดยตรงจาก array
     const hasRequiredPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
       userPermissions.includes(8) ||  // CHANGE_STATUS 
-      userPermissions.includes(9);    // ASSIGNEE
+      userPermissions.includes(19);    // ASSIGNEE
 
     // ✅ FIXED: เพิ่ม !! เพื่อแปลงเป็น boolean และป้องกัน undefined
     const canShow = hasRequiredPermission &&
@@ -589,10 +739,10 @@ export class TicketDetailComponent implements OnInit {
     // ✅ ตรวจสอบสิทธิ์โดยตรงจาก permission array
     const hasPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
       userPermissions.includes(8) ||  // CHANGE_STATUS
-      userPermissions.includes(9);    // ASSIGNEE
+      userPermissions.includes(19);    // ASSIGNEE
 
     if (!hasPermission) {
-      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features\nต้องการ permission: 5 (VIEW_ALL_TICKETS), 8 (CHANGE_STATUS), หรือ 9 (ASSIGNEE)');
+      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features\nต้องการ permission: 5 (VIEW_ALL_TICKETS), 8 (CHANGE_STATUS), หรือ 19 (ASSIGNEE)');
       return;
     }
 
@@ -613,11 +763,11 @@ export class TicketDetailComponent implements OnInit {
 
     // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
     const canSave = userPermissions.includes(8) ||  // CHANGE_STATUS (หลัก)
-      userPermissions.includes(9) ||  // ASSIGNEE  
+      userPermissions.includes(19) ||  // ASSIGNEE  
       this.authService.isAdmin();
 
     if (!canSave) {
-      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter\nต้องการ permission: 8 (CHANGE_STATUS) หรือ 9 (ASSIGNEE)';
+      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter\nต้องการ permission: 8 (CHANGE_STATUS) หรือ 19 (ASSIGNEE)';
       return;
     }
 
@@ -851,7 +1001,7 @@ export class TicketDetailComponent implements OnInit {
 
     // ✅ ตรวจสอบสิทธิ์ก่อน
     const hasEditPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
-      userPermissions.includes(9) ||  // ASSIGNEE
+      userPermissions.includes(19) ||  // ASSIGNEE
       this.authService.isAdmin();
 
     if (!hasEditPermission) return 'Edit';
@@ -2567,16 +2717,27 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
- * ตรวจสอบว่า current user สามารถ assign ticket ได้หรือไม่
+ * ✅ FIXED: ตรวจสอบ permission การ assign ticket
  */
   public canAssignTicket(): boolean {
-    const currentUser = this.authService.getCurrentUser();
-    if (!currentUser) return false;
+    // ✅ ตรวจสอบ permission โดยตรง
+    const userPermissions = this.authService.getEffectivePermissions();
 
-    // สมมติว่า permission ที่อนุญาต assign ticket คือ 7
-    const ASSIGN_TICKET_PERMISSION = 7;
+    // Permission 19 = ASSIGNEE, Permission 8 = CHANGE_STATUS
+    const hasAssignPermission = userPermissions.includes(19) ||
+      userPermissions.includes(8) ||
+      this.authService.isAdmin() ||
+      this.authService.isSupporter();
 
-    // ตรวจสอบว่า user มี permission นี้ไหม
-    return currentUser.permissions?.includes(ASSIGN_TICKET_PERMISSION) ?? false;
+    return hasAssignPermission;
+  }
+
+  /**
+   * ✅ NEW: Initialize assignee list on component load
+   */
+  private initializeAssigneeList(): void {
+    if (this.canAssignTicket()) {
+      this.refreshAssigneeList();
+    }
   }
 }

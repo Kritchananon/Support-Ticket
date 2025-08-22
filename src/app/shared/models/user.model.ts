@@ -144,6 +144,49 @@ export interface UserRoleInfo {
   role_assignments: RoleAssignment[];
 }
 
+// ✅ NEW: Interfaces สำหรับ Assign Ticket API =====
+export interface AssignTicketRequest {
+  assignedTo: number;
+}
+
+export interface AssignTicketResponse {
+  message: string;
+  ticket_no: string;
+  assigned_to: number;
+}
+
+// ✅ NEW: Interfaces สำหรับ Role 9 Users API =====
+export interface Role9User {
+  id: number;
+  name: string;
+  username?: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+}
+
+export interface Role9UsersResponse {
+  users: Role9User[];
+}
+
+// ✅ NEW: Generic User List Item (สำหรับ dropdown) =====
+export interface UserListItem {
+  id: number;
+  username: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  phone?: string;
+  isenabled: boolean;
+  full_name?: string; // computed field
+}
+
+export interface UserListResponse {
+  code: number;
+  message: string;
+  data: UserListItem[];
+}
+
 // ===== Utility Functions =====
 export function createEmptyAuthState(): AuthState {
   return {
@@ -168,10 +211,10 @@ export function createLoginFormData(): LoginFormData {
 }
 
 export function isLoginSuccessResponse(response: LoginResponse): boolean {
-  return response.code === 1 && 
-         response.status === true && 
-         !!response.access_token && 
-         !!response.user;
+  return response.code === 1 &&
+    response.status === true &&
+    !!response.access_token &&
+    !!response.user;
 }
 
 export function extractTokenData(response: LoginResponse): TokenData | null {
@@ -212,8 +255,8 @@ export function extractUserData(response: LoginResponse): UserWithPermissions | 
  * ✅ สร้าง UserWithPermissions จาก User และ permissions/roles
  */
 export function createUserWithPermissions(
-  user: User, 
-  permissions: permissionEnum[] = [], 
+  user: User,
+  permissions: permissionEnum[] = [],
   roles: UserRole[] = []
 ): UserWithPermissions {
   return {
@@ -259,16 +302,27 @@ export function userHasAnyPermission(user: User | UserWithPermissions | null, pe
 /**
  * ✅ ดึงชื่อเต็มของ user
  */
-export function getUserFullName(user: User | null): string {
+export function getUserFullName(user: User | UserListItem | Role9User | null): string {
   if (!user) return '';
-  
+
+  // Check for Role9User or UserListItem with full_name
+  if ('full_name' in user && user.full_name) {
+    return user.full_name;
+  }
+
+  // Check for name field (Role9User)
+  if ('name' in user && user.name) {
+    return user.name;
+  }
+
+  // Standard User interface
   const firstName = user.firstname || '';
   const lastName = user.lastname || '';
-  
+
   if (firstName || lastName) {
     return `${firstName} ${lastName}`.trim();
   }
-  
+
   return user.username || 'User';
 }
 
@@ -277,14 +331,14 @@ export function getUserFullName(user: User | null): string {
  */
 export function getUserInitials(user: User | null): string {
   if (!user) return 'U';
-  
+
   const firstName = user.firstname || '';
   const lastName = user.lastname || '';
-  
+
   if (firstName && lastName) {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   }
-  
+
   const username = user.username || 'User';
   return username.charAt(0).toUpperCase();
 }
@@ -312,34 +366,34 @@ export function createAuthStateFromLoginResponse(
 
 // ===== Type Guards =====
 export function isUser(obj: any): obj is User {
-  return obj && 
-         typeof obj.id === 'number' && 
-         typeof obj.username === 'string';
+  return obj &&
+    typeof obj.id === 'number' &&
+    typeof obj.username === 'string';
 }
 
 export function isUserWithPermissions(obj: any): obj is UserWithPermissions {
-  return isUser(obj) && 
-         Array.isArray(obj.permissions) && 
-         Array.isArray(obj.roles);
+  return isUser(obj) &&
+    Array.isArray(obj.permissions) &&
+    Array.isArray(obj.roles);
 }
 
 export function isLoginResponse(obj: any): obj is LoginResponse {
-  return obj && 
-         typeof obj.code === 'number' && 
-         typeof obj.status === 'boolean' && 
-         typeof obj.message === 'string';
+  return obj &&
+    typeof obj.code === 'number' &&
+    typeof obj.status === 'boolean' &&
+    typeof obj.message === 'string';
 }
 
 export function isTokenData(obj: any): obj is TokenData {
-  return obj && 
-         typeof obj.access_token === 'string';
+  return obj &&
+    typeof obj.access_token === 'string';
 }
 
 export function isValidAuthState(obj: any): obj is AuthState {
   return obj &&
-         typeof obj.isAuthenticated === 'boolean' &&
-         Array.isArray(obj.permissions) &&
-         Array.isArray(obj.roles);
+    typeof obj.isAuthenticated === 'boolean' &&
+    Array.isArray(obj.permissions) &&
+    Array.isArray(obj.roles);
 }
 
 // ===== Constants =====
@@ -381,8 +435,8 @@ export class AuthStateHelper {
   }
 
   static hasPermission(state: AuthState, permission: permissionEnum): boolean {
-    return state.permissions.includes(permission) || 
-           (state.effective_permissions?.includes(permission) || false);
+    return state.permissions.includes(permission) ||
+      (state.effective_permissions?.includes(permission) || false);
   }
 
   static hasAnyPermission(state: AuthState, permissions: permissionEnum[]): boolean {
@@ -406,13 +460,13 @@ export class AuthStateHelper {
   }
 
   static canManageUsers(state: AuthState): boolean {
-    return this.hasPermission(state, permissionEnum.ADD_USER) || 
-           this.hasPermission(state, permissionEnum.DEL_USER);
+    return this.hasPermission(state, permissionEnum.ADD_USER) ||
+      this.hasPermission(state, permissionEnum.DEL_USER);
   }
 
   static canManageTickets(state: AuthState): boolean {
     return this.hasPermission(state, permissionEnum.VIEW_ALL_TICKETS) ||
-           this.hasPermission(state, permissionEnum.CHANGE_STATUS);
+      this.hasPermission(state, permissionEnum.CHANGE_STATUS);
   }
 
   static getPrimaryRole(state: AuthState): UserRole | null {

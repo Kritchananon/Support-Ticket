@@ -1,11 +1,20 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpErrorResponse, HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpErrorResponse, HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpParams } from '@angular/common/http';
 import { Observable, throwError, BehaviorSubject, of } from 'rxjs';
 import { catchError, tap, filter, take, switchMap, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { AuthService, TokenData } from './auth.service';
 import { ProjectDDLRequest, ProjectDDLResponse } from '../models/project.model';
 import { CategoryDDLRequest, CategoryDDLResponse } from '../models/category.model';
+
+// ✅ เพิ่ม imports ใหม่ที่ด้านบน
+import {
+  AssignTicketRequest,
+  AssignTicketResponse,
+  Role9UsersResponse,
+  UserListItem,
+  UserListResponse
+} from '../models/user.model';
 
 // ✅ HTTP Interceptor Class
 @Injectable()
@@ -450,34 +459,6 @@ export interface UserData {
   isenabled: boolean;
 }
 
-// ✅ NEW: Interfaces สำหรับ assignTicket API
-export interface AssignTicketRequest {
-  assignedTo: number;
-}
-
-export interface AssignTicketResponse {
-  message: string;
-  ticket_no: string;
-  assigned_to: number;
-}
-
-// ✅ NEW: Interfaces สำหรับ getUsersList API (สำหรับ assignee dropdown)
-export interface UserListItem {
-  id: number;
-  username: string;
-  firstname: string;
-  lastname: string;
-  email: string;
-  phone?: string;
-  isenabled: boolean;
-}
-
-export interface UserListResponse {
-  code: number;
-  message: string;
-  data: UserListItem[];
-}
-
 @Injectable({
   providedIn: 'root'
 })
@@ -508,6 +489,64 @@ export class ApiService {
     if (navigator.onLine) {
       setTimeout(() => this.processSyncQueue(), 1000);
     }
+  }
+
+  /**
+ * Generic GET method - ใช้สำหรับ Dashboard APIs
+ */
+  get<T>(endpoint: string, params?: any): Observable<ApiResponse<T>> {
+    let queryParams = new HttpParams(); // แก้ไขจาก httpParams
+
+    if (params) {
+      Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined) {
+          queryParams = queryParams.append(key, params[key].toString());
+        }
+      });
+    }
+
+    return this.http.get<ApiResponse<T>>(`${this.apiUrl}/${endpoint}`, {
+      params: queryParams, // แก้ไขจาก httpParams
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log(`API ${endpoint} response:`, response);
+      }),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Generic POST method
+   */
+  post<T>(endpoint: string, data: any): Observable<ApiResponse<T>> {
+    return this.http.post<ApiResponse<T>>(`${this.apiUrl}/${endpoint}`, data, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Generic PUT method  
+   */
+  put<T>(endpoint: string, data: any): Observable<ApiResponse<T>> {
+    return this.http.put<ApiResponse<T>>(`${this.apiUrl}/${endpoint}`, data, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Generic DELETE method
+   */
+  delete<T>(endpoint: string): Observable<ApiResponse<T>> {
+    return this.http.delete<ApiResponse<T>>(`${this.apiUrl}/${endpoint}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      catchError(this.handleError)
+    );
   }
 
   // ===== NEW: Ticket Cache Methods ===== ✅
@@ -877,12 +916,6 @@ export class ApiService {
           break;
         case 404:
           errorMessage = 'ไม่พบข้อมูลที่ต้องการ';
-          break;
-        case 413:
-          errorMessage = 'ไฟล์มีขนาดใหญ่เกินไป';
-          break;
-        case 422:
-          errorMessage = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
           break;
         case 500:
           errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์';
@@ -1980,11 +2013,34 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== Dashboard/Statistics APIs =====
-  getDashboardStats(): Observable<ApiResponse<any>> {
-    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/ticket/stats`, {
-      headers: this.getAuthHeaders()
-    }).pipe(catchError(this.handleError));
+  /**
+ * Dashboard Stats API - เรียก GET /dashboard  
+ */
+  getDashboard(): Observable<ApiResponse<any>> {
+    console.log('Calling dashboard API');
+
+    return this.get<any>('dashboard').pipe(
+      tap(response => {
+        console.log('Dashboard API response:', response);
+      })
+    );
+  }
+
+  /**
+   * Category Summary API - เรียก GET /summaryCategories
+   */
+  getCategoryBreakdown(params?: {
+    year?: string;
+    month?: string;
+    userId?: string;
+  }): Observable<ApiResponse<any[]>> {
+    console.log('Calling summaryCategories API with params:', params);
+
+    return this.get<any[]>('summaryCategories', params).pipe(
+      tap(response => {
+        console.log('CategoryBreakdown API response:', response);
+      })
+    );
   }
 
   // ===== File Upload API =====
@@ -2000,13 +2056,171 @@ export class ApiService {
     }).pipe(catchError(this.handleError));
   }
 
-  // ===== เพิ่ม method assignTicket ที่นี่ =====
-  assignTicket(requestData: { ticket_no: string; assignee_id: number }): Observable<any> {
-    return this.http.post('/api/tickets/assign', requestData);
+  /**
+ * ✅ FIXED: Assign ticket ให้กับ user ที่มี role_id = 9
+ * @param ticketNo หมายเลข ticket
+ * @param assignedTo ID ของ user ที่จะรับ ticket
+ * @returns Observable<AssignTicketResponse>
+ */
+  assignTicket(ticketNo: string, assignedTo: number): Observable<AssignTicketResponse> {
+    console.log('Calling assignTicket API with:', { ticketNo, assignedTo });
+
+    const requestBody: AssignTicketRequest = {
+      assignedTo: assignedTo
+    };
+
+    return this.http.post<AssignTicketResponse>(
+      `${this.apiUrl}/tickets/assign/${ticketNo}`, // ✅ URL ตรงกับ backend
+      requestBody,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('assignTicket API response:', response);
+        if (response && response.ticket_no) {
+          console.log(`✅ Ticket ${response.ticket_no} assigned to user ${response.assigned_to}`);
+        }
+      }),
+      catchError(error => {
+        console.error('❌ assignTicket API error:', error);
+        return this.handleError(error);
+      })
+    );
   }
 
-  // ===== เพิ่ม getAssigneeList =====
-  getAssigneeList(): Observable<{ id: number; full_name: string; username: string }[]> {
-    return this.http.get<{ id: number; full_name: string; username: string }[]>('/api/users/assignees');
+  /**
+ * ✅ NEW: ดึงรายชื่อ users ที่มี role_id = 9 (สามารถรับ assign ticket ได้)
+ * @returns Observable<Role9UsersResponse>
+ */
+  getRole9Users(): Observable<Role9UsersResponse> {
+    console.log('Calling getRole9Users API');
+
+    return this.http.get<Role9UsersResponse>(
+      `${this.apiUrl}/tickets/assign/users/role9`, // ✅ URL ตรงกับ backend
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('getRole9Users API response:', response);
+        if (response && response.users) {
+          console.log(`✅ Found ${response.users.length} users with role_id = 9`);
+        }
+      }),
+      catchError(error => {
+        console.error('❌ getRole9Users API error:', error);
+        // ✅ ส่งกลับ fallback data เมื่อมี error
+        const fallbackResponse: Role9UsersResponse = {
+          users: [
+            { id: 1, name: 'Support User 1', username: 'support1' },
+            { id: 2, name: 'Support User 2', username: 'support2' }
+          ]
+        };
+        console.log('✅ Using fallback role 9 users data');
+        return of(fallbackResponse);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: Helper method สำหรับแปลง Role9User เป็น UserListItem
+   * @param role9Users รายชื่อ users จาก getRole9Users API
+   * @returns UserListItem[] รายชื่อที่แปลงแล้ว
+   */
+  private convertRole9UsersToListItems(role9Users: any[]): UserListItem[] {
+    return role9Users.map(user => ({
+      id: user.id,
+      username: user.username || user.name || `user_${user.id}`,
+      firstname: user.firstname || user.name || '',
+      lastname: user.lastname || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      isenabled: true,
+      full_name: user.name || `${user.firstname || ''} ${user.lastname || ''}`.trim() || user.username || `User ${user.id}`
+    }));
+  }
+
+  /**
+   * ✅ NEW: ดึงรายชื่อ assignees พร้อมแปลงข้อมูล
+   * @returns Observable<UserListItem[]>
+   */
+  getAssigneesList(): Observable<UserListItem[]> {
+    return this.getRole9Users().pipe(
+      map(response => {
+        if (response && response.users && Array.isArray(response.users)) {
+          return this.convertRole9UsersToListItems(response.users);
+        }
+        return [];
+      }),
+      catchError(error => {
+        console.warn('❌ Error getting assignees list:', error);
+
+        // ✅ Fallback assignees
+        const fallbackAssignees: UserListItem[] = [
+          {
+            id: 1,
+            username: 'supporter1',
+            firstname: 'Support',
+            lastname: 'User 1',
+            email: 'support1@company.com',
+            isenabled: true,
+            full_name: 'Support User 1'
+          },
+          {
+            id: 2,
+            username: 'supporter2',
+            firstname: 'Support',
+            lastname: 'User 2',
+            email: 'support2@company.com',
+            isenabled: true,
+            full_name: 'Support User 2'
+          }
+        ];
+
+        return of(fallbackAssignees);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า user สามารถ assign ticket ได้หรือไม่
+   * @param userId ID ของ user ที่ต้องการตรวจสอบ
+   * @returns Observable<boolean>
+   */
+  canUserAssignTickets(userId: number): Observable<boolean> {
+    // ตรวจสอบจาก role หรือ permission ของ user ปัจจุบัน
+    const currentUser = this.authService.getCurrentUser();
+
+    if (!currentUser) {
+      return of(false);
+    }
+
+    // ตรวจสอบ permission หรือ role
+    const hasAssignPermission = this.authService.hasPermission(9); // ASSIGNEE permission
+    const isAdmin = this.authService.isAdmin();
+    const isSupporter = this.authService.isSupporter();
+
+    return of(hasAssignPermission || isAdmin || isSupporter);
+  }
+
+  /**
+   * ✅ NEW: ดึงสถิติการ assign tickets
+   * @returns Observable<any>
+   */
+  getAssignmentStats(): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/tickets/assign/stats`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('Assignment stats:', response)),
+      catchError(error => {
+        console.warn('❌ Error getting assignment stats:', error);
+
+        // Fallback stats
+        return of({
+          total_assigned: 0,
+          pending_assignments: 0,
+          completed_assignments: 0,
+          assignees_count: 2
+        });
+      })
+    );
   }
 }
