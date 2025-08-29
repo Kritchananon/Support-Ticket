@@ -1,3 +1,5 @@
+// src/app/shared/models/common.model.ts
+
 // ===== Generic API Response Interface =====
 export interface ApiResponse<T = any> {
   code?: number | string;
@@ -293,13 +295,63 @@ export const DEFAULT_RICH_TEXT_CONFIG: RichTextEditorConfig = {
   modules: {
     toolbar: [
       ['bold', 'italic', 'underline'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
       ['link'],
       ['clean']
     ]
   },
   theme: 'snow'
 };
+
+// ===== Dashboard API Response Interfaces ===== (ใหม่)
+
+// Interface สำหรับ Dashboard Stats API Response
+export interface Stat {
+  count: number;
+  tickets: Ticket[];
+}
+
+export interface Ticket {
+  id: number;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface DashboardStatsResponse {
+  total: number;
+  new: Stat[];
+  inProgress: Stat;
+  complete: Stat[];
+}
+
+// Interface สำหรับ Category Stats API Response  
+export interface CategoryStatsDTO {
+  category: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+// Interface สำหรับ Dashboard Data State
+export interface DashboardData {
+  stats: DashboardStatsResponse | null;
+  categoryStats: CategoryStatsDTO[];
+  loading: boolean;
+  error: string | null;
+}
+
+// Interface สำหรับ Chart Data
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+export interface MonthlyChartData {
+  newTickets: number[];
+  completeTickets: number[];
+  labels: (string | number)[];
+}
 
 // ===== Utility Functions =====
 export function createLoadingState<T>(initialData?: T): LoadingState {
@@ -311,8 +363,8 @@ export function createLoadingState<T>(initialData?: T): LoadingState {
 }
 
 export function createApiResponse<T>(
-  data: T, 
-  message: string = 'Success', 
+  data: T,
+  message: string = 'Success',
   code: number = 1
 ): ApiResponse<T> {
   return {
@@ -323,17 +375,27 @@ export function createApiResponse<T>(
   };
 }
 
+// Utility function สำหรับสร้าง initial dashboard data (ใหม่)
+export function createInitialDashboardData(): DashboardData {
+  return {
+    stats: null,
+    categoryStats: [],
+    loading: false,
+    error: null
+  };
+}
+
 export function getStatusBadgeClass(status: string): string {
   return STATUS_BADGE_CLASSES[status] || 'badge bg-light text-dark';
 }
 
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -346,7 +408,7 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: any; // ✅ เปลี่ยนจาก NodeJS.Timeout เป็น any
-  
+
   return (...args: Parameters<T>) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(null, args), wait);
@@ -457,9 +519,9 @@ export function isSupporterFormValid(validation: SupporterFormValidation): boole
 // ===== Date Utilities =====
 export function formatDate(date: string | Date, locale: string = 'th-TH'): string {
   if (!date) return '';
-  
+
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
+
   return dateObj.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
@@ -469,9 +531,9 @@ export function formatDate(date: string | Date, locale: string = 'th-TH'): strin
 
 export function formatDateTime(date: string | Date, locale: string = 'th-TH'): string {
   if (!date) return '';
-  
+
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
+
   return dateObj.toLocaleString(locale, {
     year: 'numeric',
     month: 'short',
@@ -508,7 +570,7 @@ export const APP_CONSTANTS = {
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   ALLOWED_FILE_TYPES: [
     'image/jpeg',
-    'image/png', 
+    'image/png',
     'image/gif',
     'application/pdf',
     'application/msword',

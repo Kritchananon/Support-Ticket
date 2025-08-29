@@ -1,3 +1,5 @@
+<!-- src/app/pages/dashboard/dashboard.component.html -->
+
 <div class="dashboard">
   <!-- Breadcrumb - ตรงกับ Figma -->
   <div class="breadcrumb-container">
@@ -9,6 +11,20 @@
         <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
       </ol>
     </nav>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="text-center py-4">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2 text-muted">กำลังโหลดข้อมูล...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="dashboardData.error" class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    {{ dashboardData.error }}
   </div>
 
   <!-- Dashboard Header Card - ตรงกับ Figma -->
@@ -25,7 +41,7 @@
           </div>
           <div class="stats-text-container">
             <p>Total Ticket</p>
-            <h4>{{ dashboardStats?.totalTickets || 240 }}</h4>
+            <h4>{{ formatNumber(dashboardStats?.total || 0) }}</h4>
           </div>
         </div>
       </div>
@@ -38,7 +54,7 @@
           </div>
           <div class="stats-text-container">
             <p>New Ticket</p>
-            <h4>{{ dashboardStats?.newTickets || 20 }}</h4>
+            <h4>{{ formatNumber(getNewCount()) }}</h4>
           </div>
         </div>
       </div>
@@ -51,7 +67,7 @@
           </div>
           <div class="stats-text-container">
             <p>In Progress</p>
-            <h4>{{ dashboardStats?.inProgress || 20 }}</h4>
+            <h4>{{ formatNumber(getInProgressCount()) }}</h4>
           </div>
         </div>
       </div>
@@ -64,7 +80,7 @@
           </div>
           <div class="stats-text-container">
             <p>Complete</p>
-            <h4>{{ dashboardStats?.completed || 210 }}</h4>
+            <h4>{{ formatNumber(getCompleteCount()) }}</h4>
           </div>
         </div>
       </div>
@@ -72,58 +88,56 @@
   </div>
 
   <!-- Charts Section -->
-  <div class="row">
-    <!-- All Tickets at Month Chart -->
-    <div class="col-md-12 mb-4">
-      <div class="card chart-card">
-        <div class="card-header">
-          <div class="d-flex justify-content-between align-items-center w-100">
-            <h5 class="card-title">All Tickets at Month</h5>
-            <div class="chart-controls">
-              <div class="chart-legend">
-                <span class="legend-item">
-                  <span class="legend-color" style="background-color: #FFC107;"></span>
-                  New Ticket
-                </span>
-                <span class="legend-item">
-                  <span class="legend-color" style="background-color: #28A745;"></span>
-                  Complete
-                </span>
-              </div>
-              <div class="d-flex gap-2">
-                <div class="dropdown">
-                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <span>{{ selectedMonth }}</span>
-                    <i class="bi bi-chevron-down ms-2"></i>
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" href="#" (click)="selectMonth('February')">February</a></li>
-                    <li><a class="dropdown-item" href="#" (click)="selectMonth('January')">January</a></li>
-                    <li><a class="dropdown-item" href="#" (click)="selectMonth('March')">March</a></li>
-                  </ul>
-                </div>
-                <div class="dropdown">
-                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <span>{{ selectedYear }}</span>
-                    <i class="bi bi-chevron-down ms-2"></i>
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" href="#" (click)="selectYear('2025')">2025</a></li>
-                    <li><a class="dropdown-item" href="#" (click)="selectYear('2024')">2024</a></li>
-                  </ul>
+  <div class="row mb-4">
+      <div class="col-md-12">
+        <div class="card shadow">
+          <div class="card-header py-3">
+            <div class="d-flex justify-content-between align-items-center w-100">
+              <h6 class="m-0 font-weight-bold text-primary">All Tickets at Month</h6>
+              <div class="chart-controls">
+                <div class="d-flex gap-2">
+                  <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="monthDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <span>{{ selectedMonth }}</span>
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="monthDropdown">
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('January')">มกราคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('February')">กุมภาพันธ์</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('March')">มีนาคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('April')">เมษายน</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('May')">พฤษภาคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('June')">มิถุนายน</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('July')">กรกฎาคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('August')">สิงหาคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('September')">กันยายน</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('October')">ตุลาคม</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('November')">พฤศจิกายน</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('December')">ธันวาคม</a></li>
+                    </ul>
+                  </div>
+                  <div class="dropdown ms-2">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="yearDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <span>{{ selectedYear }}</span>
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="yearDropdown">
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2023')">2023</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2024')">2024</a></li>
+                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2025')">2025</a></li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="card-body">
-          <div class="chart-container">
-            <canvas #monthlyChart id="monthlyChart" width="800" height="276"></canvas>
+          <div class="card-body">
+            <div class="chart-area">
+              <canvas #monthlyChart id="monthlyChart" style="height: 400px;"></canvas>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+
 
   <div class="row">
     <!-- All Ticket Summary by Categories Chart -->
@@ -164,25 +178,12 @@
           <div class="chart-container d-flex justify-content-center align-items-center">
             <canvas #pieChart id="pieChart" width="204" height="204"></canvas>
           </div>
-          <div class="pie-legend">
-            <div class="pie-legend-column">
-              <span class="legend-item">
-                <span class="legend-color" style="background-color: #1FBCD5;"></span>
-                บันทึกข้อมูลไม่ได้
-              </span>
-              <span class="legend-item">
-                <span class="legend-color" style="background-color: #DC3545;"></span>
-                ระบบล่ม/ใช้งานไม่ได้
-              </span>
-            </div>
-            <div class="pie-legend-column">
-              <span class="legend-item">
-                <span class="legend-color" style="background-color: #5873F8;"></span>
-                ปัญหาเจอบัค
-              </span>
-              <span class="legend-item">
-                <span class="legend-color" style="background-color: #6C757D;"></span>
-                อื่นๆ
+          <!-- Dynamic Legend จากข้อมูล API -->
+          <div class="pie-legend" *ngIf="categoryStats.length > 0">
+            <div class="pie-legend-column" *ngFor="let column of getCategoryColumns(); let isFirst = first">
+              <span class="legend-item" *ngFor="let item of column">
+                <span class="legend-color" [style.background-color]="item.color"></span>
+                {{ item.category }}
               </span>
             </div>
           </div>
