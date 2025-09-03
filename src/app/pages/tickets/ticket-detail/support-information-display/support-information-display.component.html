@@ -1,0 +1,149 @@
+<!-- Support Information Card -->
+<div class="support-info-card">
+    <!-- Support Header -->
+    <div class="support-header">
+        <h2 class="support-title">Support Information</h2>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="support-progress-bar">
+        <div class="support-progress-fill"></div>
+        <div class="support-progress-remaining"></div>
+    </div>
+
+    <!-- Support Details Display -->
+    <div class="support-details" *ngIf="ticketData?.ticket as ticket">
+
+        <!-- Row 1: Basic Information -->
+        <div class="support-row">
+            <div class="support-item">
+                <div class="support-label">Close Estimate</div>
+                <div class="support-value">
+                    {{ ticket.close_estimate ? formatDateTime(ticket.close_estimate) : '-' }}
+                </div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Estimate Time</div>
+                <div class="support-value">{{ estimateTime }} Hours</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Due Date</div>
+                <div class="support-value">{{ formatDate(ticket.due_date) || '-' }}</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Lead Time</div>
+                <div class="support-value">{{ leadTime }} Hours</div>
+            </div>
+        </div>
+
+        <!-- Row 2: Issue Information -->
+        <div class="support-row">
+            <div class="support-item">
+                <div class="support-label">Change Request</div>
+                <div class="support-value">{{ ticket.change_request || '0' }} Days</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Related Ticket</div>
+                <div class="support-value">
+                    <span *ngIf="ticket.related_ticket_id; else noRelated">
+                        #{{ ticket.related_ticket_id }}
+                    </span>
+                    <ng-template #noRelated>-</ng-template>
+                </div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Assignee</div>
+                <div class="support-value">
+                    {{ assignToName }}
+                </div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Status</div>
+                <div class="support-value">{{ ticket.status_name || 'Unknown' }}</div>
+            </div>
+        </div>
+
+        <!-- Row 3: Fix Description -->
+        <div class="support-row" *ngIf="ticket.fix_issue_description">
+            <div class="support-item" style="flex: 1;">
+                <div class="support-label">Fix Issue Description</div>
+                <div class="support-value">{{ ticket.fix_issue_description }}</div>
+            </div>
+        </div>
+
+        <!-- Row 4: Fix Attachments -->
+        <div class="support-row" *ngIf="hasFixAttachments()">
+            <div class="support-item" style="flex: 1;">
+                <div class="support-label">
+                    <i class="bi bi-paperclip me-1"></i>
+                    Fix Attachments
+                    <small class="text-muted">({{ getFixAttachmentsCount() }} files)</small>
+                </div>
+                <div class="support-value">
+                    <div class="fix-attachments-list">
+                        <div *ngFor="let attachment of ticketData!.fix_attachment" class="fix-attachment-item"
+                            (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)"
+                            [title]="getAttachmentTooltip(attachment)">
+                            <i class="bi" [class]="getAttachmentIcon(attachment.path, attachment.file_type)"></i>
+                            <span>{{ getAttachmentDisplayName(attachment) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 5: Timestamps -->
+        <!-- <div class="support-row">
+            <div class="support-item">
+                <div class="support-label">Created</div>
+                <div class="support-value">{{ formatDateTime(ticketData.ticket.create_date) || '-' }}</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Updated</div>
+                <div class="support-value">{{ formatDateTime(ticketData.ticket.update_date) || '-' }}</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Created By</div>
+                <div class="support-value">{{ ticketData.ticket.create_by || '-' }}</div>
+            </div>
+
+            <div class="support-divider"></div>
+
+            <div class="support-item">
+                <div class="support-label">Updated By</div>
+                <div class="support-value">{{ ticketData.ticket.update_by || '-' }}</div>
+            </div>
+        </div> -->
+    </div>
+
+    <!-- No Data State -->
+    <div class="text-center py-4" *ngIf="!ticketData?.ticket">
+        <i class="bi bi-info-circle text-muted" style="font-size: 3rem;"></i>
+        <p class="text-muted mt-2">ไม่มีข้อมูล Support Information</p>
+        <small class="text-muted">กำลังโหลดข้อมูล ticket...</small>
+    </div>
+</div>

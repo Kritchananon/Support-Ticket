@@ -1,61 +1,41 @@
-// ===== การปรับแก้ ticket-detail.component.ts ===== ✅
+// ===== การปรับแก้ ticket-detail.component.ts - ลบ Supporter Form Logic ===== ✅
 
-// ✅ 1. เพิ่ม imports ที่จำเป็น
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 
-// ✅ Import API Services
+// Import API Services (เหลือเฉพาะที่จำเป็น)
 import {
   ApiService,
   TicketHistoryResponse,
   TicketStatusHistory,
   GetTicketDataRequest,
-  satisfactionResponse,
-  StatusDDLItem,         // ✅ ใช้ interface จาก api.service.ts
-  StatusDDLResponse      // ✅ ใช้ interface จาก api.service.ts
+  satisfactionResponse
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-import { TicketService } from '../../../shared/services/ticket.service';
 
-// ✅ Import Permission Models
+// Import Permission Models
 import {
   permissionEnum,
   UserRole,
   ROLES
 } from '../../../shared/models/permission.model';
 
-// ✅ Import utility functions จาก ticket.model.ts
+// Import utility functions จาก ticket.model.ts
 import {
-  SaveSupporterFormData,
-  SaveSupporterResponse,
-  SupporterActionType,
-  canChangeStatus,
-  statusIdToActionType,
-  actionTypeToStatusId,
   getStatusName,
   getStatusBadgeClass,
   getStatusIcon,
   TICKET_STATUS_IDS
 } from '../../../shared/models/ticket.model';
 
-import {
-  SupporterFormState,
-  FileUploadProgress,
-  SupporterFormValidation
-} from '../../../shared/models/common.model';
+// Import Components
+import { SupportInformationFormComponent } from './support-information-form/support-information-form.component';
+import { SupportInformationDisplayComponent } from './support-information-display/support-information-display.component';
 
-// ✅ เพิ่ม imports ที่ด้านบน (หาและเพิ่ม)
-import {
-  AssignTicketResponse,
-  Role9UsersResponse,
-  UserListItem,
-  getUserFullName
-} from '../../../shared/models/user.model';
-
-// ===== LOCAL INTERFACES (เฉพาะ component นี้) ===== ✅
+// ===== LOCAL INTERFACES ===== ✅
 
 interface HistoryDisplayItem {
   status_id: number;
@@ -89,7 +69,6 @@ interface TicketData {
     update_by: string;
     isenabled: boolean;
     priority?: string;
-
   };
   issue_attachment: Array<{
     attachment_id: number;
@@ -110,42 +89,11 @@ interface TicketData {
     status_name: string;
     create_date: string;
   }>;
-}
-
-// ✅ ENHANCED: Action Dropdown Interface (ขยายจาก ticket.model.ts)
-interface ActionDropdownOption {
-  value: string;
-  label: string;
-  statusId: number;
-  disabled?: boolean;
-}
-
-// ✅ ENHANCED: Supporter Action Types (ขยายจาก ticket.model.ts)
-enum LocalSupporterActionType {
-  PENDING = 'PENDING',
-  OPEN_TICKET = 'OPEN_TICKET',
-  IN_PROGRESS = 'IN_PROGRESS',
-  RESOLVED = 'RESOLVED',
-  COMPLETE = 'COMPLETE',
-  CANCEL = 'CANCEL'
-}
-
-// ===================== DEBUG / LOG HELPERS =====================
-
-function debugSaveSupporterResponse(response: any, message?: string) {
-  console.log('DEBUG SaveSupporterResponse:', message, response);
-}
-
-function debugStatusChange(oldStatusId: number, newStatusId: number, context?: any) {
-  console.log('DEBUG Status Change:', oldStatusId, '->', newStatusId, context);
-}
-
-function debugComponentState(component: any, label?: string) {
-  console.log(`DEBUG Component State: ${label}`, component);
-}
-
-function logError(error: any, context?: string) {
-  console.error(`ERROR ${context || ''}:`, error);
+  assign: Array<{
+      ticket_no: string;
+      assignTo: string;
+      assignBy: string;
+  }>;
 }
 
 // ===== COMPONENT DECLARATION ===== ✅
@@ -156,7 +104,8 @@ function logError(error: any, context?: string) {
   imports: [
     CommonModule,
     FormsModule,
-    ReactiveFormsModule
+    SupportInformationFormComponent,      // ✅ เพิ่ม Component ใหม่
+    SupportInformationDisplayComponent    // ✅ เพิ่ม Component ใหม่
   ],
   templateUrl: './ticket-detail.component.html',
   styleUrls: ['./ticket-detail.component.css']
@@ -167,9 +116,7 @@ export class TicketDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private apiService = inject(ApiService);
-  public authService = inject(AuthService);  // ✅ เปลี่ยนเป็น public เพื่อใช้ใน template
-  private ticketService = inject(TicketService);
-  private fb = inject(FormBuilder);
+  public authService = inject(AuthService);
 
   // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
@@ -223,201 +170,6 @@ export class TicketDetailComponent implements OnInit {
     }
   } = {};
 
-  // ✅ สำหรับ assignee section - FIXED types
-  isLoadingAssignees: boolean = false;
-  assigneeError: string = '';
-  selectedAssigneeId: number | null = null;
-  isAssigning: boolean = false;
-  assigneeList: UserListItem[] = []; // ✅ เปลี่ยนเป็น UserListItem[]
-
-  /**
- * ✅ FIXED: ใช้ utility function จาก user.model.ts
- */
-  getUserDisplayName(user: UserListItem): string {
-    return getUserFullName(user);
-  }
-
-  /**
- * ✅ FIXED: Assign ticket โดยเรียก API ที่ถูกต้อง
- */
-  onAssignTicket(): void {
-    if (!this.selectedAssigneeId || !this.ticketData?.ticket) {
-      console.warn('Missing selectedAssigneeId or ticket data');
-      return;
-    }
-
-    // ✅ ตรวจสอบ permission ก่อน
-    if (!this.canAssignTicket()) {
-      this.assigneeError = 'คุณไม่มีสิทธิ์มอบหมาย ticket';
-      return;
-    }
-
-    this.isAssigning = true;
-    this.assigneeError = '';
-
-    const ticketNo = this.ticketData.ticket.ticket_no;
-
-    console.log('Assigning ticket:', {
-      ticketNo: ticketNo,
-      assignedTo: this.selectedAssigneeId,
-      selectedUser: this.assigneeList.find(u => u.id === this.selectedAssigneeId)
-    });
-
-    // ✅ เรียก API ที่ถูกต้อง
-    this.apiService.assignTicket(ticketNo, this.selectedAssigneeId).subscribe({
-      next: (response: AssignTicketResponse) => {
-        console.log('✅ Assign ticket response:', response);
-
-        // ✅ แสดงข้อความสำเร็จ
-        const assignedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
-        const userName = assignedUser ? getUserFullName(assignedUser) : `User ID ${response.assigned_to}`;
-
-        alert(`มอบหมาย ticket ${response.ticket_no} ให้กับ ${userName} เรียบร้อยแล้ว`);
-
-        // ✅ อัปเดต ticket data
-        if (this.ticketData?.ticket) {
-          this.ticketData.ticket.update_by = userName;
-        }
-
-        // ✅ รีเซ็ต form
-        this.selectedAssigneeId = null;
-
-        // ✅ รีโหลดข้อมูล ticket
-        setTimeout(() => {
-          this.loadTicketDetail();
-        }, 500);
-
-        this.isAssigning = false;
-      },
-      error: (error: any) => {
-        console.error('❌ Assign ticket error:', error);
-        this.assigneeError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการมอบหมาย ticket';
-        this.isAssigning = false;
-      }
-    });
-  }
-
-  /**
- * ✅ FIXED: โหลดรายชื่อ assignees จาก API ที่ถูกต้อง
- */
-  public refreshAssigneeList(): void {
-    this.isLoadingAssignees = true;
-    this.assigneeError = '';
-    this.assigneeList = [];
-
-    console.log('Loading assignee list from role 9 users API...');
-
-    // ✅ เรียก API ใหม่ที่ถูกต้อง
-    this.apiService.getRole9Users().subscribe({
-      next: (response: Role9UsersResponse) => {
-        console.log('Role 9 users response:', response);
-
-        if (response && response.users && Array.isArray(response.users)) {
-          // ✅ แปลงข้อมูลให้ตรงกับ component
-          this.assigneeList = response.users.map(user => ({
-            id: user.id,
-            username: user.username || user.name || `user_${user.id}`,
-            firstname: user.firstname || user.name || '',
-            lastname: user.lastname || '',
-            email: user.email || '',
-            phone: '',
-            isenabled: true,
-            full_name: user.name || getUserFullName(user)
-          }));
-
-          console.log('✅ Assignee list refreshed:', this.assigneeList.length, 'users');
-        } else {
-          console.warn('Invalid response format:', response);
-          this.assigneeError = 'รูปแบบข้อมูลไม่ถูกต้อง';
-        }
-        this.isLoadingAssignees = false;
-      },
-      error: (error) => {
-        console.error('❌ Error refreshing assignee list:', error);
-        this.assigneeError = 'เกิดข้อผิดพลาดในการโหลดรายชื่อผู้รับมอบหมาย';
-        this.isLoadingAssignees = false;
-
-        // ✅ ใช้ fallback data
-        this.assigneeList = [
-          {
-            id: 1,
-            username: 'support1',
-            firstname: 'Support',
-            lastname: 'User 1',
-            email: 'support1@company.com',
-            phone: '',
-            isenabled: true,
-            full_name: 'Support User 1'
-          },
-          {
-            id: 2,
-            username: 'support2',
-            firstname: 'Support',
-            lastname: 'User 2',
-            email: 'support2@company.com',
-            phone: '',
-            isenabled: true,
-            full_name: 'Support User 2'
-          }
-        ];
-        console.log('Using fallback assignee data');
-      }
-    });
-  }
-
-  // ✅ ===== ENHANCED: SUPPORTER PROPERTIES ===== 
-
-  // Supporter Form & State
-  supporterForm!: FormGroup;
-  supporterFormState: SupporterFormState = {
-    isVisible: false,
-    isLoading: false,
-    isSaving: false,
-    error: null,
-    successMessage: null
-  };
-
-  // ✅ ENHANCED: Permission Properties
-  isSupporterMode = false;
-  canUserSaveSupporter = false;
-  hasViewAllTicketsPermission = false;
-  hasChangeStatusPermission = false;
-  hasAssigneePermission = false;
-  hasSolveProblemPermission = false;
-
-  // ✅ NEW: Action Dropdown Properties
-  actionDropdownOptions: ActionDropdownOption[] = [];
-  statusList: StatusDDLItem[] = []; // ✅ ใช้ interface จาก api.service.ts
-  isLoadingActions = false;
-  actionError = '';
-
-  // Action Dropdown (ค่าเริ่มต้น - จะถูกแทนที่ด้วยข้อมูลจาก API)
-  private defaultActionDropdownOptions: ActionDropdownOption[] = [
-    { value: LocalSupporterActionType.COMPLETE, label: 'Complete', statusId: 5 },
-    { value: LocalSupporterActionType.PENDING, label: 'Pending', statusId: 1 },
-    { value: LocalSupporterActionType.OPEN_TICKET, label: 'Open Ticket', statusId: 2 },
-    { value: LocalSupporterActionType.IN_PROGRESS, label: 'In Progress', statusId: 3 },
-    { value: LocalSupporterActionType.RESOLVED, label: 'Resolved', statusId: 4 },
-    { value: LocalSupporterActionType.CANCEL, label: 'Cancel', statusId: 6 }
-  ];
-
-  // File Upload
-  selectedFiles: File[] = [];
-  fileUploadProgress: FileUploadProgress[] = [];
-  maxFiles = 5;
-  maxFileSize = 10 * 1024 * 1024; // 10MB
-
-  // Form Validation
-  supporterFormValidation: SupporterFormValidation = {
-    estimate_time: { isValid: true },
-    due_date: { isValid: true },
-    lead_time: { isValid: true },
-    close_estimate: { isValid: true },
-    fix_issue_description: { isValid: true },
-    related_ticket_id: { isValid: true },
-    attachments: { isValid: true }
-  };
-
   // ===== CONSTANTS ===== ✅
   private readonly STATUS_WORKFLOW = [
     { id: 1, name: 'Created', icon: 'bi-plus-circle' },
@@ -434,403 +186,135 @@ export class TicketDetailComponent implements OnInit {
     this.ticket_no = this.route.snapshot.params['ticket_no'];
 
     if (this.ticket_no) {
-      this.initializeSupporterForm();
-      this.checkUserPermissions();
       this.loadStatusCache();
-      this.loadActionDropdownOptions();
-      this.initializeAssigneeList(); // ✅ เพิ่มบรรทัดนี้
       this.loadTicketDetail();
     } else {
       this.router.navigate(['/tickets']);
     }
   }
 
-  /**
-   * ✅ NEW: ได้รับข้อความแสดงสถานะการโหลด assignee
-   */
-  getAssigneeLoadingMessage(): string {
-    if (this.isLoadingAssignees) return 'กำลังโหลดรายชื่อ...';
-    if (this.assigneeError) return this.assigneeError;
-    if (this.assigneeList.length === 0) return 'ไม่พบรายชื่อผู้รับมอบหมาย';
-    return '';
-  }
+  // ===== ✅ EVENT HANDLERS FOR CHILD COMPONENTS =====
 
   /**
-   * ✅ NEW: ตรวจสอบว่า assignee dropdown พร้อมใช้งานหรือไม่  
+   * ✅ จัดการเมื่อ Supporter Form บันทึกสำเร็จ
    */
-  isAssigneeDropdownReady(): boolean {
-    return !this.isLoadingAssignees &&
-      !this.assigneeError &&
-      this.assigneeList.length > 0;
-  }
+  onSupporterDataSaved(response: any): void {
+    console.log('Supporter data saved:', response);
 
-  /**
-   * ✅ NEW: ได้รับ CSS class สำหรับ assignee section
-   */
-  getAssigneeFormClass(): string {
-    if (this.assigneeError) return 'assignee-form error';
-    if (this.isLoadingAssignees) return 'assignee-form loading';
-    return 'assignee-form ready';
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบว่าสามารถ assign ได้หรือไม่ (รวม UI state)
-   */
-  canPerformAssign(): boolean {
-    return this.canAssignTicket() &&
-      this.selectedAssigneeId !== null &&
-      !this.isAssigning &&
-      this.isAssigneeDropdownReady() &&
-      !!this.ticketData?.ticket;
-  }
-
-  /**
-   * ✅ NEW: ได้รับ tooltip text สำหรับปุ่ม assign
-   */
-  getAssignButtonTooltip(): string {
-    if (!this.canAssignTicket()) {
-      return 'คุณไม่มีสิทธิ์มอบหมาย ticket (ต้องการ permission 8 หรือ 19)';
+    // อัพเดท ticket data
+    if (response.data?.ticket) {
+      Object.assign(this.ticketData!.ticket, response.data.ticket);
     }
 
-    if (!this.selectedAssigneeId) {
-      return 'กรุณาเลือกผู้รับมอบหมาย';
+    // อัพเดท attachments
+    if (response.data?.attachments) {
+      this.updateAttachmentsFromResponse(response.data.attachments);
     }
 
-    if (this.isAssigning) {
-      return 'กำลังดำเนินการ...';
-    }
+    // รีเฟรชข้อมูลที่เกี่ยวข้อง
+    this.refreshTicketData();
+    this.buildDisplayHistory();
+    this.updateEvaluationStatus();
 
-    if (!this.isAssigneeDropdownReady()) {
-      return 'รายชื่อผู้รับมอบหมายยังไม่พร้อม';
-    }
-
-    const selectedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
-    const userName = selectedUser ? getUserFullName(selectedUser) : 'ผู้ใช้ที่เลือก';
-
-    return `มอบหมาย ticket นี้ให้กับ ${userName}`;
+    // แสดง modal สำเร็จ
+    this.showSuccessModal = true;
+    this.modalTitle = 'Supporter Data Saved';
+    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว';
+    this.modalTicketNo = this.ticket_no;
   }
 
-  // ===== ✅ ENHANCED: PERMISSION CHECKING METHODS ===== 
-
   /**
-   * ✅ ENHANCED: ตรวจสอบสิทธิ์ของ User - Fixed Logic
+   * ✅ จัดการเมื่อ Ticket ถูก Assign สำเร็จ
    */
-  private checkUserPermissions(): void {
-    // ✅ ดึง permissions ที่ user มี
-    const userPermissions = this.authService.getEffectivePermissions();
-    const userRoles = this.authService.getUserRoles();
+  onTicketAssigned(response: any): void {
+    console.log('Ticket assigned:', response);
 
-    // ✅ ตรวจสอบ supporter permissions โดยตรง
-    this.hasViewAllTicketsPermission = userPermissions.includes(5); // VIEW_ALL_TICKETS
-    this.hasChangeStatusPermission = userPermissions.includes(8);   // CHANGE_STATUS (ส่วนใหญ่ใช้ตัวนี้)
-    this.hasAssigneePermission = userPermissions.includes(19);       // ASSIGNEE
-    this.hasSolveProblemPermission = userPermissions.includes(8);   // SOLVE_PROBLEM (ใช้ permission 8)
+    // อัพเดท ticket data
+    if (this.ticketData?.ticket) {
+      this.ticketData.ticket.update_by = `User ${response.assigned_to}`;
+      this.ticketData.ticket.update_date = new Date().toISOString();
+    }
 
-    // ✅ สิทธิ์ในการใช้ Supporter Form
-    this.canUserSaveSupporter = this.hasChangeStatusPermission ||
-      this.hasAssigneePermission ||
-      this.authService.isAdmin() ||
-      this.authService.isSupporter();
+    // รีเฟรชข้อมูล
+    this.refreshTicketData();
 
-    this.isSupporterMode = this.canUserSaveSupporter;
+    // แสดง modal สำเร็จ
+    this.showSuccessModal = true;
+    this.modalTitle = 'Ticket Assigned';
+    this.modalMessage = `มอบหมาย ticket ${response.ticket_no} สำเร็จแล้ว`;
+    this.modalTicketNo = this.ticket_no;
   }
 
   /**
-   * ✅ FIXED: ตรวจสอบว่าสามารถแสดง Supporter Form ได้หรือไม่
+   * ✅ จัดการเมื่อต้องการ refresh ข้อมูล
    */
-  canShowSupporterForm(): boolean {
-    const userPermissions = this.authService.getEffectivePermissions();
-
-    // ✅ ตรวจสอบ permission โดยตรงจาก array
-    const hasRequiredPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
-      userPermissions.includes(8) ||  // CHANGE_STATUS 
-      userPermissions.includes(19);    // ASSIGNEE
-
-    // ✅ FIXED: เพิ่ม !! เพื่อแปลงเป็น boolean และป้องกัน undefined
-    const canShow = hasRequiredPermission &&
-      !!(this.ticketData?.ticket) &&
-      !this.isLoading;
-
-    return canShow;
+  onRefreshRequired(): void {
+    console.log('Refreshing ticket data...');
+    this.refreshTicketData();
   }
 
   /**
-   * ✅ NEW: ตรวจสอบ permission เฉพาะๆ (สำหรับใช้ใน template)
+   * ✅ อัพเดท attachments จาก API response
+   */
+  private updateAttachmentsFromResponse(newAttachments: any[]): void {
+    if (!newAttachments || newAttachments.length === 0) return;
+
+    const existingFixIds = new Set(
+      this.ticketData!.fix_attachment.map(att => att.attachment_id)
+    );
+
+    const trulyNewAttachments = newAttachments.filter(att =>
+      !existingFixIds.has(att.id)
+    );
+
+    if (trulyNewAttachments.length === 0) return;
+
+    const formattedAttachments = trulyNewAttachments.map(att => ({
+      attachment_id: att.id,
+      path: att.path || `uploads/${att.filename}`,
+      filename: att.filename,
+      file_type: att.extension || att.file_type,
+      file_size: att.file_size || 0
+    }));
+
+    this.ticketData!.fix_attachment.push(...formattedAttachments);
+  }
+
+  // ===== ✅ PERMISSION CHECKING METHODS ===== 
+
+  /**
+   * ✅ ตรวจสอบ permission เฉพาะๆ (สำหรับใช้ใน template)
    */
   hasPermission(permission: number | permissionEnum): boolean {
     return this.authService.hasPermission(permission);
   }
 
   /**
-   * ✅ NEW: ตรวจสอบ role เฉพาะๆ (สำหรับใช้ใน template)
+   * ✅ ตรวจสอบ role เฉพาะๆ (สำหรับใช้ใน template)
    */
   hasRole(role: UserRole): boolean {
     return this.authService.hasRole(role);
   }
 
   /**
-   * ✅ NEW: ตรวจสอบหลาย roles (สำหรับใช้ใน template)
+   * ✅ ตรวจสอบหลาย roles (สำหรับใช้ใน template)
    */
   hasAnyRole(roles: UserRole[]): boolean {
     return this.authService.hasAnyRole(roles);
   }
 
   /**
-   * ✅ NEW: ตรวจสอบว่าเป็น admin หรือไม่
-   */
-  isAdmin(): boolean {
-    return this.authService.isAdmin();
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบว่าเป็น supporter หรือไม่
-   */
-  isSupporter(): boolean {
-    return this.authService.isSupporter();
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบว่าเป็น support team member หรือไม่
-   */
-  isSupportTeamMember(): boolean {
-    return this.authService.isSupporter() || this.authService.isAdmin();
-  }
-
-  /**
-   * ✅ FIXED: Helper method เพื่อตรวจสอบ permission แบบง่าย
+   * ✅ Helper method เพื่อตรวจสอบ permission แบบง่าย
    */
   hasSpecificPermission(permissionId: number): boolean {
     const userPermissions = this.authService.getEffectivePermissions();
     return userPermissions.includes(permissionId);
   }
 
-  /**
-   * ✅ ตัวช่วยสำหรับ template - เช็ค permission แบบง่าย
-   */
-  hasPermissions(permissionIds: number[]): boolean {
-    const userPermissions = this.authService.getEffectivePermissions();
-    return permissionIds.some(id => userPermissions.includes(id));
-  }
-
-  // ===== ✅ NEW: ACTION DROPDOWN METHODS ===== 
+  // ===== ✅ TICKET ACTION METHODS ===== 
 
   /**
-   * ✅ โหลดข้อมูล Status สำหรับ Action dropdown โดยใช้ getStatusDDL API
-   */
-  private async loadActionDropdownOptions(): Promise<void> {
-    console.log('Loading action dropdown options...');
-    this.isLoadingActions = true;
-    this.actionError = '';
-
-    try {
-      // ✅ เรียก API getStatusDDL ที่เพิ่มใหม่
-      const response = await this.apiService.getStatusDDL('th').toPromise();
-
-      if (response && response.code === 1 && response.data) {
-        this.statusList = response.data;
-        this.buildActionDropdownOptions();
-        console.log('✅ Action dropdown options loaded:', this.actionDropdownOptions);
-      } else {
-        this.actionError = response?.message || 'ไม่สามารถโหลดข้อมูล Status ได้';
-        this.buildDefaultActionOptions();
-      }
-    } catch (error) {
-      console.error('❌ Error loading action dropdown:', error);
-      this.actionError = 'เกิดข้อผิดพลาดในการโหลดข้อมูล Status';
-      this.buildDefaultActionOptions();
-    } finally {
-      this.isLoadingActions = false;
-    }
-  }
-
-  /**
-   * ✅ ENHANCED: สร้าง Action dropdown options จากข้อมูล Status ที่ได้จาก API พร้อม utility functions
-   */
-  private buildActionDropdownOptions(): void {
-    if (!this.statusList || this.statusList.length === 0) {
-      this.buildDefaultActionOptions();
-      return;
-    }
-
-    const currentStatusId = this.getCurrentStatusId();
-
-    // ✅ ใช้ utility functions จาก ticket.model.ts
-    this.actionDropdownOptions = this.statusList
-      .filter(status => canChangeStatus(currentStatusId, status.id))
-      .map(status => ({
-        value: statusIdToActionType(status.id),
-        label: status.name,
-        statusId: status.id,
-        disabled: false
-      }));
-
-    // ✅ เรียงลำดับตาม workflow ที่เหมาะสม
-    this.sortActionOptions();
-
-    console.log('✅ Built action dropdown options:', this.actionDropdownOptions);
-  }
-
-  /**
-   * ✅ ENHANCED: แปลง Status ID เป็น Action Type โดยใช้ utility function
-   */
-  private getActionTypeFromStatusId(statusId: number): string {
-    return statusIdToActionType(statusId);
-  }
-
-  /**
-   * ✅ ENHANCED: ตรวจสอบว่า Action นั้นถูก disable หรือไม่ โดยใช้ utility function
-   */
-  private isActionDisabled(statusId: number): boolean {
-    if (!this.ticketData?.ticket) return false;
-
-    const currentStatusId = this.getCurrentStatusId();
-    return !canChangeStatus(currentStatusId, statusId);
-  }
-
-  /**
-   * ✅ เรียงลำดับ Action options ตาม workflow
-   */
-  private sortActionOptions(): void {
-    const order = [2, 3, 4, 5, 1, 6]; // Open -> In Progress -> Resolved -> Complete -> Pending -> Cancel
-
-    this.actionDropdownOptions.sort((a, b) => {
-      const aIndex = order.indexOf(a.statusId);
-      const bIndex = order.indexOf(b.statusId);
-      return aIndex - bIndex;
-    });
-  }
-
-  /**
-   * ✅ สร้าง Action options แบบ default (fallback)
-   */
-  private buildDefaultActionOptions(): void {
-    console.log('Using default action options');
-    this.actionDropdownOptions = [...this.defaultActionDropdownOptions];
-  }
-
-  /**
-   * ✅ รีเฟรช Action dropdown เมื่อ ticket status เปลี่ยน
-   */
-  public refreshActionDropdown(): void {
-    if (this.statusList && this.statusList.length > 0) {
-      this.buildActionDropdownOptions();
-    } else {
-      this.loadActionDropdownOptions();
-    }
-  }
-
-  /**
-   * ✅ ได้รับข้อความแสดงสถานะ loading
-   */
-  getActionDropdownLoadingMessage(): string {
-    if (this.isLoadingActions) return 'กำลังโหลดตัวเลือก...';
-    if (this.actionError) return this.actionError;
-    return '';
-  }
-
-  // ===== ✅ ENHANCED: SUPPORTER FORM METHODS ===== 
-
-  /**
-   * ✅ FIXED: แสดง/ซ่อน Supporter Form
-   */
-  toggleSupporterForm(): void {
-    const userPermissions = this.authService.getEffectivePermissions();
-
-    // ✅ ตรวจสอบสิทธิ์โดยตรงจาก permission array
-    const hasPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
-      userPermissions.includes(8) ||  // CHANGE_STATUS
-      userPermissions.includes(19);    // ASSIGNEE
-
-    if (!hasPermission) {
-      alert('คุณไม่มีสิทธิ์ใช้งาน Supporter features\nต้องการ permission: 5 (VIEW_ALL_TICKETS), 8 (CHANGE_STATUS), หรือ 19 (ASSIGNEE)');
-      return;
-    }
-
-    this.supporterFormState.isVisible = !this.supporterFormState.isVisible;
-
-    if (this.supporterFormState.isVisible && this.ticketData?.ticket) {
-      this.populateFormWithTicketData();
-    }
-  }
-
-  /**
-   * ✅ ENHANCED: ปรับให้ refresh ข้อมูลหลังจากบันทึก action สำเร็จ พร้อม debugging
-   */
-  onSaveSupporter(): void {
-    console.time('SaveSupporter Process');
-
-    const userPermissions = this.authService.getEffectivePermissions();
-
-    // ✅ ตรวจสอบสิทธิ์ก่อนบันทึก
-    const canSave = userPermissions.includes(8) ||  // CHANGE_STATUS (หลัก)
-      userPermissions.includes(19) ||  // ASSIGNEE  
-      this.authService.isAdmin();
-
-    if (!canSave) {
-      this.supporterFormState.error = 'คุณไม่มีสิทธิ์บันทึกข้อมูล Supporter\nต้องการ permission: 8 (CHANGE_STATUS) หรือ 19 (ASSIGNEE)';
-      return;
-    }
-
-    if (!this.supporterForm.valid || !this.ticketData?.ticket) {
-      this.markFormGroupTouched();
-      return;
-    }
-
-    const formData = this.createSupporterFormData();
-    const validation = this.ticketService.validateSupporterData(formData, this.selectedFiles);
-
-    if (!validation.isValid) {
-      this.supporterFormState.error = validation.errors.join(', ');
-      return;
-    }
-
-    // ✅ Debug ข้อมูลก่อนส่ง
-    console.log('🔍 Debug: Before Save Supporter');
-    console.log('🔍 Debug Pre-Save State', { component: this });
-
-    const oldStatusId = this.getCurrentStatusId();
-
-    this.supporterFormState.isSaving = true;
-    this.supporterFormState.error = null;
-
-    this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
-      .subscribe({
-        next: (response: SaveSupporterResponse) => {
-          // ✅ Debug response
-          debugSaveSupporterResponse(response, 'SaveSupporter API Response');
-
-          if (response.success) {
-            // ✅ Debug status change
-            const newStatusId = response.data.ticket?.status_id;
-            if (newStatusId && newStatusId !== oldStatusId) {
-              debugStatusChange(oldStatusId, newStatusId, formData.status_id?.toString());
-            }
-
-            this.handleSaveSupporterSuccess(response);
-
-            // ✅ รีเฟรชข้อมูล ticket เพื่อให้แน่ใจว่าได้ข้อมูลล่าสุด
-            setTimeout(() => {
-              this.refreshTicketData();
-            }, 500);
-          } else {
-            this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูลได้';
-          }
-          this.supporterFormState.isSaving = false;
-          console.timeEnd('SaveSupporter Process');
-        },
-        error: (error) => {
-          console.error('❌ SaveSupporter API Call', error);
-          this.supporterFormState.error = error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
-          this.supporterFormState.isSaving = false;
-          console.timeEnd('SaveSupporter Process');
-        }
-      });
-  }
-
-  // ===== ✅ ENHANCED: TICKET ACTION METHODS ===== 
-
-  /**
-   * ✅ ENHANCED: Edit ticket with permission check
+   * ✅ Edit ticket with permission check
    */
   onEditTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
@@ -838,7 +322,6 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ ตรวจสอบสิทธิ์ก่อนแก้ไข
     if (!this.authService.hasPermission(permissionEnum.EDIT_TICKET) &&
       !this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN])) {
       console.warn('User does not have permission to edit tickets');
@@ -863,7 +346,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ENHANCED: Delete ticket with permission check
+   * ✅ Delete ticket with permission check
    */
   onDeleteTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
@@ -871,7 +354,6 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // ✅ ตรวจสอบสิทธิ์ก่อนลบ
     if (!this.authService.hasPermission(permissionEnum.DELETE_TICKET) &&
       !this.authService.isAdmin()) {
       console.warn('User does not have permission to delete tickets');
@@ -888,7 +370,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ NEW: Admin-only escalate ticket
+   * ✅ Admin-only escalate ticket
    */
   escalateTicket(): void {
     if (!this.authService.isAdmin()) {
@@ -896,12 +378,11 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    // TODO: Implement escalation logic
     alert('Ticket has been escalated');
   }
 
   /**
-   * ✅ NEW: Admin-only force close ticket
+   * ✅ Admin-only force close ticket
    */
   forceCloseTicket(): void {
     if (!this.authService.isAdmin()) {
@@ -910,18 +391,16 @@ export class TicketDetailComponent implements OnInit {
     }
 
     if (confirm('คุณแน่ใจหรือไม่ที่ต้องการ force close ticket นี้?')) {
-      // TODO: Implement force close logic
       alert('Ticket has been force closed');
     }
   }
 
-  // ===== ✅ ENHANCED: SATISFACTION METHODS ===== 
+  // ===== ✅ SATISFACTION METHODS ===== 
 
   /**
-   * ✅ ENHANCED: ตั้งค่าคะแนนความพึงพอใจและบันทึก (with permission check)
+   * ✅ ตั้งค่าคะแนนความพึงพอใจและบันทึก (with permission check)
    */
   setRating(rating: number): void {
-    // ✅ ตรวจสอบสิทธิ์ก่อนให้คะแนน
     const userPermissions = this.authService.getEffectivePermissions();
     const hasSatisfactionPermission = userPermissions.includes(14);
 
@@ -930,21 +409,16 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    if (!this.canEvaluate) {
+    if (!this.canEvaluate || this.hasExistingSatisfaction) {
       return;
     }
 
-    if (this.hasExistingSatisfaction) {
-      return;
-    }
-
-    // ✅ ตั้งค่า rating ทันทีเพื่อให้ดาวเปลี่ยนสี
     this.currentRating = rating;
     this.satisfaction(rating);
   }
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่ (with permission check)
+   * ✅ ตรวจสอบว่าสามารถคลิกดาวได้หรือไม่ (with permission check)
    */
   canClickStar(): boolean {
     const userPermissions = this.authService.getEffectivePermissions();
@@ -956,15 +430,56 @@ export class TicketDetailComponent implements OnInit {
       !this.isSavingRating;
   }
 
-  // ===== ✅ ENHANCED: PERMISSION-AWARE HELPER METHODS ===== 
+  /**
+   * บันทึกคะแนนความพึงพอใจ - แสดง Modal แทน Alert + จัดการ body class
+   */
+  private satisfaction(rating: number): void {
+    if (!this.ticket_no || this.isSavingRating) {
+      return;
+    }
+
+    this.isSavingRating = true;
+
+    this.apiService.satisfaction(this.ticket_no, rating).subscribe({
+      next: (response: satisfactionResponse) => {
+        if (response.success) {
+          this.hasExistingSatisfaction = true;
+          this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
+          this.currentRating = rating;
+
+          this.saveSatisfactionToStorage(rating);
+
+          this.showSuccessModal = true;
+          this.modalTitle = 'Assessment Success';
+          this.modalMessage = 'ขอบคุณสำหรับการประเมินความพึงพอใจ';
+          this.modalTicketNo = this.ticket_no;
+
+          document.body.classList.add('modal-open');
+        } else {
+          this.currentRating = 0;
+          this.hasExistingSatisfaction = false;
+          alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
+        }
+        this.isSavingRating = false;
+      },
+      error: (error) => {
+        console.error('Error saving satisfaction:', error);
+        this.currentRating = 0;
+        this.hasExistingSatisfaction = false;
+        this.isSavingRating = false;
+        alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
+      }
+    });
+  }
+
+  // ===== ✅ PERMISSION-AWARE HELPER METHODS ===== 
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check and constants)
+   * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check and constants)
    */
   canEdit(): boolean {
     if (!this.ticketData?.ticket) return false;
 
-    // ✅ ตรวจสอบสิทธิ์ก่อน
     const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
       this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
 
@@ -975,12 +490,11 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check and constants)
+   * ✅ ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check and constants)
    */
   canDelete(): boolean {
     if (!this.ticketData?.ticket) return false;
 
-    // ✅ ตรวจสอบสิทธิ์ก่อน
     const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
       this.authService.isAdmin();
 
@@ -991,28 +505,25 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ ENHANCED: ได้รับข้อความปุ่ม Edit (with permission context and constants)
+   * ✅ ได้รับข้อความปุ่ม Edit (with permission context and constants)
    */
   getEditButtonText(): string {
-    // ✅ FIXED: เพิ่มการเช็ค undefined
     if (!this.ticketData?.ticket) return 'No Permission';
 
     const userPermissions = this.authService.getEffectivePermissions();
 
-    // ✅ ตรวจสอบสิทธิ์ก่อน
-    const hasEditPermission = userPermissions.includes(8) ||  // CHANGE_STATUS
-      userPermissions.includes(19) ||  // ASSIGNEE
+    const hasEditPermission = userPermissions.includes(8) ||
+      userPermissions.includes(19) ||
       this.authService.isAdmin();
 
     if (!hasEditPermission) return 'Edit';
 
     const status = this.getCurrentStatusId();
 
-    // ✅ ใช้ constants แทนการ hardcode
     switch (status) {
       case TICKET_STATUS_IDS.COMPLETED: return 'Completed';
       case TICKET_STATUS_IDS.CANCEL: return 'Cancelled';
-      default: return 'No Permission';
+      default: return 'Edit';
     }
   }
 
@@ -1040,635 +551,7 @@ export class TicketDetailComponent implements OnInit {
     return this.canDelete() ? 'btn-delete' : 'btn-delete disabled';
   }
 
-  // ===== ✅ NEW: DEBUG METHODS FOR DEVELOPMENT ===== 
-
-  /**
-   * ✅ NEW: Debug permissions (สำหรับ development) - FIXED: Removed duplicate
-   */
-  debugPermissions(): void {
-    console.group('🔍 Ticket Detail Permission Debug');
-    console.log('Component permissions:', {
-      canUserSaveSupporter: this.canUserSaveSupporter,
-      isSupporterMode: this.isSupporterMode,
-      hasViewAllTickets: this.hasViewAllTicketsPermission,
-      hasChangeStatus: this.hasChangeStatusPermission,
-      hasAssignee: this.hasAssigneePermission,
-      hasSolveProblem: this.hasSolveProblemPermission
-    });
-
-    console.log('Auth service permissions:', {
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter(),
-      userRoles: this.authService.getUserRoles(),
-      effectivePermissions: this.authService.getEffectivePermissions().slice(0, 10)
-    });
-
-    console.log('Action permissions:', {
-      canEdit: this.canEdit(),
-      canDelete: this.canDelete(),
-      canShowSupporterForm: this.canShowSupporterForm(),
-      canClickStar: this.canClickStar()
-    });
-    console.groupEnd();
-  }
-
-  /**
-   * ✅ แก้ไข isDevelopment() Method
-   */
-  isDevelopment(): boolean {
-    // ✅ ปิดใช้งาน debug features
-    return false;
-  }
-
-  // ===== EXISTING METHODS (เก็บไว้เหมือนเดิม) ===== ✅
-
-  getUserRolesDisplay(): string {
-    return this.authService.getUserRoles().join(', ');
-  }
-
-  /**
-   * สร้าง Supporter Form
-   */
-  private initializeSupporterForm(): void {
-    this.supporterForm = this.fb.group({
-      action: ['', [Validators.required]],
-      estimate_time: [null, [Validators.min(0), Validators.max(1000)]],
-      due_date: [''],
-      lead_time: [null, [Validators.min(0), Validators.max(10000)]],
-      close_estimate: [''],
-      fix_issue_description: ['', [Validators.maxLength(5000)]],
-      related_ticket_id: ['']
-    });
-
-    // Listen to form changes for real-time validation
-    this.supporterForm.valueChanges.subscribe(() => {
-      this.validateSupporterForm();
-    });
-  }
-
-  /**
-   * เติมข้อมูลใน Form จาก Ticket Data
-   */
-  private populateFormWithTicketData(): void {
-    if (!this.ticketData?.ticket) return;
-
-    const ticket = this.ticketData.ticket;
-    console.log(`qweqweqw ${JSON.stringify(ticket, null, 2)}`);
-
-
-    this.supporterForm.patchValue({
-      estimate_time: ticket.estimate_time ? parseInt(ticket.estimate_time) : null,
-      action: ticket.status_id ?? null, // ให้เป็น number
-      due_date: ticket.due_date ? this.formatDateForInput(ticket.due_date) : '',
-      lead_time: ticket.lead_time ? parseInt(ticket.lead_time.toString()) : null,
-      close_estimate: ticket.close_estimate ? this.formatDateTimeForInput(ticket.close_estimate) : '',
-      fix_issue_description: ticket.fix_issue_description || '',
-      related_ticket_id: ticket.related_ticket_id?.toString() || ''
-    });
-  }
-
-  /**
-   * ✅ FIXED: สร้าง FormData สำหรับส่ง API พร้อม status mapping ที่ถูกต้อง
-   */
-  private createSupporterFormData(): SaveSupporterFormData {
-    const formValue = this.supporterForm.value;
-
-    console.log('🔍 CREATING SUPPORTER FORM DATA');
-    console.log('🔍 Raw form value:', formValue);
-    console.log('🔍 action value:', formValue.action, 'type:', typeof formValue.action);
-
-    const formData: SaveSupporterFormData = {};
-
-    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
-      formData.estimate_time = parseInt(formValue.estimate_time);
-    }
-
-    if (formValue.due_date) {
-      formData.due_date = formValue.due_date;
-    }
-
-    if (formValue.lead_time !== null && formValue.lead_time !== '') {
-      formData.lead_time = parseInt(formValue.lead_time);
-    }
-
-    if (formValue.close_estimate) {
-      formData.close_estimate = formValue.close_estimate;
-    }
-
-    if (formValue.fix_issue_description) {
-      formData.fix_issue_description = formValue.fix_issue_description;
-    }
-
-    if (formValue.related_ticket_id) {
-      formData.related_ticket_id = formValue.related_ticket_id;
-    }
-
-    // ✅ CRITICAL FIX: ส่ง status_id โดยตรงจาก action value
-    if (formValue.action !== null && formValue.action !== '' && formValue.action !== undefined) {
-      // แปลงเป็น number เพื่อให้แน่ใจ
-      const statusId = parseInt(formValue.action);
-
-      if (!isNaN(statusId)) {
-        formData.status_id = statusId;
-        console.log('✅ SUCCESS: Set status_id:', statusId);
-      } else {
-        console.error('❌ ERROR: Cannot parse action to number:', formValue.action);
-      }
-    } else {
-      console.warn('⚠️ WARNING: No action selected or action is null/undefined/empty');
-      console.warn('⚠️ action value details:', {
-        value: formValue.action,
-        type: typeof formValue.action,
-        isNull: formValue.action === null,
-        isUndefined: formValue.action === undefined,
-        isEmpty: formValue.action === ''
-      });
-    }
-
-    console.log('🔍 Final form data to send:', formData);
-    console.log('🔍 status_id in final data:', formData.status_id);
-
-    return formData;
-  }
-
-  /**
-   * ✅ NEW: ตรวจสอบและแยกไฟล์ใหม่ออกจากไฟล์เดิม
-   */
-  private separateNewAttachmentsFromExisting(newAttachments: any[]): void {
-    if (!newAttachments || newAttachments.length === 0) return;
-
-    // เก็บรายการ attachment_id ที่มีอยู่แล้วใน issue_attachment
-    const existingIssueIds = new Set(
-      this.ticketData!.issue_attachment.map(att => att.attachment_id)
-    );
-
-    // เก็บรายการ attachment_id ที่มีอยู่แล้วใน fix_attachment  
-    const existingFixIds = new Set(
-      this.ticketData!.fix_attachment.map(att => att.attachment_id)
-    );
-
-    // กรองเฉพาะไฟล์ใหม่ที่ยังไม่มีอยู่
-    const trulyNewAttachments = newAttachments.filter(att =>
-      !existingIssueIds.has(att.id) && !existingFixIds.has(att.id)
-    );
-
-    if (trulyNewAttachments.length === 0) {
-      console.log('No truly new attachments to add');
-      return;
-    }
-
-    // แปลงเป็นรูปแบบที่ถูกต้องและเพิ่มใน fix_attachment เท่านั้น
-    const formattedAttachments = trulyNewAttachments.map(att => ({
-      attachment_id: att.id,
-      path: att.path || `uploads/${att.filename}`,
-      filename: att.filename,
-      file_type: att.extension || att.file_type,
-      file_size: att.file_size || 0
-    }));
-
-    this.ticketData!.fix_attachment.push(...formattedAttachments);
-
-    console.log('✅ Added truly new attachments to fix_attachment:', {
-      total_new_from_api: newAttachments.length,
-      truly_new: trulyNewAttachments.length,
-      added_to_fix: formattedAttachments.length,
-      current_fix_count: this.ticketData!.fix_attachment.length,
-      current_issue_count: this.ticketData!.issue_attachment.length
-    });
-  }
-
-  /**
-   * จัดการเมื่อบันทึกสำเร็จ - ใช้ method แยกไฟล์ใหม่ + อัปเดต status และ history
-   */
-  private handleSaveSupporterSuccess(response: SaveSupporterResponse): void {
-    console.log('🔍 Full SaveSupporter Response:', response);
-
-    // ✅ อัพเดท ticket data รวมทั้ง status
-    if (response.data.ticket) {
-      const oldStatusId = this.ticketData?.ticket?.status_id;
-      Object.assign(this.ticketData!.ticket, response.data.ticket);
-
-      // ✅ อัปเดต current status info
-      const newStatusId = response.data.ticket.status_id;
-      if (newStatusId && newStatusId !== oldStatusId) {
-        console.log('✅ Status changed from', oldStatusId, 'to', newStatusId);
-
-        this.currentStatusInfo = {
-          status_id: newStatusId,
-          status_name: this.apiService.getCachedStatusName(newStatusId),
-          language_id: 'th'
-        };
-
-        // ✅ อัปเดต status ใน ticket data
-        this.ticketData!.ticket.status_id = newStatusId;
-        this.ticketData!.ticket.status_name = this.currentStatusInfo.status_name;
-
-        // ✅ รีเฟรช history และ evaluation status
-        this.buildDisplayHistory();
-        this.updateEvaluationStatus();
-        this.refreshActionDropdown();
-
-        console.log('🔄 Updated status info:', this.currentStatusInfo);
-      }
-    }
-
-    // ✅ ใช้ method ใหม่ในการแยกและเพิ่มไฟล์
-    if (response.data.attachments && response.data.attachments.length > 0) {
-      this.separateNewAttachmentsFromExisting(response.data.attachments);
-    }
-
-    // แสดง Success Modal
-    this.showSuccessModal = true;
-    this.modalTitle = 'Supporter Data Saved';
-    this.modalMessage = 'บันทึกข้อมูล supporter สำเร็จแล้ว ไฟล์ถูกเพิ่มใน Fix Attachments';
-    this.modalTicketNo = this.ticket_no;
-
-    // ซ่อน form และรีเซ็ต
-    this.supporterFormState.isVisible = false;
-    this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จ';
-    this.resetSupporterForm();
-
-    console.log('Supporter data saved successfully');
-  }
-
-  /**
-   * ✅ ENHANCED: NEW method with debugging - Refresh ticket data เพื่อให้ได้ข้อมูลล่าสุด
-   */
-  private refreshTicketData(): void {
-    console.log('🔄 Refreshing ticket data...');
-
-    // เรียก API เพื่อดึงข้อมูล ticket ล่าสุด
-    const requestData: GetTicketDataRequest = { ticket_no: this.ticket_no };
-
-    this.apiService.getTicketData(requestData).subscribe({
-      next: (response: any) => {
-        if (response && response.code === 1 && response.data) {
-          console.log('✅ Refreshed ticket data:', response.data);
-
-          // ✅ Debug การเปลี่ยนแปลง status
-          const oldStatusId = this.ticketData?.ticket?.status_id;
-          const newStatusId = response.data.ticket.status_id;
-
-          if (oldStatusId && newStatusId !== oldStatusId) {
-            debugStatusChange(oldStatusId, newStatusId, 'After Refresh');
-          }
-
-          // อัปเดตข้อมูล ticket
-          this.ticketData = response.data;
-
-          // อัปเดต status info
-          if (newStatusId) {
-            this.currentStatusInfo = {
-              status_id: newStatusId,
-              status_name: this.apiService.getCachedStatusName(newStatusId),
-              language_id: 'th'
-            };
-
-            console.log('🔄 Status updated after refresh:', this.currentStatusInfo);
-          }
-
-          // รีเฟรช history และ evaluation
-          this.buildDisplayHistory();
-          this.updateEvaluationStatus();
-          this.analyzeAllAttachments();
-
-          // ✅ Debug final state
-          debugComponentState(this, 'After Refresh');
-        }
-      },
-      error: (error) => {
-        console.warn('⚠️ Failed to refresh ticket data:', error);
-        logError(error, 'Refresh Ticket Data');
-      }
-    });
-  }
-
-  /**
-   * รีเซ็ต Supporter Form
-   */
-  resetSupporterForm(): void {
-    this.supporterForm.reset();
-    this.selectedFiles = [];
-    this.fileUploadProgress = [];
-    this.supporterFormValidation = {
-      estimate_time: { isValid: true },
-      due_date: { isValid: true },
-      lead_time: { isValid: true },
-      close_estimate: { isValid: true },
-      fix_issue_description: { isValid: true },
-      related_ticket_id: { isValid: true },
-      attachments: { isValid: true }
-    };
-  }
-
-  /**
-   * Mark ทุก field ใน form ว่า touched
-   */
-  private markFormGroupTouched(): void {
-    Object.keys(this.supporterForm.controls).forEach(key => {
-      this.supporterForm.get(key)?.markAsTouched();
-    });
-  }
-
-  // ===== FILE UPLOAD METHODS ===== ✅
-
-  /**
-   * เลือกไฟล์
-   */
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
-
-    const files = Array.from(input.files);
-    const validation = this.ticketService.validateFiles(files, this.maxFiles);
-
-    if (!validation.isValid) {
-      this.supporterFormState.error = validation.errors.join(', ');
-      return;
-    }
-
-    this.selectedFiles = validation.validFiles;
-    this.supporterFormState.error = null;
-
-    // สร้าง upload progress สำหรับแต่ละไฟล์
-    this.fileUploadProgress = this.selectedFiles.map(file => ({
-      filename: file.name,
-      progress: 0,
-      status: 'pending'
-    }));
-
-    console.log('Files selected:', this.selectedFiles.map(f => f.name));
-  }
-
-  /**
-   * ลบไฟล์ที่เลือก
-   */
-  removeSelectedFile(index: number): void {
-    this.selectedFiles.splice(index, 1);
-    this.fileUploadProgress.splice(index, 1);
-
-    if (this.selectedFiles.length === 0) {
-      this.supporterFormState.error = null;
-    }
-  }
-
-  /**
-   * ล้างไฟล์ทั้งหมด
-   */
-  clearAllFiles(): void {
-    this.selectedFiles = [];
-    this.fileUploadProgress = [];
-    this.supporterFormState.error = null;
-  }
-
-  /**
-   * ได้รับข้อมูลไฟล์สำหรับแสดงผล
-   */
-  getFileDisplayInfo(file: File): {
-    name: string;
-    size: string;
-    type: string;
-    icon: string;
-  } {
-    return {
-      name: file.name,
-      size: this.ticketService.formatFileSize(file.size),
-      type: file.type.split('/')[1]?.toUpperCase() || 'FILE',
-      icon: this.ticketService.getFileIcon(file.name)
-    };
-  }
-
-  // ===== FORM VALIDATION METHODS ===== ✅
-
-  /**
-   * Validate Supporter Form แบบ real-time
-   */
-  private validateSupporterForm(): void {
-    const formValue = this.supporterForm.value;
-
-    // Reset validation
-    this.supporterFormValidation = {
-      estimate_time: { isValid: true },
-      due_date: { isValid: true },
-      lead_time: { isValid: true },
-      close_estimate: { isValid: true },
-      fix_issue_description: { isValid: true },
-      related_ticket_id: { isValid: true },
-      attachments: { isValid: true }
-    };
-
-    // Validate estimate_time
-    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
-      const estimateTime = parseInt(formValue.estimate_time);
-      if (isNaN(estimateTime) || estimateTime < 0 || estimateTime > 1000) {
-        this.supporterFormValidation.estimate_time = {
-          isValid: false,
-          error: 'เวลาประมาณการต้องอยู่ระหว่าง 0-1000 ชั่วโมง'
-        };
-      }
-    }
-
-    // Validate lead_time
-    if (formValue.lead_time !== null && formValue.lead_time !== '') {
-      const leadTime = parseInt(formValue.lead_time);
-      if (isNaN(leadTime) || leadTime < 0 || leadTime > 10000) {
-        this.supporterFormValidation.lead_time = {
-          isValid: false,
-          error: 'เวลาที่ใช้จริงต้องอยู่ระหว่าง 0-10000 ชั่วโมง'
-        };
-      }
-    }
-
-    // Validate due_date
-    if (formValue.due_date) {
-      const dueDate = new Date(formValue.due_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (dueDate < today) {
-        this.supporterFormValidation.due_date = {
-          isValid: false,
-          error: 'วันครบกำหนดต้องไม่เป็นวันที่ผ่านมาแล้ว'
-        };
-      }
-    }
-
-    // Validate close_estimate
-    if (formValue.close_estimate) {
-      const closeDate = new Date(formValue.close_estimate);
-      const now = new Date();
-
-      if (closeDate < now) {
-        this.supporterFormValidation.close_estimate = {
-          isValid: false,
-          error: 'เวลาประมาณการปิดต้องไม่เป็นเวลาที่ผ่านมาแล้ว'
-        };
-      }
-    }
-
-    // Validate fix_issue_description
-    if (formValue.fix_issue_description && formValue.fix_issue_description.length > 5000) {
-      this.supporterFormValidation.fix_issue_description = {
-        isValid: false,
-        error: 'รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร'
-      };
-    }
-
-    // Validate attachments
-    if (this.selectedFiles.length > this.maxFiles) {
-      this.supporterFormValidation.attachments = {
-        isValid: false,
-        error: `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`
-      };
-    }
-  }
-
-  /**
-   * ตรวจสอบว่าฟิลด์มี error หรือไม่
-   */
-  hasFieldError(fieldName: keyof SupporterFormValidation): boolean {
-    return !this.supporterFormValidation[fieldName].isValid;
-  }
-
-  /**
-   * ดึงข้อความ error ของฟิลด์
-   */
-  getFieldError(fieldName: keyof SupporterFormValidation): string {
-    return this.supporterFormValidation[fieldName].error || '';
-  }
-
-  /**
-   * ได้รับ CSS class สำหรับฟิลด์ที่มี error
-   */
-  getFieldClass(fieldName: keyof SupporterFormValidation): string {
-    const baseClass = 'form-control';
-    const errorClass = 'is-invalid';
-
-    return this.hasFieldError(fieldName) ? `${baseClass} ${errorClass}` : baseClass;
-  }
-
-  // ===== UTILITY METHODS ===== ✅
-
-  /**
-   * แปลงวันที่สำหรับ input type="date"
-   */
-  private formatDateForInput(dateString: string): string {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toISOString().split('T')[0];
-    } catch {
-      return '';
-    }
-  }
-
-  /**
-   * แปลงวันที่และเวลาสำหรับ input type="datetime-local"
-   */
-  private formatDateTimeForInput(dateString: string): string {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    } catch {
-      return '';
-    }
-  }
-
-  getCurrentStatusId(): number {
-    return this.currentStatusInfo?.status_id ||
-      this.ticketData?.ticket?.status_id ||
-      1;
-  }
-
-  getCurrentStatusName(): string {
-    const statusId = this.getCurrentStatusId();
-
-    if (this.statusCacheLoaded) {
-      return this.apiService.getCachedStatusName(statusId);
-    }
-
-    return this.currentStatusInfo?.status_name ||
-      this.ticketData?.ticket?.status_name ||
-      this.getDefaultStatusName(statusId);
-  }
-
-  /**
-   * ✅ ENHANCED: ใช้ utility function จาก ticket.model.ts
-   */
-  private getDefaultStatusName(statusId: number): string {
-    return getStatusName(statusId, 'en'); // ใช้ภาษาอังกฤษเป็นค่าเริ่มต้น
-  }
-
-  formatDate(dateString: string): string {
-    if (!dateString) return '-';
-    try {
-      return new Date(dateString).toLocaleDateString('th-TH', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
-    }
-  }
-
-  // ===== SATISFACTION METHODS (EXISTING) ===== ✅
-
-  /**
-   * บันทึกคะแนนความพึงพอใจ - แสดง Modal แทน Alert + จัดการ body class
-   */
-  private satisfaction(rating: number): void {
-    if (!this.ticket_no || this.isSavingRating) {
-      return;
-    }
-
-    this.isSavingRating = true;
-
-    this.apiService.satisfaction(this.ticket_no, rating).subscribe({
-      next: (response: satisfactionResponse) => {
-        if (response.success) {
-          console.log('✅ Satisfaction saved successfully:', response.data);
-
-          this.hasExistingSatisfaction = true;
-          this.satisfactionMessage = 'บันทึกคะแนนความพึงพอใจสำเร็จ';
-          this.currentRating = rating;
-
-          this.saveSatisfactionToStorage(rating);
-
-          this.showSuccessModal = true;
-          this.modalTitle = 'Assessment Success';
-          this.modalMessage = 'ขอบคุณสำหรับการประเมินความพึงพอใจ';
-          this.modalTicketNo = this.ticket_no;
-
-          document.body.classList.add('modal-open');
-
-        } else {
-          console.error('❌ Failed to save satisfaction:', response.error);
-          this.currentRating = 0;
-          this.hasExistingSatisfaction = false;
-          alert(response.error || 'ไม่สามารถบันทึกการประเมินได้');
-        }
-        this.isSavingRating = false;
-      },
-      error: (error) => {
-        console.error('❌ Error saving satisfaction:', error);
-        this.currentRating = 0;
-        this.hasExistingSatisfaction = false;
-        this.isSavingRating = false;
-        alert('เกิดข้อผิดพลาดในการบันทึกคะแนนความพึงพอใจ');
-      }
-    });
-  }
+  // ===== SATISFACTION UI METHODS ===== ✅
 
   /**
    * ได้รับคลาส CSS สำหรับดาว
@@ -1729,7 +612,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-
   /**
    * ได้รับ tooltip สำหรับดาว
    */
@@ -1788,54 +670,48 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ ENHANCED: ตรวจสอบว่าสามารถประเมินได้หรือไม่ โดยใช้ constants
-   */
-  private updateEvaluationStatus(): void {
+  // ===== STATUS & HISTORY METHODS ===== ✅
+
+  getCurrentStatusId(): number {
+    return this.currentStatusInfo?.status_id ||
+      this.ticketData?.ticket?.status_id ||
+      1;
+  }
+
+  getCurrentStatusName(): string {
     const statusId = this.getCurrentStatusId();
 
-    this.canEvaluate = statusId === TICKET_STATUS_IDS.COMPLETED; // ใช้ constant แทนการ hardcode
-    this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
-
-    console.log('✅ Evaluation status updated:', {
-      statusId,
-      canEvaluate: this.canEvaluate,
-      message: this.satisfactionMessage
-    });
-  }
-
-  /**
-   * โหลดสถานะการประเมินจากข้อมูล ticket (ถ้ามี)
-   */
-  private loadExistingSatisfaction(): void {
-    const savedRating = localStorage.getItem(`satisfaction_${this.ticket_no}`);
-    if (savedRating) {
-      const rating = parseInt(savedRating, 10);
-      if (rating >= 1 && rating <= 5) {
-        this.currentRating = rating;
-        this.hasExistingSatisfaction = true;
-        this.satisfactionMessage = `คุณได้ให้คะแนน ${rating} ดาวแล้ว`;
-        console.log('Loaded existing satisfaction:', rating, 'stars');
-      }
+    if (this.statusCacheLoaded) {
+      return this.apiService.getCachedStatusName(statusId);
     }
+
+    return this.currentStatusInfo?.status_name ||
+      this.ticketData?.ticket?.status_name ||
+      this.getDefaultStatusName(statusId);
   }
 
-  /**
-   * บันทึกสถานะการประเมินลง localStorage (เป็น backup)
-   */
-  private saveSatisfactionToStorage(rating: number): void {
+  private getDefaultStatusName(statusId: number): string {
+    return getStatusName(statusId, 'en');
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '-';
     try {
-      localStorage.setItem(`satisfaction_${this.ticket_no}`, rating.toString());
-      localStorage.setItem(`satisfaction_${this.ticket_no}_timestamp`, new Date().toISOString());
-      console.log('Satisfaction saved to localStorage:', rating);
-    } catch (error) {
-      console.warn('Could not save satisfaction to localStorage:', error);
+      return new Date(dateString).toLocaleDateString('th-TH', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
     }
   }
 
-  // ===== STATUS & HISTORY METHODS (EXISTING) ===== ✅
-
-  // ✅ ENHANCED: ใช้ utility functions จาก ticket.model.ts
+  /**
+   * ✅ ใช้ utility functions จาก ticket.model.ts
+   */
   getStatusBadgeClass(statusId?: number): string {
     const currentStatusId = statusId || this.getCurrentStatusId();
     return getStatusBadgeClass(currentStatusId);
@@ -1846,7 +722,7 @@ export class TicketDetailComponent implements OnInit {
     return getStatusIcon(currentStatusId);
   }
 
-  // ===== ATTACHMENT METHODS (EXISTING) ===== ✅
+  // ===== ATTACHMENT METHODS ===== ✅
 
   isImageFile(path: string, attachmentId?: number): boolean {
     if (attachmentId && this.attachmentTypes[attachmentId]) {
@@ -1996,7 +872,7 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ===== HISTORY METHODS (EXISTING) ===== ✅
+  // ===== HISTORY METHODS ===== ✅
 
   getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
     if (historyItem.is_active) {
@@ -2039,14 +915,14 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  // ===== INITIALIZATION METHODS (EXISTING) ===== ✅
+  // ===== INITIALIZATION METHODS ===== ✅
 
   private loadStatusCache(): void {
-    console.log('=== Loading Status Cache ===');
+    console.log('Loading Status Cache');
 
     if (this.apiService.isStatusCacheLoaded()) {
       this.statusCacheLoaded = true;
-      console.log('✅ Status cache already loaded');
+      console.log('Status cache already loaded');
       return;
     }
 
@@ -2057,7 +933,7 @@ export class TicketDetailComponent implements OnInit {
       next: (success) => {
         if (success) {
           this.statusCacheLoaded = true;
-          console.log('✅ Status cache loaded successfully');
+          console.log('Status cache loaded successfully');
 
           if (this.ticketData?.ticket) {
             this.updateStatusFromCache();
@@ -2069,7 +945,7 @@ export class TicketDetailComponent implements OnInit {
         this.isLoadingStatuses = false;
       },
       error: (error) => {
-        console.error('❌ Error loading status cache:', error);
+        console.error('Error loading status cache:', error);
         this.statusCacheError = 'เกิดข้อผิดพลาดในการโหลดสถานะ';
         this.isLoadingStatuses = false;
       }
@@ -2092,7 +968,7 @@ export class TicketDetailComponent implements OnInit {
     this.buildDisplayHistory();
     this.updateEvaluationStatus();
 
-    console.log('✅ Status updated from cache:', {
+    console.log('Status updated from cache:', {
       statusId,
       statusName,
       canEvaluate: this.canEvaluate,
@@ -2100,9 +976,8 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  // ✅ FIXED: Made loadTicketDetail public so it can be called from template
   public async loadTicketDetail(): Promise<void> {
-    console.log('=== loadTicketDetail START ===');
+    console.log('loadTicketDetail START');
 
     this.isLoading = true;
     this.error = '';
@@ -2119,10 +994,10 @@ export class TicketDetailComponent implements OnInit {
       await this.loadTicketHistory();
       this.loadExistingSatisfaction();
 
-      console.log('✅ loadTicketDetail completed successfully');
+      console.log('loadTicketDetail completed successfully');
 
     } catch (error) {
-      console.error('❌ Error in loadTicketDetail:', error);
+      console.error('Error in loadTicketDetail:', error);
       this.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล ticket';
     } finally {
       this.isLoading = false;
@@ -2148,7 +1023,7 @@ export class TicketDetailComponent implements OnInit {
     this.ticketData.ticket.status_name = statusName;
     this.updateEvaluationStatus();
 
-    console.log('✅ Using status:', {
+    console.log('Using status:', {
       statusId,
       statusName,
       canEvaluate: this.canEvaluate,
@@ -2171,12 +1046,12 @@ export class TicketDetailComponent implements OnInit {
       if (historyResponse?.success && historyResponse.data) {
         this.ticketHistory = historyResponse.data;
         this.buildDisplayHistory();
-        console.log('✅ Ticket history loaded successfully');
+        console.log('Ticket history loaded successfully');
       } else {
         this.buildHistoryFromExistingData();
       }
     } catch (error) {
-      console.error('❌ Error loading ticket history:', error);
+      console.error('Error loading ticket history:', error);
       this.buildHistoryFromExistingData();
     } finally {
       this.isLoadingHistory = false;
@@ -2206,7 +1081,7 @@ export class TicketDetailComponent implements OnInit {
       data: historyFromDatabase
     };
 
-    console.log('✅ Using real database history:', historyFromDatabase);
+    console.log('Using real database history:', historyFromDatabase);
     return new Observable<TicketHistoryResponse>((observer) => {
       setTimeout(() => {
         observer.next(mockResponse);
@@ -2215,16 +1090,12 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
-  /**
-   * ✅ ENHANCED: History Building with Real-time Status Updates
-   */
   private buildDisplayHistory(): void {
     if (!this.ticketData?.ticket) return;
 
     const currentStatusId = this.getCurrentStatusId();
     console.log('Building display history for current status:', currentStatusId);
 
-    // ✅ สร้าง new history entry ถ้า status เปลี่ยน
     this.updateHistoryWithCurrentStatus(currentStatusId);
 
     this.displayHistory = this.STATUS_WORKFLOW.map((workflowStatus) => {
@@ -2252,15 +1123,10 @@ export class TicketDetailComponent implements OnInit {
     console.log('Built display history with real-time status updates:', this.displayHistory);
   }
 
-  /**
-   * ✅ NEW: อัปเดต history เมื่อ status เปลี่ยน
-   */
   private updateHistoryWithCurrentStatus(currentStatusId: number): void {
-    // ตรวจสอบว่ามี history entry สำหรับ status ปัจจุบันหรือยัง
     const hasCurrentStatusInHistory = this.ticketHistory.some(h => h.status_id === currentStatusId);
 
     if (!hasCurrentStatusInHistory) {
-      // เพิ่ม history entry ใหม่สำหรับ status ปัจจุบัน
       const newHistoryEntry: TicketStatusHistory = {
         id: this.ticketHistory.length + 1,
         ticket_id: this.ticketData!.ticket.id,
@@ -2274,7 +1140,7 @@ export class TicketDetailComponent implements OnInit {
       };
 
       this.ticketHistory.push(newHistoryEntry);
-      console.log('✅ Added new history entry for status:', currentStatusId);
+      console.log('Added new history entry for status:', currentStatusId);
     }
   }
 
@@ -2314,7 +1180,52 @@ export class TicketDetailComponent implements OnInit {
     return index !== -1 ? index : 0;
   }
 
-  // ===== PRIVATE HELPER METHODS (EXISTING) ===== ✅
+  /**
+   * ✅ ตรวจสอบว่าสามารถประเมินได้หรือไม่ โดยใช้ constants
+   */
+  private updateEvaluationStatus(): void {
+    const statusId = this.getCurrentStatusId();
+
+    this.canEvaluate = statusId === TICKET_STATUS_IDS.COMPLETED;
+    this.satisfactionMessage = this.apiService.getEvaluationStatusMessage(statusId);
+
+    console.log('Evaluation status updated:', {
+      statusId,
+      canEvaluate: this.canEvaluate,
+      message: this.satisfactionMessage
+    });
+  }
+
+  /**
+   * โหลดสถานะการประเมินจากข้อมูล ticket (ถ้ามี)
+   */
+  private loadExistingSatisfaction(): void {
+    const savedRating = localStorage.getItem(`satisfaction_${this.ticket_no}`);
+    if (savedRating) {
+      const rating = parseInt(savedRating, 10);
+      if (rating >= 1 && rating <= 5) {
+        this.currentRating = rating;
+        this.hasExistingSatisfaction = true;
+        this.satisfactionMessage = `คุณได้ให้คะแนน ${rating} ดาวแล้ว`;
+        console.log('Loaded existing satisfaction:', rating, 'stars');
+      }
+    }
+  }
+
+  /**
+   * บันทึกสถานะการประเมินลง localStorage (เป็น backup)
+   */
+  private saveSatisfactionToStorage(rating: number): void {
+    try {
+      localStorage.setItem(`satisfaction_${this.ticket_no}`, rating.toString());
+      localStorage.setItem(`satisfaction_${this.ticket_no}_timestamp`, new Date().toISOString());
+      console.log('Satisfaction saved to localStorage:', rating);
+    } catch (error) {
+      console.warn('Could not save satisfaction to localStorage:', error);
+    }
+  }
+
+  // ===== PRIVATE HELPER METHODS ===== ✅
 
   private saveTicketDataForEdit(): void {
     if (!this.ticketData?.ticket) return;
@@ -2393,6 +1304,44 @@ export class TicketDetailComponent implements OnInit {
       localStorage.removeItem(incompleteKey);
       localStorage.removeItem(editKey);
     }
+  }
+
+  private refreshTicketData(): void {
+    console.log('Refreshing ticket data...');
+
+    const requestData: GetTicketDataRequest = { ticket_no: this.ticket_no };
+
+    this.apiService.getTicketData(requestData).subscribe({
+      next: (response: any) => {
+        if (response && response.code === 1 && response.data) {
+          console.log('Refreshed ticket data:', response.data);
+
+          const oldStatusId = this.ticketData?.ticket?.status_id;
+          const newStatusId = response.data.ticket.status_id;
+
+          if (oldStatusId && newStatusId !== oldStatusId) {
+            console.log('Status changed from', oldStatusId, 'to', newStatusId);
+          }
+
+          this.ticketData = response.data;
+
+          if (newStatusId) {
+            this.currentStatusInfo = {
+              status_id: newStatusId,
+              status_name: this.apiService.getCachedStatusName(newStatusId),
+              language_id: 'th'
+            };
+          }
+
+          this.buildDisplayHistory();
+          this.updateEvaluationStatus();
+          this.analyzeAllAttachments();
+        }
+      },
+      error: (error) => {
+        console.warn('Failed to refresh ticket data:', error);
+      }
+    });
   }
 
   private getTicketByTicketNo(ticket_no: string): Promise<void> {
@@ -2511,9 +1460,10 @@ export class TicketDetailComponent implements OnInit {
     this.checkFileTypeFromHeaders(attachment.path, attachmentId);
   }
 
+  // ... (รวม methods ที่เหลือสำหรับ file analysis)
+
   private getFileExtension(filename: string): string {
     if (!filename || filename === 'unknown') return '';
-
     const parts = filename.split('.');
     return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
   }
@@ -2710,34 +1660,7 @@ export class TicketDetailComponent implements OnInit {
     img.src = url;
   }
 
-  // ===== NAVIGATION ===== ✅
-
   backToList(): void {
     this.router.navigate(['/tickets']);
-  }
-
-  /**
- * ✅ FIXED: ตรวจสอบ permission การ assign ticket
- */
-  public canAssignTicket(): boolean {
-    // ✅ ตรวจสอบ permission โดยตรง
-    const userPermissions = this.authService.getEffectivePermissions();
-
-    // Permission 19 = ASSIGNEE, Permission 8 = CHANGE_STATUS
-    const hasAssignPermission = userPermissions.includes(19) ||
-      userPermissions.includes(8) ||
-      this.authService.isAdmin() ||
-      this.authService.isSupporter();
-
-    return hasAssignPermission;
-  }
-
-  /**
-   * ✅ NEW: Initialize assignee list on component load
-   */
-  private initializeAssigneeList(): void {
-    if (this.canAssignTicket()) {
-      this.refreshAssigneeList();
-    }
   }
 }

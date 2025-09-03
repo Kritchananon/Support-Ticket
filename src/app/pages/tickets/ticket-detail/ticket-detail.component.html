@@ -64,6 +64,9 @@
         <li class="breadcrumb-item">
           <a routerLink="/tickets">All Tickets</a>
         </li>
+        <li class="breadcrumb-item">
+          <a routerLink="/tickets">Ticket</a>
+        </li>
         <li class="breadcrumb-item active" aria-current="page">
           Ticket {{ ticketData.ticket.ticket_no }}
         </li>
@@ -120,7 +123,7 @@
                 <span>{{ getEditButtonText() }}</span>
               </button>
 
-              <!-- ✅ FIXED: Admin-only buttons -->
+              <!-- ✅ Admin-only buttons -->
               <div *ngIf="authService.isAdmin()" class="admin-actions ms-2">
                 <button class="btn btn-warning btn-sm" (click)="escalateTicket()" title="Escalate ticket (Admin only)">
                   <i class="bi bi-arrow-up-circle me-1"></i>
@@ -271,7 +274,7 @@
             </div>
           </div>
 
-          <!-- ✅ FIXED: Enhanced Evaluation Section -->
+          <!-- ✅ Enhanced Evaluation Section -->
           <div class="evaluation-section" *ngIf="hasSpecificPermission(14)">
             <div class="evaluation-label">Evaluation</div>
 
@@ -305,446 +308,24 @@
         </div>
       </div>
 
-      <!-- ===== SUPPORT INFORMATION CARD ===== ✅ -->
-      <div class="support-info-card">
+      <!-- ===== ✅ SUPPORT INFORMATION SECTION - ใช้ Components แยก ===== -->
+      
+      <!-- สำหรับผู้ใช้ทั่วไป (ไม่ใช่ Supporter/Admin) - แสดง Display Component -->
+      <app-support-information-display 
+        *ngIf="!authService.isSupporter() && !authService.isAdmin()"
+        [ticketData]="ticketData">
+      </app-support-information-display>
 
-        <!-- Support Header -->
-        <div class="support-header">
-          <h2 class="support-title">Support Information</h2>
+      <!-- สำหรับ Supporter/Admin - แสดง Form Component -->
+      <app-support-information-form 
+        *ngIf="!authService.isSupporter() && !authService.isAdmin()"
+        [ticketData]="ticketData"
+        [ticket_no]="ticket_no"
+        (supporterDataSaved)="onSupporterDataSaved($event)"
+        (ticketAssigned)="onTicketAssigned($event)"
+        (refreshRequired)="onRefreshRequired()">
+      </app-support-information-form>
 
-          <!-- ✅ Supporter Action Button -->
-          <div class="supporter-action">
-            <button type="button" class="btn btn-outline-primary" (click)="toggleSupporterForm()"
-              [disabled]="supporterFormState.isSaving" *ngIf="canShowSupporterForm()">
-              <i class="bi bi-gear-fill me-2"></i>
-              {{ supporterFormState.isVisible ? 'ซ่อนฟอร์ม' : 'จัดการ Supporter' }}
-            </button>
-          </div>
-        </div>
-
-        <div class="support-progress-bar">
-          <div class="support-progress-fill"></div>
-          <div class="support-progress-remaining"></div>
-        </div>
-
-        <!-- ✅ FIXED: Supporter Form Section -->
-        <div *ngIf="supporterFormState.isVisible && canShowSupporterForm()" class="supporter-form-section">
-
-          <!-- Form Header -->
-          <div class="supporter-form-header">
-            <h3 class="supporter-form-title">
-              <i class="bi bi-tools me-2"></i>
-              Supporter Actions
-            </h3>
-
-            <!-- Loading Indicator -->
-            <div *ngIf="supporterFormState.isSaving" class="supporter-form-loading">
-              <span class="spinner-border spinner-border-sm me-2"></span>
-              <span>กำลังบันทึก...</span>
-            </div>
-          </div>
-
-          <!-- Error Alert -->
-          <div *ngIf="supporterFormState.error" class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            {{ supporterFormState.error }}
-            <button type="button" class="btn-close" (click)="supporterFormState.error = null"
-              aria-label="Close"></button>
-          </div>
-
-          <!-- Success Alert -->
-          <div *ngIf="supporterFormState.successMessage" class="alert alert-success alert-dismissible fade show"
-            role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>
-            {{ supporterFormState.successMessage }}
-            <button type="button" class="btn-close" (click)="supporterFormState.successMessage = null"
-              aria-label="Close"></button>
-          </div>
-
-          <!-- Supporter Form -->
-          <form [formGroup]="supporterForm" (ngSubmit)="onSaveSupporter()" class="supporter-form">
-
-            <!-- Row 1: Action และ Estimate Time -->
-            <div class="row mb-3">
-              <!-- ✅ Action Dropdown - ดึงข้อมูลจาก API -->
-              <div class="col-md-6">
-                <label for="action" class="form-label">
-                  <i class="bi bi-list-check me-1"></i>
-                  Action <span class="text-danger">*</span>
-                </label>
-
-                <!-- Loading State -->
-                <div *ngIf="isLoadingActions" class="form-control d-flex align-items-center">
-                  <span class="spinner-border spinner-border-sm me-2"></span>
-                  <span class="text-muted">กำลังโหลดตัวเลือก...</span>
-                </div>
-
-                <!-- Error State -->
-                <div *ngIf="actionError && !isLoadingActions" class="alert alert-warning p-2 mb-2">
-                  <small>
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    {{ actionError }}
-                  </small>
-                </div>
-
-                <!-- Action Dropdown -->
-                <select id="action" class="form-select" formControlName="action"
-                  [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
-                  [disabled]="isLoadingActions" *ngIf="!isLoadingActions">
-                  <option value="">เลือก Action...</option>
-                  <option *ngFor="let option of actionDropdownOptions" [value]="option.statusId"
-                    [disabled]="option.disabled">
-                    {{ option.label }}
-                    <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>
-                  </option>
-                </select>
-
-                <!-- Validation Error -->
-                <div *ngIf="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
-                  class="invalid-feedback">
-                  กรุณาเลือก Action
-                </div>
-
-                <!-- Refresh Button (เฉพาะเมื่อมี error) -->
-                <button type="button" class="btn btn-outline-secondary btn-sm mt-1" (click)="refreshActionDropdown()"
-                  *ngIf="actionError && !isLoadingActions">
-                  <i class="bi bi-arrow-clockwise me-1"></i>
-                  โหลดใหม่
-                </button>
-              </div>
-
-              <!-- ✅ Estimate Time -->
-              <div class="col-md-6">
-                <label for="estimate_time" class="form-label">
-                  <i class="bi bi-clock me-1"></i>
-                  Estimate Time (ชั่วโมง)
-                </label>
-                <input type="number" id="estimate_time" class="form-control" formControlName="estimate_time"
-                  [class.is-invalid]="hasFieldError('estimate_time')" placeholder="เวลาประมาณการ (0-1000 ชั่วโมง)"
-                  min="0" max="1000">
-                <div *ngIf="hasFieldError('estimate_time')" class="invalid-feedback">
-                  {{ getFieldError('estimate_time') }}
-                </div>
-              </div>
-            </div>
-
-            <!-- ✅ Row 2: Due Date และ Lead Time -->
-            <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="due_date" class="form-label">
-                  <i class="bi bi-calendar-date me-1"></i>
-                  Due Date
-                </label>
-                <input type="date" id="due_date" class="form-control" formControlName="due_date"
-                  [class.is-invalid]="hasFieldError('due_date')">
-                <div *ngIf="hasFieldError('due_date')" class="invalid-feedback">
-                  {{ getFieldError('due_date') }}
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <label for="lead_time" class="form-label">
-                  <i class="bi bi-speedometer2 me-1"></i>
-                  Lead Time (ชั่วโมง)
-                </label>
-                <input type="number" id="lead_time" class="form-control" formControlName="lead_time"
-                  [class.is-invalid]="hasFieldError('lead_time')" placeholder="เวลาที่ใช้จริง (0-10000 ชั่วโมง)" min="0"
-                  max="10000">
-                <div *ngIf="hasFieldError('lead_time')" class="invalid-feedback">
-                  {{ getFieldError('lead_time') }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Row 3: Close Estimate และ Related Tickets -->
-            <div class="row mb-3">
-              <!-- ✅ Close Estimate -->
-              <div class="col-md-6">
-                <label for="close_estimate" class="form-label">
-                  <i class="bi bi-calendar-check me-1"></i>
-                  Close Estimate
-                </label>
-                <input type="datetime-local" id="close_estimate" class="form-control" formControlName="close_estimate"
-                  [class.is-invalid]="hasFieldError('close_estimate')">
-                <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
-                  {{ getFieldError('close_estimate') }}
-                </div>
-              </div>
-
-              <!-- ✅ Related Tickets -->
-              <div class="col-md-6">
-                <label for="related_ticket_id" class="form-label">
-                  <i class="bi bi-link-45deg me-1"></i>
-                  Related Tickets
-                </label>
-                <input type="text" id="related_ticket_id" class="form-control" formControlName="related_ticket_id"
-                  [class.is-invalid]="hasFieldError('related_ticket_id')" placeholder="หมายเลข ticket ที่เกี่ยวข้อง">
-                <div *ngIf="hasFieldError('related_ticket_id')" class="invalid-feedback">
-                  {{ getFieldError('related_ticket_id') }}
-                </div>
-              </div>
-            </div>
-
-            <!-- ✅ NEW: Row 3.5: Assignee Section in Supporter Form -->
-            <div class="row mb-3" *ngIf="canAssignTicket()">
-              <div class="col-12">
-                <label class="form-label">
-                  <i class="bi bi-person-badge me-1"></i>
-                  Assignee / Support Team
-                </label>
-
-                <!-- Current Assignee Display -->
-                <div class="current-assignee-display mb-2">
-                  <small class="text-muted">Current: </small>
-                  <span class="current-assignee-name">{{ ticketData.ticket.update_by || 'Not Assigned' }}</span>
-                </div>
-
-                <!-- Assignee Selection -->
-                <div class="assignee-selection">
-                  <!-- Loading State -->
-                  <div *ngIf="isLoadingAssignees" class="form-control d-flex align-items-center">
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                    <span class="text-muted">กำลังโหลดรายชื่อ...</span>
-                  </div>
-
-                  <!-- Error State -->
-                  <div *ngIf="assigneeError && !isLoadingAssignees" class="alert alert-warning p-2 mb-2">
-                    <small>
-                      <i class="bi bi-exclamation-triangle me-1"></i>
-                      {{ assigneeError }}
-                    </small>
-                  </div>
-
-                  <!-- Assignee Select and Button -->
-                  <div class="d-flex" *ngIf="!isLoadingAssignees && !assigneeError">
-                    <select class="form-select" id="assignee-select" [(ngModel)]="selectedAssigneeId"
-                      [disabled]="isAssigning">
-                      <option [value]="null">เลือกผู้รับมอบหมาย...</option>
-                      <option *ngFor="let user of assigneeList" [value]="user.id">
-                        {{ getUserDisplayName(user) }}
-                      </option>
-                    </select>
-
-                    <!-- Assign Button -->
-                    <button type="button" class="btn btn-outline-primary ms-2" (click)="onAssignTicket()"
-                      [disabled]="!selectedAssigneeId || isAssigning">
-                      <span *ngIf="isAssigning" class="spinner-border spinner-border-sm me-1"></span>
-                      <i *ngIf="!isAssigning" class="bi bi-person-plus me-1"></i>
-                      {{ isAssigning ? 'กำลังมอบหมาย...' : 'Assign' }}
-                    </button>
-                  </div>
-
-                  <!-- Refresh Button (เฉพาะเมื่อมี error) -->
-                  <button type="button" class="btn btn-outline-secondary btn-sm mt-2" (click)="refreshAssigneeList()"
-                    *ngIf="assigneeError && !isLoadingAssignees">
-                    <i class="bi bi-arrow-clockwise me-1"></i>
-                    โหลดใหม่
-                  </button>
-                </div>
-
-                <div class="form-text">
-                  <small>
-                    <i class="bi bi-info-circle me-1"></i>
-                    มอบหมาย ticket นี้ให้กับสมาชิกในทีม Support
-                  </small>
-                </div>
-              </div>
-            </div>
-
-            <!-- ✅ Row 4: Fix Description -->
-            <div class="row mb-3">
-              <div class="col-12">
-                <label for="fix_issue_description" class="form-label">
-                  <i class="bi bi-chat-square-text me-1"></i>
-                  Fix Description
-                </label>
-                <textarea id="fix_issue_description" class="form-control" formControlName="fix_issue_description"
-                  [class.is-invalid]="hasFieldError('fix_issue_description')" placeholder="อธิบายวิธีการแก้ไขปัญหา..."
-                  rows="4" maxlength="5000"></textarea>
-                <div *ngIf="hasFieldError('fix_issue_description')" class="invalid-feedback">
-                  {{ getFieldError('fix_issue_description') }}
-                </div>
-                <div class="form-text">
-                  <small>
-                    {{ supporterForm.get('fix_issue_description')?.value?.length || 0 }}/5000 ตัวอักษร
-                  </small>
-                </div>
-              </div>
-            </div>
-
-            <!-- ✅ Row 5: File Upload -->
-            <div class="row mb-3">
-              <div class="col-12">
-                <label for="attachments" class="form-label">
-                  <i class="bi bi-paperclip me-1"></i>
-                  Support Attachments
-                  <small class="text-info">(ไฟล์เหล่านี้จะแสดงใน Fix Attachments)</small>
-                </label>
-                <input type="file" id="attachments" class="form-control" multiple
-                  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt" (change)="onFileSelected($event)"
-                  [class.is-invalid]="hasFieldError('attachments')">
-                <div *ngIf="hasFieldError('attachments')" class="invalid-feedback">
-                  {{ getFieldError('attachments') }}
-                </div>
-                <div class="form-text">
-                  <small>
-                    <i class="bi bi-info-circle me-1"></i>
-                    ไฟล์เหล่านี้จะถูกเพิ่มเป็น "Fix Attachments" สำหรับแสดงงานที่ Supporter ทำ<br>
-                    รองรับไฟล์: JPG, PNG, PDF, DOC, XLS, TXT (สูงสุด {{ maxFiles }} ไฟล์, แต่ละไฟล์ไม่เกิน 10MB)
-                  </small>
-                </div>
-              </div>
-            </div>
-
-            <!-- Selected Files Preview -->
-            <div *ngIf="selectedFiles.length > 0" class="selected-files-preview mb-3">
-              <div class="selected-files-header">
-                <h6 class="mb-2">
-                  <i class="bi bi-files me-1"></i>
-                  ไฟล์ที่เลือก ({{ selectedFiles.length }}/{{ maxFiles }})
-                </h6>
-                <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearAllFiles()">
-                  <i class="bi bi-trash me-1"></i>
-                  ล้างทั้งหมด
-                </button>
-              </div>
-
-              <div class="selected-files-list">
-                <div *ngFor="let file of selectedFiles; let i = index" class="selected-file-item">
-                  <div class="file-info">
-                    <i [class]="getFileDisplayInfo(file).icon" class="file-icon me-2"></i>
-                    <div class="file-details">
-                      <div class="file-name">{{ getFileDisplayInfo(file).name }}</div>
-                      <div class="file-meta">
-                        <span class="file-size">{{ getFileDisplayInfo(file).size }}</span>
-                        <span class="file-type">{{ getFileDisplayInfo(file).type }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeSelectedFile(i)"
-                    title="ลบไฟล์นี้">
-                    <i class="bi bi-x"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Form Actions -->
-            <div class="supporter-form-actions">
-              <button type="submit" class="btn btn-primary"
-                [disabled]="supporterForm.invalid || supporterFormState.isSaving">
-                <span *ngIf="supporterFormState.isSaving" class="spinner-border spinner-border-sm me-2"></span>
-                <i *ngIf="!supporterFormState.isSaving" class="bi bi-check-lg me-2"></i>
-                {{ supporterFormState.isSaving ? 'กำลังบันทึก...' : 'บันทึก' }}
-              </button>
-
-              <button type="button" class="btn btn-outline-secondary ms-2" (click)="toggleSupporterForm()"
-                [disabled]="supporterFormState.isSaving">
-                <i class="bi bi-x-lg me-2"></i>
-                ยกเลิก
-              </button>
-
-              <button type="button" class="btn btn-outline-warning ms-2" (click)="resetSupporterForm()"
-                [disabled]="supporterFormState.isSaving">
-                <i class="bi bi-arrow-clockwise me-2"></i>
-                รีเซ็ต
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Support Details -->
-        <div class="support-details">
-
-          <!-- Row 1: Time Information -->
-          <div class="support-row">
-            <div class="support-item">
-              <div class="support-label">Close Estimate:</div>
-              <div class="support-value">{{ ticketData.ticket.close_estimate || '-' }}</div>
-            </div>
-
-            <div class="support-divider"></div>
-
-            <div class="support-item">
-              <div class="support-label">Estimate time:</div>
-              <div class="support-value">{{ ticketData.ticket.estimate_time || '-' }}</div>
-            </div>
-
-            <div class="support-divider"></div>
-
-            <div class="support-item">
-              <div class="support-label">Due date:</div>
-              <div class="support-value">{{ ticketData.ticket.due_date || '-' }}</div>
-            </div>
-
-            <div class="support-divider"></div>
-
-            <div class="support-item">
-              <div class="support-label">Lead Time:</div>
-              <div class="support-value">{{ ticketData.ticket.lead_time || '-' }}</div>
-            </div>
-          </div>
-
-          <!-- Row 2: Team Information -->
-          <div class="support-row">
-            <div class="support-item">
-              <div class="support-label">Assignee / Support Team:</div>
-              <div class="support-value">{{ ticketData.ticket.update_by || '-' }}</div>
-            </div>
-
-            <div class="support-divider"></div>
-
-            <div class="support-item">
-              <div class="support-label">Related Tickets:</div>
-              <div class="support-value">{{ ticketData.ticket.related_ticket_id || '-' }}</div>
-            </div>
-          </div>
-
-          <!-- Row 3: Additional Information -->
-          <div class="support-row">
-            <div class="support-item">
-              <div class="support-label">Change Request:</div>
-              <div class="support-value">{{ ticketData.ticket.change_request || '-' }}</div>
-            </div>
-
-            <div class="support-item">
-              <div class="support-label">Fix Description:</div>
-              <div class="support-value">{{ ticketData.ticket.fix_issue_description || '-' }}</div>
-            </div>
-
-            <div class="support-item">
-              <div class="support-label">
-                <i class="bi bi-tools me-1"></i>
-                Fix Attachments:
-                <small class="text-muted">(ไฟล์ที่ Supporter แนบมาตอนแก้ไข)</small>
-              </div>
-              <div class="support-value">
-
-                <!-- Fix Attachments -->
-                <div *ngIf="ticketData.fix_attachment.length > 0; else noFixAttachments">
-                  <div *ngFor="let attachment of ticketData.fix_attachment" class="fix-attachment-item"
-                    (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-                    <i [class]="getFileIcon(attachment.path, attachment.attachment_id)"
-                      [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
-                    <span>{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</span>
-                    <small class="text-muted ms-2">
-                      (จาก Supporter: {{ ticketData.ticket.update_by || 'Unknown' }})
-                    </small>
-                  </div>
-                </div>
-
-                <!-- No Fix Attachments -->
-                <ng-template #noFixAttachments>
-                  <span class="text-muted">
-                    <i class="bi bi-info-circle me-1"></i>
-                    ยังไม่มีไฟล์แนบจาก Supporter
-                  </span>
-                </ng-template>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ===== HISTORY SIDEBAR ===== ✅ -->
@@ -817,23 +398,6 @@
               <i class="bi bi-arrow-clockwise me-1"></i>
               Refresh
             </button>
-
-            <!-- ✅ Supporter Actions - ต้องมี permission -->
-            <div *ngIf="canShowSupporterForm()">
-              <button class="btn btn-sm btn-outline-success w-100 mb-1" (click)="toggleSupporterForm()"
-                [disabled]="supporterFormState.isSaving">
-                <i class="bi bi-tools me-1"></i>
-                Support Tools
-              </button>
-            </div>
-
-            <!-- ✅ NEW: Assignee Quick Action -->
-            <div *ngIf="canAssignTicket()">
-              <button class="btn btn-sm btn-outline-info w-100 mb-1" title="มอบหมายงาน" [disabled]="isAssigning">
-                <i class="bi bi-person-plus me-1"></i>
-                Assign Ticket
-              </button>
-            </div>
 
             <!-- ✅ Evaluation Button - permission 14 -->
             <div *ngIf="hasSpecificPermission(14) && canEvaluate">
