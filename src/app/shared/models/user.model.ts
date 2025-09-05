@@ -16,9 +16,83 @@ export interface User {
   update_date?: string;
   update_by?: number;
   isenabled?: boolean;
+
+  companyAddress?: string;
+  project?: string;
   // ✅ เพิ่ม role และ permission fields
   roles?: UserRole[];
   permissions?: permissionEnum[];
+}
+
+// ===== NEW: Create User DTO ===== ✅
+export interface CreateUserDto {
+  username: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  phone?: string;
+  start_date?: string;
+  end_date?: string;
+  create_by?: number;
+  update_by?: number;
+  isenabled?: boolean;
+  // สำหรับรหัสผ่าน (ถ้า backend ต้องการ)
+  password?: string;
+  // สำหรับ role assignment
+  roles?: UserRole[];
+}
+
+// ===== NEW: Create User Response ===== ✅
+export interface CreateUserResponse {
+  code: number;
+  status: boolean;
+  message: string;
+  data?: {
+    id: number;
+    username: string;
+    firstname?: string;
+    lastname?: string;
+    email?: string;
+    phone?: string;
+    start_date?: string;
+    end_date?: string;
+    create_date?: string;
+    create_by?: number;
+    update_date?: string;
+    update_by?: number;
+    isenabled?: boolean;
+  };
+}
+
+// ===== NEW: User Account Response ===== ✅
+export interface UserAccountResponse {
+  code: number;
+  status: boolean;
+  message: string;
+  data?: User[];
+}
+
+// ===== NEW: User Account Item ===== ✅
+export interface UserAccountItem {
+  id: number;
+  username: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  phone?: string;
+  start_date?: string;
+  end_date?: string;
+  create_date?: string;
+  create_by?: number;
+  update_date?: string;
+  update_by?: number;
+  isenabled?: boolean;
+  last_login?: string;
+  full_name?: string; // computed field
+  avatar?: string; // computed field
+  avatarColor?: string; // computed field
+  company?: string; // ถ้ามีข้อมูล company
+  company_address?: string;
 }
 
 // ===== Login Request Interface =====
@@ -155,6 +229,11 @@ export interface AssignTicketResponse {
   assigned_to: number;
 }
 
+export interface AssignTicketPayload {
+  ticketNo: string,
+  assignTo: number
+}
+
 // ✅ NEW: Interfaces สำหรับ Role 9 Users API =====
 export interface Role9User {
   id: number;
@@ -208,6 +287,114 @@ export function createLoginFormData(): LoginFormData {
     password: '',
     rememberMe: false
   };
+}
+
+// ===== NEW: Create User Utility Functions ===== ✅
+
+/**
+ * สร้าง CreateUserDto ที่ว่างเปล่า
+ */
+export function createEmptyCreateUserDto(): CreateUserDto {
+  return {
+    username: '',
+    firstname: '',
+    lastname: '',
+    email: '',
+    phone: '',
+    start_date: '',
+    end_date: '',
+    isenabled: true,
+    password: '',
+    roles: []
+  };
+}
+
+/**
+ * สร้าง UserAccountItem จาก User data
+ */
+export function createUserAccountItem(user: User): UserAccountItem {
+  return {
+    ...user,
+    full_name: getUserFullName(user),
+    avatar: getUserInitials(user),
+    avatarColor: generateAvatarColor(user.id),
+    last_login: user.update_date || user.create_date || new Date().toISOString()
+  };
+}
+
+/**
+ * สร้างสี avatar แบบสุ่มตาม user ID
+ */
+export function generateAvatarColor(userId: number): string {
+  const colors = [
+    '#5873F8', '#28A745', '#FFC107', '#1FBCD5', 
+    '#DC3545', '#6F42C1', '#FD7E14', '#20C997'
+  ];
+  return colors[userId % colors.length];
+}
+
+/**
+ * แปลง UserAccountItem เป็น CreateUserDto สำหรับการแก้ไข
+ */
+export function userAccountItemToCreateUserDto(item: UserAccountItem): CreateUserDto {
+  return {
+    username: item.username,
+    firstname: item.firstname,
+    lastname: item.lastname,
+    email: item.email,
+    phone: item.phone,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    isenabled: item.isenabled,
+    update_by: item.update_by
+  };
+}
+
+/**
+ * ตรวจสอบว่าข้อมูล CreateUserDto ถูกต้องหรือไม่
+ */
+export function validateCreateUserDto(dto: CreateUserDto): {
+  isValid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (!dto.username || dto.username.trim().length === 0) {
+    errors.push('Username is required');
+  }
+
+  if (dto.username && dto.username.length < 3) {
+    errors.push('Username must be at least 3 characters');
+  }
+
+  if (dto.email && !isValidEmail(dto.email)) {
+    errors.push('Invalid email format');
+  }
+
+  if (dto.phone && !isValidPhone(dto.phone)) {
+    errors.push('Invalid phone number format');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * ตรวจสอบรูปแบบอีเมล
+ */
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * ตรวจสอบรูปแบบเบอร์โทรศัพท์
+ */
+function isValidPhone(phone: string): boolean {
+  const phoneRegex = /^[0-9]{9,10}$/;
+  return phoneRegex.test(phone.replace(/[-\s]/g, ''));
 }
 
 export function isLoginSuccessResponse(response: LoginResponse): boolean {
@@ -302,15 +489,15 @@ export function userHasAnyPermission(user: User | UserWithPermissions | null, pe
 /**
  * ✅ ดึงชื่อเต็มของ user
  */
-export function getUserFullName(user: User | UserListItem | Role9User | null): string {
+export function getUserFullName(user: User | UserListItem | Role9User | UserAccountItem | null): string {
   if (!user) return '';
 
-  // Check for Role9User or UserListItem with full_name
+  // Check for UserAccountItem with full_name
   if ('full_name' in user && user.full_name) {
     return user.full_name;
   }
 
-  // Check for name field (Role9User)
+  // Check for Role9User with name field
   if ('name' in user && user.name) {
     return user.name;
   }
@@ -329,7 +516,7 @@ export function getUserFullName(user: User | UserListItem | Role9User | null): s
 /**
  * ✅ ดึงชื่อย่อของ user
  */
-export function getUserInitials(user: User | null): string {
+export function getUserInitials(user: User | UserAccountItem | null): string {
   if (!user) return 'U';
 
   const firstName = user.firstname || '';
@@ -394,6 +581,18 @@ export function isValidAuthState(obj: any): obj is AuthState {
     typeof obj.isAuthenticated === 'boolean' &&
     Array.isArray(obj.permissions) &&
     Array.isArray(obj.roles);
+}
+
+export function isCreateUserDto(obj: any): obj is CreateUserDto {
+  return obj &&
+    typeof obj.username === 'string';
+}
+
+export function isUserAccountItem(obj: any): obj is UserAccountItem {
+  return obj &&
+    typeof obj.id === 'number' &&
+    typeof obj.username === 'string' &&
+    typeof obj.isenabled === 'boolean';
 }
 
 // ===== Constants =====

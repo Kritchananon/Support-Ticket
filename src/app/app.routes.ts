@@ -7,6 +7,17 @@ import { TicketCreateComponent } from './pages/tickets/ticket-create/ticket-crea
 import { TicketListComponent } from './pages/tickets/ticket-list/ticket-list.component';
 import { TicketDetailComponent } from './pages/tickets/ticket-detail/ticket-detail.component';
 
+// ✅ Import Report Components
+import { WeeklyReportComponent } from './pages/reports/weekly-report/weekly-report.component';
+import { MonthlyReportComponent } from './pages/reports/monthly-report/monthly-report.component';
+import { ExportTicketComponent } from './pages/reports/export-ticket/export-ticket.component';
+
+// ✅ Import Settings Components
+import { GeneralComponent } from './pages/settings/general/general.component';
+import { UserAccountComponent } from './pages/settings/user-account/user-account.component';
+import { ProjectComponent } from './pages/settings/project/project.component';
+import { TicketCategoriesComponent } from './pages/settings/ticket-categories/ticket-categories.component';
+
 // ✅ Import Permission Guards
 import { 
   authGuard, 
@@ -121,6 +132,54 @@ export const routes: Routes = [
           }
         ]
       },
+
+      // ===== Report Routes ===== ✅
+      {
+        path: 'reports',
+        children: [
+          {
+            path: '',
+            redirectTo: 'weekly',
+            pathMatch: 'full'
+          },
+          
+          // ✅ Weekly Report (Support/Admin only)
+          {
+            path: 'weekly',
+            component: WeeklyReportComponent,
+            canActivate: [authGuard],
+            data: {
+              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              requireAllPermissions: false
+            },
+            title: 'Weekly Report - Support Ticket System'
+          },
+          
+          // ✅ Monthly Report (Support/Admin only)
+          {
+            path: 'monthly',
+            component: MonthlyReportComponent,
+            canActivate: [authGuard],
+            data: {
+              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              requireAllPermissions: false
+            },
+            title: 'Monthly Report - Support Ticket System'
+          },
+          
+          // ✅ Export Ticket (Support/Admin only)
+          {
+            path: 'export',
+            component: ExportTicketComponent,
+            canActivate: [authGuard],
+            data: {
+              permissions: [permissionEnum.VIEW_ALL_TICKETS],
+              requireAllPermissions: true
+            },
+            title: 'Export Tickets - Support Ticket System'
+          }
+        ]
+      },
       
       // ===== Settings Routes ===== ✅
       {
@@ -135,7 +194,7 @@ export const routes: Routes = [
           // ✅ General Settings (All authenticated users)
           {
             path: 'general',
-            component: DashboardComponent, // Use existing component for now
+            component: GeneralComponent,
             title: 'General Settings - Support Ticket System'
           },
           
@@ -143,12 +202,63 @@ export const routes: Routes = [
           {
             path: 'user-account',
             canActivate: [userManagementGuard],
-            component: DashboardComponent, // Use existing component for now
+            component: UserAccountComponent,
             data: {
               permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
               requireAllPermissions: false
             },
             title: 'User Management - Support Ticket System'
+          },
+          
+          // ✅ NEW: Create New User (Admin only)
+          {
+            path: 'user-create',
+            canActivate: [createPermissionGuard([permissionEnum.ADD_USER])],
+            loadComponent: () => import('./pages/settings/user-create/user-create.component')
+              .then(m => m.UserCreateComponent),
+            data: {
+              permissions: [permissionEnum.ADD_USER],
+              requireAllPermissions: true
+            },
+            title: 'Create User - Support Ticket System'
+          },
+          
+          // ✅ NEW: Edit User (Admin only)
+          {
+            path: 'user-edit/:id',
+            canActivate: [createPermissionGuard([permissionEnum.ADD_USER])],
+            loadComponent: () => import('./pages/settings/user-create/user-create.component')
+              .then(m => m.UserCreateComponent),
+            data: {
+              permissions: [permissionEnum.ADD_USER],
+              requireAllPermissions: true,
+              mode: 'edit' // ส่งไปให้ component รู้ว่าเป็นโหมดแก้ไข
+            },
+            title: 'Edit User - Support Ticket System'
+          },
+          
+          // ✅ Project Settings (Admin only)
+          {
+            path: 'project',
+            canActivate: [adminGuard],
+            component: ProjectComponent,
+            data: {
+              permissions: [permissionEnum.ADD_USER], // Admin permission required
+              requireAllPermissions: true
+            },
+            title: 'Project Settings - Support Ticket System'
+          },
+          
+          // ✅ Ticket Categories (Admin only)
+          {
+            path: 'ticket-categories',
+            canActivate: [adminGuard],
+            component: TicketCategoriesComponent,
+            data: {
+              permissions: [permissionEnum.ADD_USER], // Admin permission required
+              requireAllPermissions: true
+            },
+            title: 'Ticket Categories - Support Ticket System'
           }
         ]
       },
@@ -241,6 +351,18 @@ export const ROUTE_PERMISSIONS = {
     EDIT: [permissionEnum.EDIT_TICKET, permissionEnum.CHANGE_STATUS],
     DELETE: [permissionEnum.DELETE_TICKET]
   },
+  REPORTS: {
+    VIEW: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+    EXPORT: [permissionEnum.VIEW_ALL_TICKETS]
+  },
+  SETTINGS: {
+    GENERAL: [], // All authenticated users
+    USER_MANAGEMENT: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
+    USER_CREATE: [permissionEnum.ADD_USER], // ✅ เพิ่มใหม่
+    USER_EDIT: [permissionEnum.ADD_USER],   // ✅ เพิ่มใหม่
+    PROJECT: [permissionEnum.ADD_USER], // Admin only
+    CATEGORIES: [permissionEnum.ADD_USER] // Admin only
+  },
   ADMIN: {
     USERS: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
     SETTINGS: [permissionEnum.ADD_USER] // Admin role required
@@ -278,4 +400,19 @@ export function isRouteAccessible(path: string, userPermissions: permissionEnum[
   return requiredPermissions.some(permission => 
     userPermissions.includes(permission)
   );
+}
+
+// ===== NEW: User Management Route Helpers ===== ✅
+export const USER_MANAGEMENT_ROUTES = {
+  LIST: '/settings/user-account',
+  CREATE: '/settings/user-create',
+  EDIT: '/settings/user-edit/:id'
+} as const;
+
+export function getUserEditRoute(userId: number): string {
+  return `/settings/user-edit/${userId}`;
+}
+
+export function isUserManagementRoute(path: string): boolean {
+  return path.includes('/settings/user-');
 }

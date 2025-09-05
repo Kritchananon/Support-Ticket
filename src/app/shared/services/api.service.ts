@@ -13,8 +13,17 @@ import {
   AssignTicketResponse,
   Role9UsersResponse,
   UserListItem,
-  UserListResponse
+  AssignTicketPayload,
+  // ✅ NEW: เพิ่ม User Management imports
+  CreateUserDto,
+  CreateUserResponse,
+  UserAccountResponse,
+  UserAccountItem,
+  User,
+  createUserAccountItem
 } from '../models/user.model';
+
+import { UserRole, ROLES } from '../models/permission.model';
 
 // ✅ HTTP Interceptor Class
 @Injectable()
@@ -481,6 +490,15 @@ export class ApiService {
   private ticketCacheKey = 'pwa_tickets_cache';
   private syncQueueKey = 'pwa_tickets_sync_queue';
 
+  // ✅ NEW: User Account Cache Management
+  private userAccountCache: {
+    data: UserAccountItem[];
+    timestamp: Date;
+    ttl: number; // milliseconds
+  } | null = null;
+
+  private readonly USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   constructor(private http: HttpClient) {
     // ✅ NEW: โหลด sync queue ที่ค้างอยู่
     this.loadSyncQueue();
@@ -489,6 +507,551 @@ export class ApiService {
     if (navigator.onLine) {
       setTimeout(() => this.processSyncQueue(), 1000);
     }
+  }
+
+  // ===== NEW: User Management APIs ===== ✅
+
+  /**
+   * ✅ NEW: สร้าง user ใหม่
+   * @param userData ข้อมูล user ที่ต้องการสร้าง
+   * @returns Observable<CreateUserResponse>
+   */
+  createUser(userData: CreateUserDto): Observable<CreateUserResponse> {
+    console.log('Calling createUser API with:', userData);
+
+    return this.http.post<CreateUserResponse>(`${this.apiUrl}/users`, userData, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('createUser API response:', response);
+        if (response.status && response.data) {
+          console.log('✅ User created successfully:', response.data);
+        }
+      }),
+      catchError(error => {
+        console.error('❌ createUser API error:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมูล User Account ทั้งหมด (สำหรับหน้า User Account Management)
+   * @returns Observable<UserAccountResponse>
+   */
+  getUserAccount(): Observable<UserAccountResponse> {
+    console.log('Calling getUserAccount API');
+
+    return this.http.get<any[]>(`${this.apiUrl}/users/account`, {  // เปลี่ยนเป็น any[]
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map(data => {
+        // แปลงข้อมูลให้ตรงกับ UserAccountResponse format
+        return {
+          code: 1,
+          status: true,
+          message: 'Success',
+          data: data || []
+        } as UserAccountResponse;
+      }),
+      tap(response => {
+        console.log('getUserAccount API response:', response);
+        if (response.status && response.data) {
+          console.log('✅ User account data loaded:', response.data.length, 'users');
+        }
+      }),
+      catchError(error => {
+        console.error('❌ getUserAccount API error:', error);
+        const fallbackResponse: UserAccountResponse = {
+          code: 0,
+          status: false,
+          message: 'Failed to load user account data',
+          data: []
+        };
+        return of(fallbackResponse);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมูล User Account พร้อมแปลงเป็น UserAccountItem
+   * @returns Observable<UserAccountItem[]>
+   */
+  getUserAccountItems(): Observable<UserAccountItem[]> {
+    return this.getUserAccount().pipe(
+      map(response => {
+        if (response.status && response.data) {
+          return response.data.map(user => this.convertUserToAccountItem(user));
+        }
+        return [];
+      }),
+      catchError(error => {
+        console.warn('❌ Error getting user account items:', error);
+        // ✅ ส่งกลับ mock data เมื่อมี error
+        return of(this.getMockUserAccountItems());
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: แปลง User เป็น UserAccountItem
+   * @param user ข้อมูล User จาก API
+   * @returns UserAccountItem
+   */
+  private convertUserToAccountItem(user: any): UserAccountItem {
+    const fullName = user.name || '';
+    const nameParts = fullName.split(' ');
+    const firstname = nameParts[0] || '';
+    const lastname = nameParts.slice(1).join(' ') || '';
+
+    return {
+      id: user.id || 0,
+      username: user.name || user.username || `user_${user.id}`,
+      firstname: firstname,
+      lastname: lastname,
+      email: user.user_email || '',
+      phone: user.user_phone || '',
+      company: user.company || '',
+      company_address: user.company_address || '',  // เพิ่มใหม่
+      start_date: user.start_date || '',
+      create_date: user.create_date || new Date().toISOString(),
+      create_by: user.create_by || 0,
+      update_date: user.update_date || new Date().toISOString(),
+      update_by: user.update_by || 0,
+      isenabled: user.isenabled !== false,
+      last_login: user.last_login || user.update_date || new Date().toISOString(),
+      full_name: fullName,
+      avatar: this.generateAvatar(fullName || `User ${user.id}`),
+      avatarColor: this.generateAvatarColor(user.id || 1)
+    };
+  }
+
+  private generateAvatar(name: string): string {
+    return name.charAt(0).toUpperCase();
+  }
+
+  private generateAvatarColor(id: number): string {
+    const colors = ['#5873F8', '#28A745', '#FFC107', '#1FBCD5', '#DC3545'];
+    return colors[id % colors.length];
+  }
+
+  /**
+   * ✅ NEW: สร้าง mock UserAccountItem สำหรับ fallback
+   * @returns UserAccountItem[]
+   */
+  private getMockUserAccountItems(): UserAccountItem[] {
+    return [
+      {
+        id: 1,
+        username: 'admin',
+        firstname: 'System',
+        lastname: 'Administrator',
+        email: 'admin@company.com',
+        phone: '02-123-4567',
+        start_date: '2024-01-01',
+        create_date: '2024-01-01T00:00:00Z',
+        create_by: 1,
+        update_date: '2025-08-27T14:30:00Z',
+        update_by: 1,
+        isenabled: true,
+        last_login: '2025-08-27T14:30:00Z',
+        full_name: 'System Administrator',
+        avatar: 'SA',
+        avatarColor: '#5873F8',
+        company: 'System'
+      },
+      {
+        id: 2,
+        username: 'support1',
+        firstname: 'Support',
+        lastname: 'User 1',
+        email: 'support1@company.com',
+        phone: '02-234-5678',
+        start_date: '2024-03-01',
+        create_date: '2024-03-01T00:00:00Z',
+        create_by: 1,
+        update_date: '2025-08-27T09:15:00Z',
+        update_by: 1,
+        isenabled: true,
+        last_login: '2025-08-27T09:15:00Z',
+        full_name: 'Support User 1',
+        avatar: 'SU',
+        avatarColor: '#28A745',
+        company: 'Support Team'
+      }
+    ];
+  }
+
+  /**
+   * ✅ NEW: อัปเดตข้อมูล user
+   * @param userId ID ของ user ที่ต้องการอัปเดต
+   * @param userData ข้อมูลที่ต้องการอัปเดต
+   * @returns Observable<CreateUserResponse>
+   */
+  updateUser(userId: number, userData: Partial<CreateUserDto>): Observable<CreateUserResponse> {
+    console.log('Calling updateUser API with:', { userId, userData });
+
+    return this.http.put<CreateUserResponse>(`${this.apiUrl}/user/${userId}`, userData, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('updateUser API response:', response);
+        if (response.status && response.data) {
+          console.log('✅ User updated successfully:', response.data);
+        }
+      }),
+      catchError(error => {
+        console.error('❌ updateUser API error:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ลบ user (soft delete)
+   * @param userId ID ของ user ที่ต้องการลบ
+   * @returns Observable<ApiResponse<any>>
+   */
+  deleteUser(userId: number): Observable<ApiResponse<any>> {
+    console.log('Calling deleteUser API with userId:', userId);
+
+    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/user/${userId}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('deleteUser API response:', response);
+        if (response.message) {
+          console.log('✅ User deleted successfully');
+        }
+      }),
+      catchError(error => {
+        console.error('❌ deleteUser API error:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมูล user เดี่ยวตาม ID
+   * @param userId ID ของ user ที่ต้องการดึงข้อมูล
+   * @returns Observable<User | null>
+   */
+  getUserById(userId: number): Observable<User | null> {
+    console.log('Calling getUserById API with userId:', userId);
+
+    return this.http.get<{ code: number; data: User; message: string }>(`${this.apiUrl}/user/${userId}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map(response => {
+        if (response.code === 1 && response.data) {
+          return response.data;
+        }
+        return null;
+      }),
+      tap(user => {
+        if (user) {
+          console.log('✅ User data loaded:', user);
+        } else {
+          console.log('⚠️ User not found');
+        }
+      }),
+      catchError(error => {
+        console.error('❌ getUserById API error:', error);
+        return of(null);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า username ซ้ำหรือไม่
+   * @param username ชื่อผู้ใช้ที่ต้องการตรวจสอบ
+   * @param excludeUserId ID ของ user ที่จะไม่นับรวม (สำหรับการแก้ไข)
+   * @returns Observable<boolean> true = ซ้ำ, false = ไม่ซ้ำ
+   */
+  checkUsernameExists(username: string, excludeUserId?: number): Observable<boolean> {
+    console.log('Checking username exists:', username);
+
+    const params = new HttpParams()
+      .set('username', username)
+      .set('exclude_id', excludeUserId?.toString() || '');
+
+    return this.http.get<{ exists: boolean }>(`${this.apiUrl}/user/check-username`, {
+      headers: this.getAuthHeaders(),
+      params: params
+    }).pipe(
+      map(response => response.exists),
+      tap(exists => {
+        console.log('Username check result:', { username, exists });
+      }),
+      catchError(error => {
+        console.warn('❌ Username check error:', error);
+        // ในกรณีที่ API ไม่มี ให้ถือว่าไม่ซ้ำ
+        return of(false);
+      })
+    );
+  }
+
+  /**
+   * ✅ UPDATED: ดึงรายการ roles ทั้งหมดสำหรับ dropdown จาก API master_role/all_roles
+   * @returns Observable<any[]> - รายการ roles ที่มี id และ role_name
+   */
+  getUserRoles(): Observable<any[]> {
+    console.log('Calling getUserRoles API from master_role/all_roles');
+
+    return this.http.get<any>(`${this.apiUrl}/master_role/all_roles`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map((response: any) => {
+        console.log('getUserRoles API raw response:', response);
+        
+        // ตรวจสอบว่า response เป็น array หรือไม่
+        if (Array.isArray(response)) {
+          console.log('✅ Found roles array directly:', response.length, 'roles');
+          return response;
+        } 
+        // ตรวจสอบว่ามี wrapper object หรือไม่
+        else if (response && response.data && Array.isArray(response.data)) {
+          console.log('✅ Found roles in data wrapper:', response.data.length, 'roles');
+          return response.data;
+        }
+        // ตรวจสอบ response แบบ backend standard
+        else if (response && response.code === 1 && response.data && Array.isArray(response.data)) {
+          console.log('✅ Found roles in backend standard format:', response.data.length, 'roles');
+          return response.data;
+        }
+        else {
+          console.warn('⚠️ Unexpected roles response format:', response);
+          return [];
+        }
+      }),
+      tap((roles: any[]) => {
+        if (roles && roles.length > 0) {
+          console.log('✅ User roles loaded successfully:', roles.length, 'roles');
+          console.log('First role example:', roles[0]);
+        } else {
+          console.warn('⚠️ No roles found in response');
+        }
+      }),
+      catchError((error: any) => {
+        console.error('❌ getUserRoles API error:', error);
+        console.log('📋 Using fallback roles due to API error');
+        
+        // ✅ ส่งกลับ fallback roles ที่มี structure เหมือน API จริง
+        const fallbackRoles = [
+          { id: 1, role_name: "แจ้งปัญหา" }
+          
+        ];
+        
+        return of(fallbackRoles);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า user มี role เฉพาะหรือไม่
+   * @param roleId - ID ของ role ที่ต้องการตรวจสอบ
+   * @returns boolean
+   */
+  hasUserRole(roleId: number): boolean {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || !currentUser.roles) {
+      return false;
+    }
+
+    // ตรวจสอบว่า roles เป็น array ของ objects หรือ array ของ IDs
+    if (Array.isArray(currentUser.roles)) {
+      return currentUser.roles.some((role: any) => {
+        // ถ้า role เป็น object ที่มี id
+        if (typeof role === 'object' && role.id) {
+          return role.id === roleId;
+        }
+        // ถ้า role เป็น number โดยตรง
+        if (typeof role === 'number') {
+          return role === roleId;
+        }
+        return false;
+      });
+    }
+
+    return false;
+  }
+
+  /**
+   * ✅ NEW: ดึงชื่อ role จาก role ID
+   * @param roleId - ID ของ role
+   * @returns string - ชื่อของ role
+   */
+  getRoleName(roleId: number): string {
+    const roleNames: { [key: number]: string } = {
+      1: "แจ้งปัญหา",
+      2: "ติดตามปัญหา", 
+      3: "แก้ไข ticket",
+      4: "ลบ ticket",
+      5: "เปลี่ยนสถานะของ ticket",
+      6: "ตอบกลับ ticket",
+      7: "ปิด ticket",
+      8: "แก้ไขปัญหา",
+      9: "ผู้รับเรื่อง",
+      10: "จัดการ project",
+      11: "กู้คืน ticket",
+      12: "ดูตั๋วทั้งหมดที่ตัวเองสร้าง",
+      13: "ดูตั๋วทั้งหมด",
+      14: "ให้คะแนนความพึงพอใจ",
+      15: "เพิ่มผู้ใช้",
+      16: "ลบผู้ใช้",
+      17: "จัดการ category",
+      18: "จัดการ status",
+      19: "มอบหมายงาน"
+    };
+
+    return roleNames[roleId] || `Role ${roleId}`;
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า user สามารถจัดการ users ได้หรือไม่
+   * @returns boolean
+   */
+  canManageUsers(): boolean {
+    return this.hasUserRole(15) || this.hasUserRole(16) || this.authService.isAdmin();
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่า user สามารถมอบหมายงานได้หรือไม่
+   * @returns boolean
+   */
+  canAssignTasks(): boolean {
+    return this.hasUserRole(19) || this.hasUserRole(9) || this.authService.isAdmin();
+  }
+
+  /**
+   * ✅ NEW: ดึงรายการ roles ของ user ปัจจุบัน
+   * @returns any[] - รายการ roles ของ user
+   */
+  getCurrentUserRoles(): any[] {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || !currentUser.roles) {
+      return [];
+    }
+
+    return Array.isArray(currentUser.roles) ? currentUser.roles : [];
+  }
+
+  /**
+   * ✅ NEW: ส่งอีเมลยืนยันหรือรีเซ็ตรหัสผ่าน (ถ้า backend รองรับ)
+   * @param email อีเมลที่ต้องการส่ง
+   * @param type ประเภท ('welcome' | 'password_reset')
+   * @returns Observable<boolean>
+   */
+  sendUserEmail(email: string, type: 'welcome' | 'password_reset' = 'welcome'): Observable<boolean> {
+    console.log('Sending user email:', { email, type });
+
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/user/send-email`, {
+      email: email,
+      type: type
+    }, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map(response => response.success),
+      tap(success => {
+        if (success) {
+          console.log('✅ Email sent successfully');
+        } else {
+          console.log('⚠️ Email sending failed');
+        }
+      }),
+      catchError(error => {
+        console.warn('❌ Error sending email:', error);
+        return of(false);
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงสถิติผู้ใช้งาน (จำนวน active users, new users, etc.)
+   * @returns Observable<UserStats>
+   */
+  getUserStats(): Observable<{
+    total_users: number;
+    active_users: number;
+    inactive_users: number;
+    new_users_this_month: number;
+  }> {
+    return this.http.get<{
+      code: number;
+      data: {
+        total_users: number;
+        active_users: number;
+        inactive_users: number;
+        new_users_this_month: number;
+      };
+      message: string;
+    }>(`${this.apiUrl}/user/stats`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map(response => {
+        if (response.code === 1 && response.data) {
+          return response.data;
+        }
+        // ✅ Fallback data
+        return {
+          total_users: 0,
+          active_users: 0,
+          inactive_users: 0,
+          new_users_this_month: 0
+        };
+      }),
+      tap(stats => {
+        console.log('✅ User stats loaded:', stats);
+      }),
+      catchError(error => {
+        console.warn('❌ Error loading user stats:', error);
+        return of({
+          total_users: 0,
+          active_users: 0,
+          inactive_users: 0,
+          new_users_this_month: 0
+        });
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมุล user account พร้อม cache
+   * @param forceRefresh บังคับรีเฟรชข้อมูล
+   * @returns Observable<UserAccountItem[]>
+   */
+  getUserAccountWithCache(forceRefresh: boolean = false): Observable<UserAccountItem[]> {
+    const now = new Date();
+
+    // ตรวจสอบ cache
+    if (!forceRefresh && this.userAccountCache) {
+      const cacheAge = now.getTime() - this.userAccountCache.timestamp.getTime();
+      if (cacheAge < this.USER_CACHE_TTL) {
+        console.log('📱 Using cached user account data');
+        return of(this.userAccountCache.data);
+      }
+    }
+
+    // โหลดข้อมูลใหม่
+    return this.getUserAccountItems().pipe(
+      tap(users => {
+        // บันทึกลง cache
+        this.userAccountCache = {
+          data: users,
+          timestamp: now,
+          ttl: this.USER_CACHE_TTL
+        };
+        console.log('✅ User account data cached:', users.length, 'users');
+      })
+    );
+  }
+
+  /**
+   * ✅ NEW: ล้าง user account cache
+   */
+  clearUserAccountCache(): void {
+    this.userAccountCache = null;
+    console.log('🗑️ User account cache cleared');
   }
 
   /**
@@ -1659,8 +2222,8 @@ export class ApiService {
     // ✅ เพิ่ม type parameter
     formData.append('type', 'reporter');
 
-    return this.http.post<UpdateAttachmentResponse>(
-      `${this.apiUrl}/updateAttachment`,
+    return this.http.put<UpdateAttachmentResponse>(
+      `${this.apiUrl}/update_attachment/${data.ticket_id}`,
       formData,
       { headers: this.getMultipartHeaders() }
     ).pipe(
@@ -1793,12 +2356,6 @@ export class ApiService {
   // ===== User APIs =====
   getUsers(): Observable<ApiResponse<UserData[]>> {
     return this.http.get<ApiResponse<UserData[]>>(`${this.apiUrl}/users`, {
-      headers: this.getAuthHeaders()
-    }).pipe(catchError(this.handleError));
-  }
-
-  getUserById(id: number): Observable<ApiResponse<UserData>> {
-    return this.http.get<ApiResponse<UserData>>(`${this.apiUrl}/users/${id}`, {
       headers: this.getAuthHeaders()
     }).pipe(catchError(this.handleError));
   }
@@ -2062,15 +2619,15 @@ export class ApiService {
  * @param assignedTo ID ของ user ที่จะรับ ticket
  * @returns Observable<AssignTicketResponse>
  */
-  assignTicket(ticketNo: string, assignedTo: number): Observable<AssignTicketResponse> {
-    console.log('Calling assignTicket API with:', { ticketNo, assignedTo });
+  assignTicket(payload: AssignTicketPayload): Observable<AssignTicketResponse> {
+    console.log('Calling assignTicket API with:', payload);
 
     const requestBody: AssignTicketRequest = {
-      assignedTo: assignedTo
+      assignedTo: payload.assignTo
     };
 
     return this.http.post<AssignTicketResponse>(
-      `${this.apiUrl}/tickets/assign/${ticketNo}`, // ✅ URL ตรงกับ backend
+      `${this.apiUrl}/tickets/assign/${payload.ticketNo}`, // ✅ URL ตรงกับ backend
       requestBody,
       { headers: this.getAuthHeaders() }
     ).pipe(
