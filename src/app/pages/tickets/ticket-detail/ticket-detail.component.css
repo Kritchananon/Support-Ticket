@@ -123,16 +123,47 @@
   color: #737373;
 }
 
+/* ✅ แก้ไข: ลบ animation ออกจาก loading spinner */
+.loading-spinner .spinner-border-lg {
+  width: 3rem;
+  height: 3rem;
+  border: 4px solid #f3f4f6;
+  border-top: 4px solid #5873F8;
+  border-radius: 50%;
+  /* ✅ ลบ animation ออก - ไม่ให้หมุน */
+  /* animation: spin 1s linear infinite; */
+}
+
 .loading-spinner p {
   margin-top: 1rem;
   font-size: 14px;
+  font-weight: 500;
 }
 
-.spinner-border-lg {
+/* ✅ สร้าง static loading indicator ที่ไม่หมุน */
+.static-loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #737373;
+}
+
+.static-loading-circle {
   width: 3rem;
   height: 3rem;
-  border-color: #e9ecef;
-  border-top-color: #5873F8;
+  border: 4px solid #f3f4f6;
+  border-top: 4px solid #5873F8;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+  /* ไม่มี animation */
+}
+
+.static-loading-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #737373;
 }
 
 .error-container {

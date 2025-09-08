@@ -40,13 +40,29 @@
 
   <!-- Filter Section -->
   <div class="filter-section">
-    <!-- Search Bar -->
+    <!-- ✅ IMPROVED: Search Bar with Clear Button -->
     <div class="filter-item search-item">
       <label class="filter-label">Search</label>
-      <div class="search-input-wrapper">
+      <div class="search-input-wrapper" [class.has-value]="searchText && searchText.trim()">
         <i class="bi bi-search search-icon"></i>
-        <input type="text" class="search-input" placeholder="Search for ticket" [(ngModel)]="searchText"
-          (input)="onSearchChange()">
+        <input 
+          type="text" 
+          class="search-input" 
+          placeholder="Search for ticket"
+          [(ngModel)]="searchText"
+          (input)="onSearchInput($event)"
+          (keyup.enter)="applyFilters()"
+          [value]="searchText">
+        
+        <!-- Clear search button -->
+        <button 
+          type="button" 
+          class="clear-search-btn" 
+          *ngIf="searchText && searchText.trim()"
+          (click)="clearSearch()"
+          title="Clear search">
+          <i class="bi bi-x-circle-fill"></i>
+        </button>
       </div>
     </div>
 
@@ -94,21 +110,6 @@
       </select>
     </div>
 
-    <!-- <select id="action" 
-                        class="form-select"
-                        formControlName="action"
-                        [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
-                        [disabled]="isLoadingActions"
-                        *ngIf="!isLoadingActions">
-                  <option value="">เลือก Action...</option>
-                  <option *ngFor="let option of actionDropdownOptions" 
-                          [value]="option.statusId"
-                          [disabled]="option.disabled">
-                    {{ option.label }}
-                    <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>
-                  </option>
-                </select> -->
-
     <!-- Project Filter -->
     <div class="filter-item project-item">
       <label class="filter-label">Project</label>
@@ -120,6 +121,13 @@
         </option>
       </select>
     </div>
+  </div>
+
+  <!-- ✅ Debug button (แสดงเฉพาะ development mode) -->
+  <div class="debug-section mb-3" *ngIf="false">
+    <button class="btn btn-sm btn-secondary" (click)="debugSearchData()">
+      🐛 Debug Search
+    </button>
   </div>
 
   <!-- ✅ Filter Loading State -->
@@ -155,9 +163,9 @@
   </div>
 
   <!-- ✅ Loading State - แก้ไขให้ไม่หมุน -->
-  <div *ngIf="isLoading" class="loading-container">
+  <div class="loading-container" *ngIf="isLoading">
     <div class="static-loading-indicator">
-      <div class="static-loading-circle"></div>
+      <div class="loading-spinner"></div>
       <p class="static-loading-text">Loading tickets...</p>
     </div>
   </div>
@@ -168,7 +176,7 @@
       <i class="bi bi-inbox no-results-icon"></i>
       <h3>ไม่พบตั๋ว</h3>
       <p>คุณยังไม่มีตั๋วในระบบ</p>
-      <button class="btn btn-primary" (click)="createNewTicket()">
+      <button class="btn btn-primary" (click)="createNewTicket()" *ngIf="canCreateTickets">
         <i class="bi bi-plus me-2"></i>
         สร้างตั๋วใหม่
       </button>
@@ -274,7 +282,7 @@
   </div>
 
   <!-- Floating Action Button -->
-  <button class="fab-button" (click)="createNewTicket()" title="Create New Ticket">
+  <button class="fab-button" (click)="createNewTicket()" title="Create New Ticket" *ngIf="canCreateTickets">
     <i class="bi bi-plus"></i>
   </button>
 </div>

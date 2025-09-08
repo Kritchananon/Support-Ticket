@@ -15,9 +15,16 @@ export interface Category {
 export interface CategoryDDL {
   id: number;
   categoryName?: string; // API ใหม่
-  categories_name?: string;         // API เก่า - fallback
+  name?: string;         // API เก่า - fallback
+  language_id: number;
   status?: string;
   isenabled?: boolean;
+}
+
+export interface cateDDL {
+  id: number;
+  name: string;           // ต้องมี
+  language_id: number;    // ต้องมี
 }
 
 // ===== API Request/Response Interfaces =====
@@ -94,7 +101,7 @@ export const CATEGORY_STATUS_OPTIONS = [
 
 // ===== Helper Functions =====
 export function getCategoryDisplayName(category: CategoryDDL): string {
-  return `${category.categoryName}` || `${category.categories_name}`;
+  return `${category.categoryName}` || `${category.name}`;
 }
 
 export function isCategoryActive(category: CategoryDDL): boolean {

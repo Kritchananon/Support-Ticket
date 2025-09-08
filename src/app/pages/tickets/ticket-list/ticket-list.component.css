@@ -153,6 +153,26 @@
   color: #212121;
 }
 
+/* Clear search button */
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #6c757d;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: color 0.3s ease, background-color 0.3s ease;
+  z-index: 2;
+}
+
+.clear-search-btn:hover {
+  color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
 /* Filter Select - เพิ่ม dropdown arrow กลับมา */
 .filter-select {
   height: 40px;

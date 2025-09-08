@@ -71,6 +71,9 @@ export class TicketListComponent implements OnInit {
   selectedProject = '';
   selectedCategory = '';
 
+  // ✅ Search timeout for debouncing
+  private searchTimeout: any = null;
+
   // ✅ Priority Options
   priorityOptions = [
     { value: '', label: 'All Priority' },
@@ -150,7 +153,7 @@ export class TicketListComponent implements OnInit {
     this.canCreateTickets = this.authService.hasPermission(permissionEnum.CREATE_TICKET);
     this.canManageTickets = this.authService.canManageTickets();
 
-    console.log('🔐 Permission check results:', {
+    console.log('🔍 Permission check results:', {
       canViewAllTickets: this.canViewAllTickets,
       canViewOwnTickets: this.canViewOwnTickets,
       canCreateTickets: this.canCreateTickets,
@@ -409,9 +412,31 @@ export class TicketListComponent implements OnInit {
     }
   }
 
-  // ===== FILTER METHODS ===== ✅
+  // ===== SEARCH & FILTER METHODS ===== ✅ IMPROVED
 
   onSearchChange(): void {
+    // Clear previous timeout
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
+
+    // Set new timeout for debounced search
+    this.searchTimeout = setTimeout(() => {
+      console.log('🔍 Search triggered:', this.searchText);
+      this.applyFilters();
+    }, 300);
+  }
+
+  onSearchInput(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.searchText = target.value;
+    console.log('📝 Search input changed:', this.searchText);
+    this.onSearchChange();
+  }
+
+  clearSearch(): void {
+    this.searchText = '';
+    console.log('🧹 Search cleared');
     this.applyFilters();
   }
 
@@ -442,46 +467,117 @@ export class TicketListComponent implements OnInit {
   }
 
   applyFilters(): void {
+    console.log('🎯 Applying filters:', {
+      searchText: this.searchText,
+      selectedPriority: this.selectedPriority,
+      selectedStatus: this.selectedStatus,
+      selectedProject: this.selectedProject,
+      selectedCategory: this.selectedCategory,
+      totalTickets: this.tickets.length
+    });
+
     let filtered = [...this.tickets];
 
-    if (this.searchText.trim()) {
-      const searchLower = this.searchText.toLowerCase();
-      filtered = filtered.filter(ticket =>
-        ticket.ticket_no.toLowerCase().includes(searchLower) ||
-        ticket.issue_description.toLowerCase().includes(searchLower) ||
-        (ticket.project_name && ticket.project_name.toLowerCase().includes(searchLower)) ||
-        (ticket.user_name && ticket.user_name.toLowerCase().includes(searchLower)) ||
-        (ticket.categories_name && ticket.categories_name.toLowerCase().includes(searchLower))
+    // Search filter with better null checks
+    if (this.searchText && this.searchText.trim()) {
+      const searchLower = this.searchText.trim().toLowerCase();
+      console.log('🔍 Applying search filter:', searchLower);
+      
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(ticket => {
+        const matchTicketNo = ticket.ticket_no?.toLowerCase().includes(searchLower) || false;
+        const matchDescription = ticket.issue_description?.toLowerCase().includes(searchLower) || false;
+        const matchProject = ticket.project_name?.toLowerCase().includes(searchLower) || false;
+        const matchUser = ticket.user_name?.toLowerCase().includes(searchLower) || false;
+        const matchCategory = ticket.categories_name?.toLowerCase().includes(searchLower) || false;
+
+        const isMatch = matchTicketNo || matchDescription || matchProject || matchUser || matchCategory;
+        
+        // Log first few matches for debugging
+        if (isMatch && beforeCount === this.tickets.length) {
+          console.log('✅ Search match found:', {
+            ticketNo: ticket.ticket_no,
+            matchTicketNo,
+            matchDescription,
+            matchProject,
+            matchUser,
+            matchCategory
+          });
+        }
+
+        return isMatch;
+      });
+      console.log(`🔍 Search results: ${filtered.length} of ${beforeCount} tickets`);
+    }
+
+    // Priority filter
+    if (this.selectedPriority && this.selectedPriority.trim()) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(ticket => 
+        ticket.priority?.toLowerCase() === this.selectedPriority.toLowerCase()
       );
+      console.log(`🎯 Priority filter: ${filtered.length} of ${beforeCount} tickets`);
     }
 
-    if (this.selectedPriority) {
-      filtered = filtered.filter(ticket => ticket.priority === this.selectedPriority);
+    // Status filter
+    if (this.selectedStatus && this.selectedStatus.trim()) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(ticket => 
+        ticket.status_id?.toString() === this.selectedStatus
+      );
+      console.log(`📊 Status filter: ${filtered.length} of ${beforeCount} tickets`);
     }
 
-    if (this.selectedStatus) {
-      filtered = filtered.filter(ticket => ticket.status_id.toString() === this.selectedStatus);
+    // Project filter
+    if (this.selectedProject && this.selectedProject.trim()) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(ticket => 
+        ticket.project_id?.toString() === this.selectedProject
+      );
+      console.log(`📁 Project filter: ${filtered.length} of ${beforeCount} tickets`);
     }
 
-    if (this.selectedProject) {
-      filtered = filtered.filter(ticket => ticket.project_id.toString() === this.selectedProject);
-    }
-
-    if (this.selectedCategory) {
-      filtered = filtered.filter(ticket => ticket.categories_id.toString() === this.selectedCategory);
+    // Category filter
+    if (this.selectedCategory && this.selectedCategory.trim()) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(ticket => 
+        ticket.categories_id?.toString() === this.selectedCategory
+      );
+      console.log(`🏷️ Category filter: ${filtered.length} of ${beforeCount} tickets`);
     }
 
     this.filteredTickets = filtered;
-    console.log('Filtered tickets:', this.filteredTickets.length, 'of', this.tickets.length);
+    console.log('✅ Final filtered tickets:', this.filteredTickets.length);
   }
 
   clearFilters(): void {
+    console.log('🧹 Clearing all filters');
     this.searchText = '';
     this.selectedPriority = '';
     this.selectedStatus = '';
     this.selectedProject = '';
     this.selectedCategory = '';
     this.filteredTickets = [...this.tickets];
+    console.log('✅ All filters cleared, showing all tickets:', this.filteredTickets.length);
+  }
+
+  // ===== DEBUG METHODS ===== ✅
+
+  debugSearchData(): void {
+    console.log('🐛 Debug Search Data:');
+    console.log('Total tickets:', this.tickets.length);
+    console.log('Current search:', this.searchText);
+    console.log('Filtered tickets:', this.filteredTickets.length);
+    
+    if (this.tickets.length > 0) {
+      console.log('Sample ticket data:', {
+        ticket_no: this.tickets[0].ticket_no,
+        issue_description: this.tickets[0].issue_description,
+        project_name: this.tickets[0].project_name,
+        user_name: this.tickets[0].user_name,
+        categories_name: this.tickets[0].categories_name
+      });
+    }
   }
 
   // ===== STYLING METHODS ===== ✅
@@ -680,6 +776,13 @@ export class TicketListComponent implements OnInit {
   switchToMyTickets(): void {
     if (this.canViewOwnTickets) {
       this.router.navigate(['/tickets/my-tickets']);
+    }
+  }
+
+  ngOnDestroy(): void {
+    // Clear search timeout when component is destroyed
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
     }
   }
 }

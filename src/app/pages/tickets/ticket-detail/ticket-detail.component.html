@@ -35,12 +35,12 @@
   *ngIf="showSuccessModal" (click)="closeSuccessModal()"></div>
 
 <!-- ===== LOADING STATE ===== ✅ -->
-<div *ngIf="isLoading" class="loading-container">
-  <div class="loading-spinner">
-    <span class="spinner-border spinner-border-lg"></span>
-    <p>Loading ticket details...</p>
+<div class="loading-container" *ngIf="isLoading">
+    <div class="static-loading-indicator">
+      <div class="loading-spinner"></div>
+      <p class="static-loading-text">Loading ticket details...</p>
+    </div>
   </div>
-</div>
 
 <!-- ===== ERROR STATE ===== ✅ -->
 <div *ngIf="error && !isLoading" class="error-container">

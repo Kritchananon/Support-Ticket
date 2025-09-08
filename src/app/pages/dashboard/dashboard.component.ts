@@ -8,11 +8,11 @@ import { ApiService } from '../../shared/services/api.service';
 import { AuthService } from '../../shared/services/auth.service';
 import { DashboardService } from '../../shared/services/dashboard.service';
 import { Chart, ChartConfiguration, ChartType, registerables } from 'chart.js';
-import { 
-  DashboardStatsResponse, 
-  CategoryStatsDTO, 
-  createInitialDashboardData, 
-  DashboardData 
+import {
+  DashboardStatsResponse,
+  CategoryStatsDTO,
+  createInitialDashboardData,
+  DashboardData
 } from '../../shared/models/common.model';
 
 // Register Chart.js components
@@ -60,7 +60,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private pieChart: Chart | null = null;
 
   // Filter states
-  selectedMonth = 'February';
+  selectedMonth = 'June';
   selectedYear = '2025';
   selectedCategoryYear = '2025';
 
@@ -99,7 +99,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loadDashboardData(): void {
     console.log('Loading dashboard data...');
-    
+
     this.dashboardData.loading = true;
     this.dashboardData.error = null;
 
@@ -110,31 +110,31 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loadDashboardStats(): void {
     console.log('Loading dashboard stats from API...');
-    
+
     const sub = this.dashboardService.getDashboardStats().subscribe({
       next: (response) => {
         console.log('Dashboard stats response:', response);
-        
+
         if (response.status === 1 && response.code === '1') {
           this.dashboardData.stats = response.data;
           this.dashboardData.error = null;
           this.dashboardData.lastUpdated = new Date();
           console.log('Dashboard stats updated successfully:', this.dashboardData.stats);
-          
+
           // Update all charts after data is loaded
           this.updateAllChartsWithNewData();
         } else {
           console.warn('Invalid API response:', response);
           this.dashboardData.error = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง';
         }
-        
+
         this.dashboardData.loading = false;
       },
       error: (error) => {
         console.error('Error loading dashboard stats:', error);
         this.dashboardData.loading = false;
         this.dashboardData.error = 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์';
-        
+
         this.dashboardData.stats = {
           total: 0,
           new: { count: 0, tickets: [] },
@@ -148,97 +148,97 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadCategoryBreakdown(): void {
-  console.log('Loading category breakdown from API...');
+    console.log('Loading category breakdown from API...');
 
-  const currentYear = parseInt(this.selectedCategoryYear);
-  const currentMonth = this.getMonthNumber(this.selectedMonth);
-  const userId = this.currentUser?.id;
+    const currentYear = parseInt(this.selectedCategoryYear);
+    const currentMonth = this.getMonthNumber(this.selectedMonth);
+    const userId = this.currentUser?.id;
 
-  const sub = this.dashboardService.getCategoryBreakdown(currentYear, currentMonth, userId).subscribe({
-    next: (response) => {
-      console.log('Category breakdown loaded:', response);
+    const sub = this.dashboardService.getCategoryBreakdown(currentYear, currentMonth, userId).subscribe({
+      next: (response) => {
+        console.log('Category breakdown loaded:', response);
 
-      // ✅ response ต้องเป็น ApiResponse<CategoryStatsDTO[]>
-      const data = Array.isArray(response) ? response : response.data;
+        // ✅ response ต้องเป็น ApiResponse<CategoryStatsDTO[]>
+        const data = Array.isArray(response) ? response : response.data;
 
-      if (!data || data.length === 0) {
-        console.warn('ไม่มีข้อมูลหมวดหมู่จาก API');
-        return;
-      }
+        if (!data || data.length === 0) {
+          console.warn('ไม่มีข้อมูลหมวดหมู่จาก API');
+          return;
+        }
 
-      // ----- Pie chart -----
-      const labels = data.map(item => item.category);
-      const counts = data.map(item => item.count);
-      const colors = data.map(item => item.color);
+        // ----- Pie chart -----
+        const labels = data.map(item => item.category);
+        const counts = data.map(item => item.count);
+        const colors = data.map(item => item.color);
 
-      if (this.pieChart) this.pieChart.destroy();
-      const piectx = document.getElementById('pieChart') as HTMLCanvasElement;
-      this.pieChart = new Chart(piectx, {
-        type: 'doughnut',
-        data: { labels, datasets: [{ data: counts, backgroundColor: colors }] },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' },
-            tooltip: {
-              callbacks: {
-                label: (tooltipItem) => {
-                  const item = data[tooltipItem.dataIndex];
-                  return `${item.category}: ${item.count} (${item.percentage}%)`;
+        if (this.pieChart) this.pieChart.destroy();
+        const piectx = document.getElementById('pieChart') as HTMLCanvasElement;
+        this.pieChart = new Chart(piectx, {
+          type: 'doughnut',
+          data: { labels, datasets: [{ data: counts, backgroundColor: colors }] },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: (tooltipItem) => {
+                    const item = data[tooltipItem.dataIndex];
+                    return `${item.category}: ${item.count} (${item.percentage}%)`;
+                  }
                 }
               }
             }
           }
-        }
-      });
+        });
 
-      // ----- Line chart -----
-      if (this.categoryChart) this.categoryChart.destroy();
-      const categoryCtx = document.getElementById('categoryChart') as HTMLCanvasElement;
+        // ----- Line chart -----
+        if (this.categoryChart) this.categoryChart.destroy();
+        const categoryCtx = document.getElementById('categoryChart') as HTMLCanvasElement;
 
-      const datasets = data.map((item) => ({
-        label: item.category,
-        data: item.monthlyCounts,
-        borderColor: item.color,
-        backgroundColor: item.color + '33', // สีอ่อนสำหรับ fill
-        fill: true,
-        tension: 0.4
-      }));
+        const datasets = data.map((item) => ({
+          label: item.category,
+          data: item.monthlyCounts,
+          borderColor: item.color,
+          backgroundColor: item.color + '33', // สีอ่อนสำหรับ fill
+          fill: true,
+          tension: 0.4
+        }));
 
-      this.categoryChart = new Chart(categoryCtx, {
-        type: 'line',
-        data: {
-          labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
-          datasets
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' },
-            tooltip: { mode: 'index', intersect: false }
+        this.categoryChart = new Chart(categoryCtx, {
+          type: 'line',
+          data: {
+            labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
+            datasets
           },
-          interaction: { mode: 'nearest', intersect: false },
-          scales: {
-            y: { beginAtZero: true },
-            x: { ticks: { autoSkip: false } }
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: { mode: 'index', intersect: false }
+            },
+            interaction: { mode: 'nearest', intersect: false },
+            scales: {
+              y: { beginAtZero: true },
+              x: { ticks: { autoSkip: false } }
+            }
           }
-        }
-      });
+        });
 
-    },
-    error: (err) => {
-      console.error('Error loading category breakdown:', err);
-    }
-  });
+      },
+      error: (err) => {
+        console.error('Error loading category breakdown:', err);
+      }
+    });
 
-  this.subscriptions.add(sub);
-}
+    this.subscriptions.add(sub);
+  }
 
 
   loadCustomerForProjects(): void {
     this.loadingCustomers = true;
     console.log('Loading customer for projects...');
-    
+
     const sub = this.apiService.getCustomerForProject().subscribe({
       next: (response) => {
         console.log('Customer for projects response:', response);
@@ -452,7 +452,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
               font: {
                 size: 11
               }
-            }
+            },
           },
           y: {
             beginAtZero: true,
@@ -546,15 +546,15 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const currentYear = parseInt(this.selectedYear);
     const currentMonth = this.getMonthNumber(this.selectedMonth);
-    
+
     // Generate daily data from tickets
     const dailyData = this.generateDailyDataFromTickets(currentYear, currentMonth);
-    
+
     // Update chart
     this.monthlyChart.data.labels = dailyData.labels;
     this.monthlyChart.data.datasets[0].data = dailyData.newTickets;
     this.monthlyChart.data.datasets[1].data = dailyData.completeTickets;
-    
+
     this.monthlyChart.update('active');
     console.log('Monthly chart updated successfully');
   }
@@ -573,7 +573,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Generate monthly trend data for each category
     const monthlyData = this.generateMonthlyTrendFromCategories(categories);
-    
+
     this.categoryChart.data.datasets = categories.map((category, index) => ({
       label: category.category,
       data: monthlyData[index],
@@ -582,7 +582,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       fill: true,
       tension: 0.4
     }));
-    
+
     this.categoryChart.update('active');
     console.log('Category chart updated successfully with backend data');
   }
@@ -595,21 +595,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     // Create categories with percentages from dashboard stats
     const total = this.dashboardData.stats.total || 1; // Prevent division by zero
     const categories = [
-      { 
-        category: 'ใหม่', 
-        count: this.getNewCount(), 
+      {
+        category: 'ใหม่',
+        count: this.getNewCount(),
         color: '#38a169',
         percentage: (this.getNewCount() / total) * 100
       },
-      { 
-        category: 'กำลังดำเนินการ', 
-        count: this.getInProgressCount(), 
+      {
+        category: 'กำลังดำเนินการ',
+        count: this.getInProgressCount(),
         color: '#d69e2e',
         percentage: (this.getInProgressCount() / total) * 100
       },
-      { 
-        category: 'เสร็จแล้ว', 
-        count: this.getCompleteCount(), 
+      {
+        category: 'เสร็จแล้ว',
+        count: this.getCompleteCount(),
         color: '#9f7aea',
         percentage: (this.getCompleteCount() / total) * 100
       }
@@ -622,7 +622,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.pieChart.data.labels = labels;
     this.pieChart.data.datasets[0].data = percentages;
     this.pieChart.data.datasets[0].backgroundColor = colors;
-    
+
     this.pieChart.update('active');
     console.log('Pie chart updated successfully with dashboard stats');
   }
@@ -634,7 +634,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Calculate total from backend category data
     const totalTickets = this.dashboardData.categoryStats.reduce((sum, cat) => sum + (cat.count || 0), 0);
-    
+
     if (totalTickets === 0) {
       console.warn('No tickets found in category data');
       return;
@@ -657,7 +657,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.pieChart.data.labels = labels;
     this.pieChart.data.datasets[0].data = percentages;
     this.pieChart.data.datasets[0].backgroundColor = colors;
-    
+
     this.pieChart.update('active');
     console.log('Pie chart updated successfully with backend category data:', {
       totalTickets,
@@ -687,44 +687,88 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       completeTicketsCount[day - 1] = 0;
     }
 
-    // Count new tickets from createdAt
-    if (this.dashboardData.stats.new) {
+    // ✅ รวม tickets จากทุก status เพื่อนับ new tickets ที่สร้างในแต่ละวัน
+    const allTickets: any[] = [];
+
+    // รวม tickets จาก new status
+    if (this.dashboardData.stats?.new) {
       const newTickets = this.extractTicketsArray(this.dashboardData.stats.new);
-      
-      newTickets.forEach(ticket => {
+      allTickets.push(...newTickets);
+    }
+
+    // รวม tickets จาก inProgress status  
+    if (this.dashboardData.stats?.inProgress) {
+      const inProgressTickets = this.extractTicketsArray(this.dashboardData.stats.inProgress);
+      allTickets.push(...inProgressTickets);
+    }
+
+    // รวม tickets จาก complete status
+    if (this.dashboardData.stats?.complete) {
+      const completeTickets = this.extractTicketsArray(this.dashboardData.stats.complete);
+      allTickets.push(...completeTickets);
+    }
+
+    console.log('=== DEBUG: All tickets for new count ===');
+    console.log('Total tickets from all statuses:', allTickets.length);
+    console.log('New status tickets:', this.dashboardData.stats?.new ? this.extractTicketsArray(this.dashboardData.stats.new).length : 0);
+    console.log('InProgress status tickets:', this.dashboardData.stats?.inProgress ? this.extractTicketsArray(this.dashboardData.stats.inProgress).length : 0);
+    console.log('Complete status tickets:', this.dashboardData.stats?.complete ? this.extractTicketsArray(this.dashboardData.stats.complete).length : 0);
+
+    // นับ new tickets จากทุก status ตามวันที่สร้าง
+    allTickets.forEach((ticket, index) => {
+      if (!ticket.createdAt) {
+        console.warn(`Ticket ${index + 1} has no createdAt date`);
+        return;
+      }
+
+      const createdDate = new Date(ticket.createdAt);
+      if (createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month) {
+        const day = createdDate.getDate();
+        if (day >= 1 && day <= daysInMonth) {
+          newTicketsCount[day - 1]++;
+          console.log(`Adding new ticket to day ${day}, total now: ${newTicketsCount[day - 1]}`);
+        }
+      }
+    });
+
+    // นับ complete tickets เฉพาะจาก complete status ตามวันที่สร้าง
+    if (this.dashboardData.stats?.complete) {
+      const completeTickets = this.extractTicketsArray(this.dashboardData.stats.complete);
+
+      completeTickets.forEach((ticket, index) => {
+        if (!ticket.createdAt) {
+          console.warn(`Complete ticket ${index + 1} has no createdAt date`);
+          return;
+        }
+
         const createdDate = new Date(ticket.createdAt);
         if (createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month) {
           const day = createdDate.getDate();
           if (day >= 1 && day <= daysInMonth) {
-            newTicketsCount[day - 1]++;
+            completeTicketsCount[day - 1]++;
+            console.log(`Adding complete ticket to day ${day}, total now: ${completeTicketsCount[day - 1]}`);
           }
         }
       });
     }
 
-    // Count complete tickets from completedAt
-    if (this.dashboardData.stats.complete) {
-      const completeTickets = this.extractTicketsArray(this.dashboardData.stats.complete);
-      
-      completeTickets.forEach(ticket => {
-        if (ticket.completedAt) {
-          const completedDate = new Date(ticket.completedAt);
-          if (completedDate.getFullYear() === year && completedDate.getMonth() + 1 === month) {
-            const day = completedDate.getDate();
-            if (day >= 1 && day <= daysInMonth) {
-              completeTicketsCount[day - 1]++;
-            }
-          }
-        }
-      });
-    }
+    console.log('=== FINAL RESULTS ===');
+    console.log('New tickets by day:', newTicketsCount);
+    console.log('Complete tickets by day:', completeTicketsCount);
+    console.log('Total new tickets:', newTicketsCount.reduce((sum, count) => sum + count, 0));
+    console.log('Total complete tickets:', completeTicketsCount.reduce((sum, count) => sum + count, 0));
 
-    console.log('Generated daily data:', {
-      year,
-      month,
-      totalDays: daysInMonth,
-      newTicketsTotal: newTicketsCount.reduce((sum, count) => sum + count, 0),
-      completeTicketsTotal: completeTicketsCount.reduce((sum, count) => sum + count, 0)
+    // แสดงข้อมูลที่ไม่เป็น 0
+    newTicketsCount.forEach((count, index) => {
+      if (count > 0) {
+        console.log(`Day ${index + 1}: ${count} new tickets`);
+      }
+    });
+
+    completeTicketsCount.forEach((count, index) => {
+      if (count > 0) {
+        console.log(`Day ${index + 1}: ${count} complete tickets`);
+      }
     });
 
     return {
@@ -752,7 +796,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       // Use actual count to generate realistic monthly trend
       const baseValue = Math.max(0, category.count / 6); // Spread across 6 months for trend
       const trendData: number[] = [];
-      
+
       for (let month = 0; month < months; month++) {
         // Create a trend pattern with some randomness
         const trendFactor = 0.5 + (month / months) * 0.8; // Gradual increase trend
@@ -760,7 +804,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         const value = Math.round(baseValue * trendFactor * randomVariation);
         trendData.push(Math.max(0, value));
       }
-      
+
       return trendData;
     });
   }
@@ -770,7 +814,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const colorMap: { [key: string]: string } = {
       // Thai categories
       'ระบบล่ม/ใช้งานไม่ได้': '#e53e3e',
-      'ระบบช้า': '#dd6b20', 
+      'ระบบช้า': '#dd6b20',
       'ขอข้อมูล': '#38a169',
       'ขอแก้ไข': '#3182ce',
       'ขอเพิ่มฟีเจอร์': '#805ad5',
@@ -784,7 +828,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       'Others': '#718096',
       // Status categories
       'ใหม่': '#38a169',
-      'กำลังดำเนินการ': '#d69e2e', 
+      'กำลังดำเนินการ': '#d69e2e',
       'เสร็จแล้ว': '#9f7aea',
       'New': '#38a169',
       'In Progress': '#d69e2e',
@@ -800,7 +844,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-    
+
     const colors = ['#e53e3e', '#dd6b20', '#38a169', '#3182ce', '#805ad5', '#d53f8c', '#00a3c4', '#319795'];
     return colors[Math.abs(hash) % colors.length];
   }
@@ -810,12 +854,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (data && typeof data === 'object' && 'tickets' in data && Array.isArray(data.tickets)) {
       return data.tickets;
     }
-    
+
     // If direct array
     if (Array.isArray(data)) {
       return data;
     }
-    
+
     // If no data
     return [];
   }
@@ -826,61 +870,61 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   getNewCount(): number {
     if (!this.dashboardData.stats) return 0;
-    
+
     const newData = this.dashboardData.stats.new as any;
-    
+
     if (newData && typeof newData === 'object' && 'count' in newData) {
       return Number(newData.count) || 0;
     }
-    
+
     if (Array.isArray(newData)) {
       return newData.length;
     }
-    
+
     if (typeof newData === 'number') {
       return newData;
     }
-    
+
     return 0;
   }
 
   getInProgressCount(): number {
     if (!this.dashboardData.stats) return 0;
-    
+
     const inProgressData = this.dashboardData.stats.inProgress as any;
-    
+
     if (inProgressData && typeof inProgressData === 'object' && 'count' in inProgressData) {
       return Number(inProgressData.count) || 0;
     }
-    
+
     if (Array.isArray(inProgressData)) {
       return inProgressData.length;
     }
-    
+
     if (typeof inProgressData === 'number') {
       return inProgressData;
     }
-    
+
     return 0;
   }
 
   getCompleteCount(): number {
     if (!this.dashboardData.stats) return 0;
-    
+
     const completeData = this.dashboardData.stats.complete as any;
-    
+
     if (completeData && typeof completeData === 'object' && 'count' in completeData) {
       return Number(completeData.count) || 0;
     }
-    
+
     if (Array.isArray(completeData)) {
       return completeData.length;
     }
-    
+
     if (typeof completeData === 'number') {
       return completeData;
     }
-    
+
     return 0;
   }
 
@@ -895,7 +939,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private addAlphaToColor(hex: string, alpha: number): string {
     if (!hex.startsWith('#')) return `rgba(0, 0, 0, ${alpha})`;
-    
+
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
@@ -933,11 +977,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   getCategoryColumns(): CategoryStatsDTO[][] {
     if (this.categoryStats.length === 0) return [];
-    
+
     const itemsPerColumn = Math.ceil(this.categoryStats.length / 2);
     const column1 = this.categoryStats.slice(0, itemsPerColumn);
     const column2 = this.categoryStats.slice(itemsPerColumn);
-    
+
     return [column1, column2];
   }
 
@@ -1028,7 +1072,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
-    
+
     if (this.monthlyChart) {
       this.monthlyChart.destroy();
       this.monthlyChart = null;

@@ -7,8 +7,8 @@ import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 // ✅ Imports ที่จำเป็น
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-import { 
-  CreateUserDto, 
+import {
+  CreateUserDto,
   User,
   createEmptyCreateUserDto,
   validateCreateUserDto,
@@ -26,7 +26,7 @@ import { UserRole, ROLES } from '../../../shared/models/permission.model';
 })
 export class UserCreateComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
-  
+
   // Form และ State Management
   userForm: FormGroup;
   isEditMode = false;
@@ -35,21 +35,21 @@ export class UserCreateComponent implements OnInit, OnDestroy {
   hasError = false;
   errorMessage = '';
   successMessage = '';
-  
+
   // User data
   editingUserId: number | null = null;
   originalUserData: User | null = null;
-  
+
   // Validation states
   usernameValidation = {
     isChecking: false,
     isValid: false,
     message: ''
   };
-  
+
   // Options for dropdowns
   availableRoles: UserRole[] = [];
-  
+
   companiesOptions = [
     { value: '', label: 'Select Company' },
     { value: 'tech-solutions', label: 'Tech Solutions Co., Ltd.' },
@@ -128,41 +128,42 @@ export class UserCreateComponent implements OnInit, OnDestroy {
         Validators.pattern(/^[a-zA-Z0-9_.-]+$/)
       ]],
       firstname: ['', [
-        Validators.required,  // เพิ่ม required
+        Validators.required,
         Validators.maxLength(100)
       ]],
       lastname: ['', [
-        Validators.required,  // เพิ่ม required
+        Validators.required,
         Validators.maxLength(100)
       ]],
       email: ['', [
-        Validators.required,  // เพิ่ม required
+        Validators.required,
         Validators.email,
         Validators.maxLength(255)
       ]],
       phone: ['', [
         Validators.pattern(/^[0-9\-\s\+\(\)]+$/)
       ]],
-      company: ['', [
-        Validators.required  // เพิ่ม required
-      ]],
-      companyAddress: ['', [
-        Validators.maxLength(500)
-      ]],
-      project: ['', [
-        Validators.required  // เพิ่ม required
-      ]],
+      // company: ['', [
+      //   Validators.required
+      // ]],
+      // companyAddress: ['', [
+      //   Validators.maxLength(500)
+      // ]],
+      // project: ['', [
+      //   Validators.required
+      // ]],
       password: ['', [
-        Validators.required,  // เพิ่ม required
+        Validators.required,
         Validators.minLength(8),
         Validators.maxLength(255)
       ]],
       confirmPassword: ['', [
-        Validators.required  // เพิ่ม required
+        Validators.required
       ]],
       roles: [[], [
-        Validators.required,  // เพิ่ม required
-        Validators.minLength(1)  // ต้องเลือกอย่างน้อย 1 role
+        // ✅ เปลี่ยนเป็น optional เพราะบาง user อาจไม่มี role
+        // Validators.required,
+        // Validators.minLength(1)
       ]],
       isenabled: [true]
     });
@@ -310,7 +311,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     }
 
     const formData = this.prepareFormData();
-    
+
     if (this.isEditMode) {
       this.updateUser(formData);
     } else {
@@ -321,62 +322,62 @@ export class UserCreateComponent implements OnInit, OnDestroy {
   /**
    * ✅ เตรียมข้อมูลสำหรับส่ง API
    */
-  private prepareFormData(): CreateUserDto {
+  private prepareFormData(): any {
     const formValue = this.userForm.value;
-    
-    const userData: CreateUserDto = {
+
+    // เตรียม user data ตามรูปแบบที่ backend คาดหวัง
+    const userData: any = {
       username: formValue.username?.trim(),
-      firstname: formValue.firstname?.trim() || undefined,
-      lastname: formValue.lastname?.trim() || undefined,
-      email: formValue.email?.trim() || undefined,
-      phone: formValue.phone?.trim() || undefined,
-      isenabled: formValue.isenabled !== false,
-      roles: formValue.roles || []
+      firstname: formValue.firstname?.trim() || '',
+      lastname: formValue.lastname?.trim() || '',
+      email: formValue.email?.trim() || '',
+      phone: formValue.phone?.trim() || ''
     };
 
-    // เพิ่ม fields ใหม่ที่อาจไม่มีใน interface ปัจจุบัน
-    if (formValue.companyAddress?.trim()) {
-      (userData as any).companyAddress = formValue.companyAddress.trim();
-    }
-    
-    if (formValue.project) {
-      (userData as any).project = formValue.project;
-    }
-
-    // เพิ่มรหัสผ่านเฉพาะการสร้างใหม่
+    // เพิ่ม password เฉพาะการสร้างใหม่
     if (!this.isEditMode && formValue.password) {
       userData.password = formValue.password;
     }
 
-    console.log('Prepared form data:', userData);
+    // แปลง roles เป็น role_id array สำหรับ backend
+    if (formValue.roles && Array.isArray(formValue.roles) && formValue.roles.length > 0) {
+      userData.role_id = formValue.roles.map((role: any) => {
+        if (typeof role === 'object' && role.id) {
+          return Number(role.id);
+        }
+        return Number(role);
+      }).filter((id: number) => !isNaN(id) && id > 0); // กรองเฉพาะ ID ที่ถูกต้อง
+    }
+
+    console.log('Prepared form data for backend:', userData);
     return userData;
   }
 
   /**
    * ✅ สร้าง user ใหม่
    */
-  private createUser(createData: any): void {
+  private createUser(userData: any): void {
     this.isSaving = true;
     this.hasError = false;
-    
-    console.log('Creating new user:', createData);
 
-    this.apiService.createUser(createData)
+    console.log('Creating new user with data:', userData);
+
+    this.apiService.createUser(userData)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           console.log('User created successfully:', response);
-          
-          // ตรวจสอบ response ตาม format ของ backend โดยแปลง code เป็น string
-          if (response && String(response.code) === '1' && response.data) {
+
+          // ตรวจสอบ response ตาม format ของ backend
+          if (response && (response.code === 1 || response.status === true) && response.data) {
             const userName = this.getUserDisplayName(response.data);
             this.showSuccess(`User "${userName}" has been created successfully`);
-            
+
             // ส่งอีเมลต้อนรับ (ถ้ามีอีเมล)
             if (response.data.email) {
               this.sendWelcomeEmail(response.data.email);
             }
-            
+
             // นำทางกลับหลังจาก 2 วินาที
             setTimeout(() => {
               this.navigateBack();
@@ -384,19 +385,21 @@ export class UserCreateComponent implements OnInit, OnDestroy {
           } else {
             this.showError(response?.message || 'User created but response was unexpected');
           }
-          
+
           this.isSaving = false;
         },
         error: (error) => {
           console.error('Error creating user:', error);
-          
+
           // แสดงข้อความ error ที่เหมาะสม
           let errorMessage = 'Failed to create user. Please try again.';
-          
-          if (error.message) {
+
+          if (error?.error?.message) {
+            errorMessage = error.error.message;
+          } else if (error.message) {
             errorMessage = error.message;
           }
-          
+
           this.showError(errorMessage);
           this.isSaving = false;
         }
@@ -421,7 +424,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
   /**
    * ✅ อัปเดต user
    */
-  private updateUser(userData: CreateUserDto): void {
+  private updateUser(userData: any): void {
     if (!this.editingUserId) {
       this.showError('User ID not found');
       return;
@@ -429,7 +432,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
 
     this.isSaving = true;
     this.hasError = false;
-    
+
     console.log('Updating user:', this.editingUserId, userData);
 
     this.apiService.updateUser(this.editingUserId, userData)
@@ -437,24 +440,33 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           console.log('User updated successfully:', response);
-          
-          if (response.status && response.data) {
-            const userName = getUserFullName(response.data);
+
+          if (response && (response.code === 1 || response.status === true) && response.data) {
+            const userName = this.getUserDisplayName(response.data);
             this.showSuccess(`User "${userName}" has been updated successfully`);
-            
+
             // นำทางกลับหลังจาก 2 วินาที
             setTimeout(() => {
               this.navigateBack();
             }, 2000);
           } else {
-            this.showError('User updated but response was unexpected');
+            this.showError(response?.message || 'User updated but response was unexpected');
           }
-          
+
           this.isSaving = false;
         },
         error: (error) => {
           console.error('Error updating user:', error);
-          this.showError('Failed to update user. Please try again.');
+
+          let errorMessage = 'Failed to update user. Please try again.';
+
+          if (error?.error?.message) {
+            errorMessage = error.error.message;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          this.showError(errorMessage);
           this.isSaving = false;
         }
       });
@@ -483,10 +495,10 @@ export class UserCreateComponent implements OnInit, OnDestroy {
    */
   onCancel(): void {
     if (this.userForm.dirty) {
-      const confirmMessage = this.isEditMode 
-        ? 'You have unsaved changes. Are you sure you want to leave?' 
+      const confirmMessage = this.isEditMode
+        ? 'You have unsaved changes. Are you sure you want to leave?'
         : 'Are you sure you want to cancel creating this user?';
-      
+
       if (confirm(confirmMessage)) {
         this.navigateBack();
       }
@@ -509,7 +521,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     this.hasError = true;
     this.errorMessage = message;
     this.successMessage = '';
-    
+
     // เลื่อนขึ้นไปด้านบน
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -521,7 +533,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     this.hasError = false;
     this.errorMessage = '';
     this.successMessage = message;
-    
+
     // เลื่อนขึ้นไปด้านบน
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -581,7 +593,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       'password': 'Password',
       'confirmPassword': 'Confirm Password'
     };
-    
+
     return displayNames[fieldName] || fieldName;
   }
 
@@ -590,10 +602,10 @@ export class UserCreateComponent implements OnInit, OnDestroy {
    */
   get passwordMismatch(): boolean {
     if (this.isEditMode) return false;
-    
+
     const password = this.userForm.get('password')?.value;
     const confirmPassword = this.userForm.get('confirmPassword')?.value;
-    
+
     return password && confirmPassword && password !== confirmPassword;
   }
 
@@ -636,7 +648,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
     if (role && typeof role === 'object' && role.role_name) {
       return role.role_name;
     }
-    
+
     // ถ้า role เป็น string (fallback สำหรับ roles เก่า)
     if (typeof role === 'string') {
       const roleNames: { [key: string]: string } = {
@@ -646,7 +658,7 @@ export class UserCreateComponent implements OnInit, OnDestroy {
       };
       return roleNames[role] || role;
     }
-    
+
     return 'Unknown Role';
   }
 
@@ -655,23 +667,22 @@ export class UserCreateComponent implements OnInit, OnDestroy {
    */
   isRoleSelected(role: any): boolean {
     const selectedRoles = this.userForm.get('roles')?.value || [];
-    
+
     // ถ้า role เป็น object ให้เปรียบเทียบ id
     if (role && typeof role === 'object' && role.id) {
       return selectedRoles.some((selected: any) => {
         if (typeof selected === 'object' && selected.id) {
-          // เปรียบเทียบ id โดยแปลงเป็น string เพื่อหลีกเลี่ยงปัญหา type
           return String(selected.id) === String(role.id);
         }
         return false;
       });
     }
-    
-    // ถ้า role เป็น string (fallback)
-    if (typeof role === 'string') {
+
+    // ถ้า role เป็น primitive value
+    if (typeof role === 'number' || typeof role === 'string') {
       return selectedRoles.includes(role);
     }
-    
+
     return false;
   }
 
@@ -681,24 +692,26 @@ export class UserCreateComponent implements OnInit, OnDestroy {
   onRoleChange(role: any, event: Event): void {
     const checkbox = event.target as HTMLInputElement;
     const currentRoles = this.userForm.get('roles')?.value || [];
-    
+
     console.log('Role change:', { role, checked: checkbox.checked, currentRoles });
-    
+
     if (checkbox.checked) {
       // เพิ่ม role
       if (role && typeof role === 'object' && role.id) {
         // ตรวจสอบว่ามี role นี้อยู่แล้วหรือไม่
-        const exists = currentRoles.some((selected: any) => 
+        const exists = currentRoles.some((selected: any) =>
           typeof selected === 'object' && String(selected.id) === String(role.id)
         );
-        
+
         if (!exists) {
           this.userForm.patchValue({ roles: [...currentRoles, role] });
           console.log('Added role:', role);
         }
-      } else if (typeof role === 'string' && !currentRoles.includes(role)) {
-        this.userForm.patchValue({ roles: [...currentRoles, role] });
-        console.log('Added string role:', role);
+      } else if (typeof role === 'number' || typeof role === 'string') {
+        if (!currentRoles.includes(role)) {
+          this.userForm.patchValue({ roles: [...currentRoles, role] });
+          console.log('Added role ID:', role);
+        }
       }
     } else {
       // ลบ role
@@ -711,13 +724,13 @@ export class UserCreateComponent implements OnInit, OnDestroy {
         });
         this.userForm.patchValue({ roles: updatedRoles });
         console.log('Removed role:', role);
-      } else if (typeof role === 'string') {
+      } else if (typeof role === 'number' || typeof role === 'string') {
         const updatedRoles = currentRoles.filter((r: any) => r !== role);
         this.userForm.patchValue({ roles: updatedRoles });
-        console.log('Removed string role:', role);
+        console.log('Removed role ID:', role);
       }
     }
-    
+
     console.log('Updated roles:', this.userForm.get('roles')?.value);
   }
 

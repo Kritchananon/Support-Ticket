@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CategoryService } from '../../services/category.service';
-import { CategoryDDL, CategoryStatus, isCategoryStatus } from '../../models/category.model';
+import { CategoryDDL, CategoryStatus, isCategoryStatus, cateDDL } from '../../models/category.model';
 
 @Component({
   selector: 'app-category-dropdown',
@@ -15,7 +15,7 @@ import { CategoryDDL, CategoryStatus, isCategoryStatus } from '../../models/cate
 })
 export class CategoryDropdownComponent implements OnInit, OnDestroy {
   private categoryService = inject(CategoryService);
-  
+
   @Input() label: string = 'เลือกหมวดหมู่';
   @Input() placeholder: string = '-- เลือกหมวดหมู่ --';
   @Input() selectedCategoryId: number | string = '';
@@ -24,9 +24,9 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
   @Input() disabled: boolean = false;
   @Input() showCode: boolean = false;
   @Input() errorText: string = '';
-  
+
   @Output() selectionChange = new EventEmitter<{
-    category: CategoryDDL | null, 
+    category: CategoryDDL | null,
     categoryId: number | string
   }>();
 
@@ -34,7 +34,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
   loading = false;
   error: string = '';
   hasError = false;
-  
+
   private destroy$ = new Subject<void>();
 
   ngOnInit(): void {
@@ -70,7 +70,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Error loading categories:', err);
-          
+
           // ✅ PWA: ลองใช้ cached data ถ้า API ล้มเหลว
           this.categoryService.getCachedCategories(statusValue)
             .pipe(takeUntil(this.destroy$))
@@ -101,7 +101,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
     // แสดง indicator ว่าใช้ cached data
     const offlineMsg = 'ใช้ข้อมูลที่เก็บไว้ (ออฟไลน์)';
     console.log('📱 PWA:', offlineMsg);
-    
+
     // อาจจะแสดง toast notification หรือ indicator ใน UI
     setTimeout(() => {
       const event = new CustomEvent('pwa-offline-data', {
@@ -115,7 +115,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLSelectElement;
     const categoryId = target.value;
     let selectedCategory: CategoryDDL | null = null;
-    
+
     if (categoryId) {
       selectedCategory = this.categories.find(c => c.id === +categoryId) || null;
     }
@@ -149,8 +149,17 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
   getCategoryDisplayName(category: CategoryDDL): string {
     // รองรับทั้ง format จาก API ใหม่ (categoryName) และ API เก่า (name)
     console.log(`category21212121212121 ${category}`);
-    
-    return `${category.categoryName}` || `${category.categories_name}`;
+
+    return `${category.categoryName}` || `${category.name}`;
+  }
+
+  getCategoryDDL(category: CategoryDDL): string {
+    const c: cateDDL = {
+      id: category.id,
+      name: category.categoryName ?? category.name ?? '',
+      language_id: category.language_id // หรือแก้ typo ก่อน
+    };
+    return c.name;
   }
 
   // Method สำหรับ reset

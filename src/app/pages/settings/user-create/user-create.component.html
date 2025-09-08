@@ -7,7 +7,7 @@
 </div>
 
 <!-- Main Content -->
-<div class="user-create-page" *ngIf="!isLoading">
+<div class="user-settings-page" *ngIf="!isLoading">
   
   <!-- Breadcrumb -->
   <div class="breadcrumb">
@@ -38,238 +38,248 @@
     {{ successMessage }}
   </div>
 
-  <!-- Form Container -->
-  <div class="form-container">
-    <h2 class="form-title">{{ pageTitle }}</h2>
+  <!-- Settings Form Container -->
+  <div class="settings-container">
+    <h2 class="settings-title">{{ pageTitle }}</h2>
     
-    <form [formGroup]="userForm" (ngSubmit)="onSubmit()" class="user-form">
+    <form [formGroup]="userForm" (ngSubmit)="onSubmit()" class="settings-form">
       
-      <!-- Form Grid -->
-      <div class="form-grid">
+      <!-- Account Section -->
+      <div class="settings-section">
+        <h3 class="section-title">Account</h3>
         
-        <!-- First Name -->
-        <div class="form-field">
-          <label class="form-label">
-            First Name <span class="required">*</span>
-          </label>
-          <input 
-            type="text" 
-            class="form-input"
-            [class.error]="hasFieldError('firstname')"
-            placeholder="Enter first name" 
-            formControlName="firstname">
-          <div class="field-error" *ngIf="hasFieldError('firstname')">
-            {{ getFieldError('firstname') }}
-          </div>
-        </div>
-
-        <!-- Last Name -->
-        <div class="form-field">
-          <label class="form-label">
-            Last Name <span class="required">*</span>
-          </label>
-          <input 
-            type="text" 
-            class="form-input"
-            [class.error]="hasFieldError('lastname')"
-            placeholder="Enter last name" 
-            formControlName="lastname">
-          <div class="field-error" *ngIf="hasFieldError('lastname')">
-            {{ getFieldError('lastname') }}
-          </div>
-        </div>
-
-        <!-- Email -->
-        <div class="form-field">
-          <label class="form-label">
-            Email <span class="required">*</span>
-          </label>
-          <input 
-            type="email" 
-            class="form-input"
-            [class.error]="hasFieldError('email')"
-            placeholder="Enter email address" 
-            formControlName="email">
-          <div class="field-error" *ngIf="hasFieldError('email')">
-            {{ getFieldError('email') }}
-          </div>
-        </div>
-
-        <!-- Phone Number -->
-        <div class="form-field">
-          <label class="form-label">
-            Phone Number
-          </label>
-          <input 
-            type="tel" 
-            class="form-input"
-            [class.error]="hasFieldError('phone')"
-            placeholder="Enter phone number" 
-            formControlName="phone">
-          <div class="field-error" *ngIf="hasFieldError('phone')">
-            {{ getFieldError('phone') }}
-          </div>
-        </div>
-
-        <!-- Company -->
-        <div class="form-field">
-          <label class="form-label">
-            Company <span class="required">*</span>
-          </label>
-          <input 
-            type="text" 
-            class="form-input"
-            [class.error]="hasFieldError('company')"
-            placeholder="Enter company name" 
-            formControlName="company">
-          <div class="field-error" *ngIf="hasFieldError('company')">
-            {{ getFieldError('company') }}
-          </div>
-        </div>
-
-        <!-- Company Address -->
-        <div class="form-field">
-          <label class="form-label">
-            Company Address
-          </label>
-          <textarea 
-            class="form-textarea"
-            [class.error]="hasFieldError('companyAddress')"
-            placeholder="Enter company address" 
-            formControlName="companyAddress"
-            rows="3"></textarea>
-          <div class="field-error" *ngIf="hasFieldError('companyAddress')">
-            {{ getFieldError('companyAddress') }}
-          </div>
-        </div>
-
-        <!-- Project -->
-        <div class="form-field">
-          <label class="form-label">
-            Project <span class="required">*</span>
-          </label>
-          <input 
-            type="text" 
-            class="form-input"
-            [class.error]="hasFieldError('project')"
-            placeholder="Enter project name" 
-            formControlName="project">
-          <div class="field-error" *ngIf="hasFieldError('project')">
-            {{ getFieldError('project') }}
-          </div>
-        </div>
-
-        <!-- Username -->
-        <div class="form-field">
-          <label class="form-label">
-            Username <span class="required">*</span>
-          </label>
-          <div class="input-with-validation">
+        <div class="setting-row">
+          <label class="setting-label">First Name</label>
+          <div class="setting-input-group">
             <input 
               type="text" 
-              class="form-input"
-              [class.error]="hasFieldError('username')"
-              [class.success]="usernameValidation.isValid && !isEditMode"
-              placeholder="Enter username" 
-              formControlName="username">
-            
-            <!-- Username validation feedback -->
-            <div class="validation-feedback" *ngIf="!isEditMode">
-              <div class="validation-checking" *ngIf="usernameValidation.isChecking">
-                <div class="mini-spinner"></div>
-                <span>Checking availability...</span>
-              </div>
-              <div class="validation-success" *ngIf="usernameValidation.isValid && !usernameValidation.isChecking">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm3.5 5.5L7 11 4.5 8.5l1-1L7 9l3.5-3.5 1 1z"/>
-                </svg>
-                <span>{{ usernameValidation.message }}</span>
-              </div>
-              <div class="validation-error" *ngIf="!usernameValidation.isValid && usernameValidation.message && !usernameValidation.isChecking">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm3.5 10.5L10 13 8 11l-2 2-1.5-1.5L6 10 4 8l1.5-1.5L8 9l2-2 1.5 1.5L10 10l1.5 1.5z"/>
-                </svg>
-                <span>{{ usernameValidation.message }}</span>
-              </div>
+              class="setting-input"
+              [class.error]="hasFieldError('firstname')"
+              placeholder="Enter first name" 
+              formControlName="firstname">
+            <div class="field-error" *ngIf="hasFieldError('firstname')">
+              {{ getFieldError('firstname') }}
             </div>
           </div>
-          <div class="field-error" *ngIf="hasFieldError('username')">
-            {{ getFieldError('username') }}
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Last Name</label>
+          <div class="setting-input-group">
+            <input 
+              type="text" 
+              class="setting-input"
+              [class.error]="hasFieldError('lastname')"
+              placeholder="Enter last name" 
+              formControlName="lastname">
+            <div class="field-error" *ngIf="hasFieldError('lastname')">
+              {{ getFieldError('lastname') }}
+            </div>
           </div>
         </div>
 
-      </div>
-
-      <!-- Password Fields (Only for Create Mode) -->
-      <div class="form-grid" *ngIf="shouldShowPasswordFields">
-        
-        <!-- Password -->
-        <div class="form-field">
-          <label class="form-label">
-            Password <span class="required">*</span>
-          </label>
-          <input 
-            type="password" 
-            class="form-input"
-            [class.error]="hasFieldError('password')"
-            placeholder="Enter password (min 8 characters)" 
-            formControlName="password">
-          <div class="field-error" *ngIf="hasFieldError('password')">
-            {{ getFieldError('password') }}
+        <div class="setting-row">
+          <label class="setting-label">Email Address</label>
+          <div class="setting-input-group">
+            <input 
+              type="email" 
+              class="setting-input"
+              [class.error]="hasFieldError('email')"
+              placeholder="Enter email address" 
+              formControlName="email">
+            <div class="field-error" *ngIf="hasFieldError('email')">
+              {{ getFieldError('email') }}
+            </div>
           </div>
         </div>
 
-        <!-- Confirm Password -->
-        <div class="form-field">
-          <label class="form-label">
-            Confirm Password <span class="required">*</span>
-          </label>
-          <input 
-            type="password" 
-            class="form-input"
-            [class.error]="hasFieldError('confirmPassword') || passwordMismatch"
-            placeholder="Confirm password" 
-            formControlName="confirmPassword">
-          <div class="field-error" *ngIf="hasFieldError('confirmPassword')">
-            {{ getFieldError('confirmPassword') }}
-          </div>
-          <div class="field-error" *ngIf="passwordMismatch && !hasFieldError('confirmPassword')">
-            Passwords do not match
+        <div class="setting-row">
+          <label class="setting-label">Phone Number</label>
+          <div class="setting-input-group">
+            <input 
+              type="tel" 
+              class="setting-input"
+              [class.error]="hasFieldError('phone')"
+              placeholder="Enter phone number" 
+              formControlName="phone">
+            <div class="field-error" *ngIf="hasFieldError('phone')">
+              {{ getFieldError('phone') }}
+            </div>
           </div>
         </div>
 
-      </div>
-
-      <!-- Roles Section (Only for Admin) -->
-      <div class="form-field full-width" *ngIf="canAssignRoles()">
-        <label class="form-label">
-          Permissions <span class="required">*</span>
-        </label>
-        <div class="permissions-grid">
-          <div class="permission-item" *ngFor="let role of availableRoles; trackBy: trackByRoleId">
-            <label class="permission-checkbox">
+        <div class="setting-row">
+          <label class="setting-label">Username</label>
+          <div class="setting-input-group">
+            <div class="input-with-validation">
               <input 
-                type="checkbox" 
-                [checked]="isRoleSelected(role)"
-                (change)="onRoleChange(role, $event)">
-              <span class="checkmark-permission"></span>
-              <span class="permission-label">{{ getRoleDisplayName(role) }}</span>
+                type="text" 
+                class="setting-input"
+                [class.error]="hasFieldError('username')"
+                [class.success]="usernameValidation.isValid && !isEditMode"
+                placeholder="Enter username" 
+                formControlName="username">
+              
+              <!-- Username validation feedback -->
+              <div class="validation-feedback" *ngIf="!isEditMode">
+                <div class="validation-checking" *ngIf="usernameValidation.isChecking">
+                  <div class="mini-spinner"></div>
+                  <span>Checking availability...</span>
+                </div>
+                <div class="validation-success" *ngIf="usernameValidation.isValid && !usernameValidation.isChecking">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm3.5 5.5L7 11 4.5 8.5l1-1L7 9l3.5-3.5 1 1z"/>
+                  </svg>
+                  <span>{{ usernameValidation.message }}</span>
+                </div>
+                <div class="validation-error" *ngIf="!usernameValidation.isValid && usernameValidation.message && !usernameValidation.isChecking">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 1C4.1 1 1 4.1 1 8s3.1 7 7 7 7-3.1 7-7-3.1-7-7-7zm3.5 10.5L10 13 8 11l-2 2-1.5-1.5L6 10 4 8l1.5-1.5L8 9l2-2 1.5 1.5L10 10l1.5 1.5z"/>
+                  </svg>
+                  <span>{{ usernameValidation.message }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="field-error" *ngIf="hasFieldError('username')">
+              {{ getFieldError('username') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project & Company Section -->
+      <!-- <div class="settings-section">
+        <h3 class="section-title">Project & Company</h3>
+        
+        <div class="setting-row">
+          <label class="setting-label">Company</label>
+          <div class="setting-input-group">
+            <select 
+              class="setting-select"
+              [class.error]="hasFieldError('company')"
+              formControlName="company">
+              <option value="">Select Company</option>
+              <option *ngFor="let company of companiesOptions" [value]="company.value">
+                {{ company.label }}
+              </option>
+            </select>
+            <div class="field-error" *ngIf="hasFieldError('company')">
+              {{ getFieldError('company') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Project</label>
+          <div class="setting-input-group">
+            <select 
+              class="setting-select"
+              [class.error]="hasFieldError('project')"
+              formControlName="project">
+              <option value="">Select Project</option>
+              <option *ngFor="let project of projectsOptions" [value]="project.value">
+                {{ project.label }}
+              </option>
+            </select>
+            <div class="field-error" *ngIf="hasFieldError('project')">
+              {{ getFieldError('project') }}
+            </div>
+          </div>
+        </div>
+      </div> -->
+
+      <!-- Business Address Section -->
+      <!-- <div class="settings-section">
+        <h3 class="section-title">Business Address</h3>
+        
+        <div class="setting-row">
+          <label class="setting-label">Street Address</label>
+          <div class="setting-input-group">
+            <textarea 
+              class="setting-textarea"
+              [class.error]="hasFieldError('companyAddress')"
+              placeholder="Enter company address" 
+              formControlName="companyAddress"
+              rows="3"></textarea>
+            <div class="field-error" *ngIf="hasFieldError('companyAddress')">
+              {{ getFieldError('companyAddress') }}
+            </div>
+          </div>
+        </div>
+      </div> -->
+
+      <!-- Permissions Section (Only for Admin) -->
+      <div class="settings-section" *ngIf="canAssignRoles()">
+        <h3 class="section-title">Permissions</h3>
+        
+        <div class="setting-row">
+          <label class="setting-label">User Roles</label>
+          <div class="setting-input-group">
+            <div class="permissions-grid">
+              <div class="permission-item" *ngFor="let role of availableRoles; trackBy: trackByRoleId">
+                <label class="permission-checkbox">
+                  <input 
+                    type="checkbox" 
+                    [checked]="isRoleSelected(role)"
+                    (change)="onRoleChange(role, $event)">
+                  <span class="checkmark-permission"></span>
+                  <span class="permission-label">{{ getRoleDisplayName(role) }}</span>
+                </label>
+              </div>
+            </div>
+            <div *ngIf="availableRoles.length === 0" class="no-roles-message">
+              No roles available
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Account Status</label>
+          <div class="setting-input-group">
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="isenabled">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Enable user account</span>
             </label>
           </div>
         </div>
-        <div *ngIf="availableRoles.length === 0" style="color: #666; font-style: italic; padding: 10px;">
-          No roles available
-        </div>
       </div>
 
-      <!-- Enable/Disable User -->
-      <div class="form-field full-width">
-        <div class="checkbox-item">
-          <label class="checkbox-container">
-            <input type="checkbox" formControlName="isenabled">
-            <span class="checkmark"></span>
-            <span class="checkbox-label">Enable user account</span>
-          </label>
+      <!-- Password Section (Only for Create Mode) -->
+      <div class="settings-section" *ngIf="shouldShowPasswordFields">
+        <h3 class="section-title">Change Password</h3>
+        
+        <div class="setting-row">
+          <label class="setting-label">Password</label>
+          <div class="setting-input-group">
+            <input 
+              type="password" 
+              class="setting-input"
+              [class.error]="hasFieldError('password')"
+              placeholder="Enter password (min 8 characters)" 
+              formControlName="password">
+            <div class="field-error" *ngIf="hasFieldError('password')">
+              {{ getFieldError('password') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Confirm Password</label>
+          <div class="setting-input-group">
+            <input 
+              type="password" 
+              class="setting-input"
+              [class.error]="hasFieldError('confirmPassword') || passwordMismatch"
+              placeholder="Confirm password" 
+              formControlName="confirmPassword">
+            <div class="field-error" *ngIf="hasFieldError('confirmPassword')">
+              {{ getFieldError('confirmPassword') }}
+            </div>
+            <div class="field-error" *ngIf="passwordMismatch && !hasFieldError('confirmPassword')">
+              Passwords do not match
+            </div>
+          </div>
         </div>
       </div>
 

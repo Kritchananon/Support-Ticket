@@ -516,15 +516,20 @@ export class ApiService {
    * @param userData ข้อมูล user ที่ต้องการสร้าง
    * @returns Observable<CreateUserResponse>
    */
-  createUser(userData: CreateUserDto): Observable<CreateUserResponse> {
-    console.log('Calling createUser API with:', userData);
+  createUser(userData: any): Observable<any> {
+    // Validate data format ก่อนส่ง
+    if (!this.validateUserRoleData(userData)) {
+      return throwError(() => new Error('Invalid user data format'));
+    }
 
-    return this.http.post<CreateUserResponse>(`${this.apiUrl}/users`, userData, {
+    console.log('Calling createUser API with validated data:', userData);
+
+    return this.http.post<any>(`${this.apiUrl}/users`, userData, {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => {
         console.log('createUser API response:', response);
-        if (response.status && response.data) {
+        if (response && response.data) {
           console.log('✅ User created successfully:', response.data);
         }
       }),
@@ -683,26 +688,39 @@ export class ApiService {
   }
 
   /**
-   * ✅ NEW: อัปเดตข้อมูล user
-   * @param userId ID ของ user ที่ต้องการอัปเดต
-   * @param userData ข้อมูลที่ต้องการอัปเดต
-   * @returns Observable<CreateUserResponse>
-   */
-  updateUser(userId: number, userData: Partial<CreateUserDto>): Observable<CreateUserResponse> {
+ * ✅ อัปเดต user พร้อม roles
+ * @param userId ID ของ user ที่ต้องการอัปเดต
+ * @param userData ข้อมูลที่ต้องการอัปเดต (รวม role_id array)
+ * @returns Observable<any>
+ */
+  updateUser(userId: number, userData: any): Observable<any> {
     console.log('Calling updateUser API with:', { userId, userData });
 
-    return this.http.put<CreateUserResponse>(`${this.apiUrl}/user/${userId}`, userData, {
+    return this.http.put<any>(`${this.apiUrl}/users/${userId}`, userData, {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => {
         console.log('updateUser API response:', response);
-        if (response.status && response.data) {
-          console.log('✅ User updated successfully:', response.data);
+        if (response && response.data) {
+          console.log('✅ User updated successfully with roles:', response.data);
         }
       }),
       catchError(error => {
         console.error('❌ updateUser API error:', error);
-        return this.handleError(error);
+
+        let errorMessage = 'Failed to update user. Please try again.';
+
+        if (error.status === 400) {
+          errorMessage = 'Invalid user data. Please check your inputs.';
+        } else if (error.status === 403) {
+          errorMessage = 'You do not have permission to update this user.';
+        } else if (error.status === 404) {
+          errorMessage = 'User not found.';
+        } else if (error.error && error.error.message) {
+          errorMessage = error.error.message;
+        }
+
+        return throwError(() => ({ message: errorMessage }));
       })
     );
   }
@@ -732,25 +750,40 @@ export class ApiService {
   }
 
   /**
-   * ✅ NEW: ดึงข้อมูล user เดี่ยวตาม ID
-   * @param userId ID ของ user ที่ต้องการดึงข้อมูล
-   * @returns Observable<User | null>
-   */
-  getUserById(userId: number): Observable<User | null> {
+ * ✅ ดึงข้อมูล user พร้อม roles ตาม ID
+ * @param userId ID ของ user
+ * @returns Observable<any | null>
+ */
+  getUserById(userId: number): Observable<any | null> {
     console.log('Calling getUserById API with userId:', userId);
 
-    return this.http.get<{ code: number; data: User; message: string }>(`${this.apiUrl}/user/${userId}`, {
+    return this.http.get<any>(`${this.apiUrl}/users/${userId}`, {
       headers: this.getAuthHeaders()
     }).pipe(
       map(response => {
-        if (response.code === 1 && response.data) {
-          return response.data;
+        console.log('getUserById raw response:', response);
+
+        if (response && response.data) {
+          const userData = response.data;
+
+          // แปลง role_id array เป็น roles objects สำหรับ frontend
+          if (userData.role_id && Array.isArray(userData.role_id) && this.availableRoles) {
+            userData.roles = userData.role_id.map((roleId: number) => {
+              const roleObj = this.availableRoles.find(r => r.id === roleId);
+              return roleObj || { id: roleId, role_name: `Role ${roleId}` };
+            });
+            console.log('Converted role_id to roles:', userData.roles);
+          } else {
+            userData.roles = [];
+          }
+
+          return userData;
         }
         return null;
       }),
       tap(user => {
         if (user) {
-          console.log('✅ User data loaded:', user);
+          console.log('✅ User data loaded with roles:', user);
         } else {
           console.log('⚠️ User not found');
         }
@@ -796,55 +829,100 @@ export class ApiService {
    * @returns Observable<any[]> - รายการ roles ที่มี id และ role_name
    */
   getUserRoles(): Observable<any[]> {
-    console.log('Calling getUserRoles API from master_role/all_roles');
+    console.log('Calling getUserRoles API');
+
+    // ลองใช้ endpoint ที่เป็นไปได้
+    const possibleEndpoints = [
+      'roles',
+      'user/roles',
+      'master_role/all_roles',
+      'users/roles'
+    ];
 
     return this.http.get<any>(`${this.apiUrl}/master_role/all_roles`, {
       headers: this.getAuthHeaders()
     }).pipe(
       map((response: any) => {
-        console.log('getUserRoles API raw response:', response);
-        
-        // ตรวจสอบว่า response เป็น array หรือไม่
+        console.log('getUserRoles API response:', response);
+
+        // จัดการหลายรูปแบบของ response
+        let roles: any[] = [];
+
         if (Array.isArray(response)) {
-          console.log('✅ Found roles array directly:', response.length, 'roles');
-          return response;
-        } 
-        // ตรวจสอบว่ามี wrapper object หรือไม่
-        else if (response && response.data && Array.isArray(response.data)) {
-          console.log('✅ Found roles in data wrapper:', response.data.length, 'roles');
-          return response.data;
+          roles = response;
+        } else if (response.data && Array.isArray(response.data)) {
+          roles = response.data;
+        } else if (response.roles && Array.isArray(response.roles)) {
+          roles = response.roles;
         }
-        // ตรวจสอบ response แบบ backend standard
-        else if (response && response.code === 1 && response.data && Array.isArray(response.data)) {
-          console.log('✅ Found roles in backend standard format:', response.data.length, 'roles');
-          return response.data;
-        }
-        else {
-          console.warn('⚠️ Unexpected roles response format:', response);
-          return [];
-        }
+
+        // ตรวจสอบว่า role objects มี id และ role_name
+        const validRoles = roles.filter(role =>
+          role && typeof role === 'object' && role.id && role.role_name
+        );
+
+        console.log('✅ Valid roles found:', validRoles.length);
+        return validRoles;
       }),
       tap((roles: any[]) => {
-        if (roles && roles.length > 0) {
-          console.log('✅ User roles loaded successfully:', roles.length, 'roles');
-          console.log('First role example:', roles[0]);
-        } else {
-          console.warn('⚠️ No roles found in response');
-        }
+        // เก็บ roles ไว้สำหรับใช้ใน getUserById
+        this.availableRoles = roles;
+        console.log('Cached available roles:', roles);
       }),
       catchError((error: any) => {
         console.error('❌ getUserRoles API error:', error);
-        console.log('📋 Using fallback roles due to API error');
-        
-        // ✅ ส่งกลับ fallback roles ที่มี structure เหมือน API จริง
+        console.log('Using fallback roles');
+
+        // Fallback roles ที่มี format ตรงกับ backend
         const fallbackRoles = [
-          { id: 1, role_name: "แจ้งปัญหา" }
-          
+          { id: 1, role_name: "ผู้ดูแลระบบ", description: "สิทธิ์เต็ม" },
+          { id: 2, role_name: "ผู้สนับสนุน", description: "สามารถช่วยเหลือผู้ใช้" },
+          { id: 3, role_name: "ผู้ใช้งาน", description: "ผู้ใช้งานทั่วไป" },
+          { id: 9, role_name: "ผู้รับเรื่อง", description: "รับมอบหมายงาน" }
         ];
-        
+
+        this.availableRoles = fallbackRoles;
         return of(fallbackRoles);
       })
     );
+  }
+
+  /**
+   * ✅ เพิ่ม property สำหรับเก็บ available roles
+   */
+  private availableRoles: any[] = [];
+
+  /**
+   * ✅ Helper method สำหรับ validate role data format
+   * @param userData ข้อมูล user ที่ต้องการตรวจสอบ
+   * @returns boolean - true ถ้าข้อมูลถูกต้อง
+   */
+  private validateUserRoleData(userData: any): boolean {
+    // ตรวจสอบ required fields
+    if (!userData.username || !userData.email) {
+      console.warn('❌ Missing required fields: username or email');
+      return false;
+    }
+
+    // ตรวจสอบ role_id format ถ้ามี
+    if (userData.role_id && !Array.isArray(userData.role_id)) {
+      console.warn('❌ role_id must be an array');
+      return false;
+    }
+
+    // ตรวจสอบว่า role_id array มีค่าที่เป็น number
+    if (userData.role_id && Array.isArray(userData.role_id)) {
+      const invalidRoles = userData.role_id.filter((id: any) =>
+        typeof id !== 'number' && !Number.isInteger(Number(id))
+      );
+
+      if (invalidRoles.length > 0) {
+        console.warn('❌ Invalid role IDs found:', invalidRoles);
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -884,7 +962,7 @@ export class ApiService {
   getRoleName(roleId: number): string {
     const roleNames: { [key: number]: string } = {
       1: "แจ้งปัญหา",
-      2: "ติดตามปัญหา", 
+      2: "ติดตามปัญหา",
       3: "แก้ไข ticket",
       4: "ลบ ticket",
       5: "เปลี่ยนสถานะของ ticket",
@@ -901,7 +979,8 @@ export class ApiService {
       16: "ลบผู้ใช้",
       17: "จัดการ category",
       18: "จัดการ status",
-      19: "มอบหมายงาน"
+      19: "มอบหมายงาน",
+      20: "จัดการ customer"
     };
 
     return roleNames[roleId] || `Role ${roleId}`;
