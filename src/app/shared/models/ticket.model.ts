@@ -93,6 +93,7 @@ export interface SaveSupporterFormData {
   fix_issue_description?: string;
   related_ticket_id?: number;
   status_id?: number; // ✅ เพิ่ม status_id สำคัญมาก!
+  user_id?: number;
 }
 
 // ✅ เพิ่ม Interface สำหรับ Supporter Role Checking

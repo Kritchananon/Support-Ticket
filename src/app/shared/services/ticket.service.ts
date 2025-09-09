@@ -5,10 +5,10 @@ import { catchError, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 // ✅ Import interfaces ใหม่
-import { 
-  SaveSupporterResponse, 
-  SaveSupporterFormData, 
-  TicketAttachment 
+import {
+  SaveSupporterResponse,
+  SaveSupporterFormData,
+  TicketAttachment
 } from '../models/ticket.model';
 
 export interface TicketAttachmentResponse {
@@ -48,7 +48,14 @@ export interface ApiResponse<T> {
 export class TicketService {
   private apiUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient) {}
+  // calculate real time
+  private workStartHour = 8;
+  private workStartMinute = 30;
+  private workEndHour = 17;
+  private workEndMinute = 30;
+  private workHoursPerDay = 8;
+
+  constructor(private http: HttpClient) { }
 
   // Helper method สำหรับสร้าง headers พร้อม token
   private getAuthHeaders(): HttpHeaders {
@@ -73,7 +80,7 @@ export class TicketService {
   private handleError(error: HttpErrorResponse) {
     console.error('Ticket Service Error:', error);
     let errorMessage = 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
-    
+
     if (error.error instanceof ErrorEvent) {
       // Client-side error
       errorMessage = `Client Error: ${error.error.message}`;
@@ -105,7 +112,7 @@ export class TicketService {
           errorMessage = error.error?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
       }
     }
-    
+
     return throwError(() => errorMessage);
   }
 
@@ -119,11 +126,11 @@ export class TicketService {
    * @returns Observable ผลลัพธ์การบันทึก
    */
   saveSupporter(
-    ticketNo: string, 
-    formData: SaveSupporterFormData, 
+    ticketNo: string,
+    formData: SaveSupporterFormData,
     files: File[] = []
   ): Observable<SaveSupporterResponse> {
-    
+
     console.log('=== saveSupporter called ===');
     console.log('Ticket No:', ticketNo);
     console.log('Form Data:', formData);
@@ -131,30 +138,30 @@ export class TicketService {
 
     // ✅ สร้าง FormData สำหรับส่งไปยัง API
     const requestFormData = new FormData();
-    console.log(`formData2312313232 ${JSON.stringify(formData,null,2)}`);
-    
+    console.log(`formData2312313232 ${JSON.stringify(formData, null, 2)}`);
+
 
     // ✅ เพิ่มข้อมูลพื้นฐาน
     if (formData.estimate_time !== undefined) {
       requestFormData.append('estimate_time', formData.estimate_time.toString());
     }
-    
+
     if (formData.lead_time !== undefined) {
       requestFormData.append('lead_time', formData.lead_time.toString());
     }
-    
+
     if (formData.due_date) {
       requestFormData.append('due_date', formData.due_date);
     }
-    
+
     if (formData.close_estimate) {
       requestFormData.append('close_estimate', formData.close_estimate);
     }
-    
+
     if (formData.fix_issue_description) {
       requestFormData.append('fix_issue_description', formData.fix_issue_description);
     }
-    
+
     if (formData.related_ticket_id) {
       requestFormData.append('related_ticket_id', formData.related_ticket_id.toString());
     }
@@ -173,10 +180,16 @@ export class TicketService {
       });
     }
 
-    // ✅ เพิ่ม user ID จาก localStorage
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    if (currentUser.id) {
-      requestFormData.append('user_id', currentUser.id.toString());
+    // ✅ เพิ่ม user ID จาก selectUserId
+    if (formData.user_id !== undefined) {
+      requestFormData.append('user_id', formData.user_id.toString());
+    } else {
+      // ✅ ถ้าไม่มีการระบุ user_id ในฟอร์ม ให้ใช้ user_id จาก localStorage
+      //    ซึ่งอาจจะหมายถึงผู้ใช้ปัจจุบันเป็น supporter ที่รับผิดชอบ ticket นี้
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (currentUser.id) {
+        requestFormData.append('user_id', currentUser.id.toString());
+      }
     }
 
     // ✅ เพิ่ม type parameter สำหรับ supporter attachments
@@ -194,9 +207,9 @@ export class TicketService {
 
     // ✅ ส่ง request ไปยัง API
     return this.http.post<SaveSupporterResponse>(
-      `${this.apiUrl}/saveSupporter/${ticketNo}`, 
-      requestFormData, 
-      { 
+      `${this.apiUrl}/saveSupporter/${ticketNo}`,
+      requestFormData,
+      {
         headers: this.getAuthHeaders() // ไม่ระบุ Content-Type ให้ browser ตั้งเอง
       }
     ).pipe(
@@ -219,12 +232,12 @@ export class TicketService {
    */
   canUserSaveSupporter(): boolean {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    
+
     // ตรวจสอบ role หรือ permission
     // ปรับตาม business logic ของแอพ
     const allowedRoles = ['supporter', 'admin', 'lead'];
     const userRole = currentUser.role?.toLowerCase();
-    
+
     if (allowedRoles.includes(userRole)) {
       return true;
     }
@@ -242,13 +255,64 @@ export class TicketService {
   createBasicSupporterFormData(ticketId: number): FormData {
     const formData = new FormData();
     formData.append('ticket_id', ticketId.toString());
-    
+
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     if (currentUser.id) {
       formData.append('user_id', currentUser.id.toString());
     }
-    
+
     return formData;
+  }
+
+  // คำนวณชั่วโมงทำงานระหว่าง now -> closeEstimate*/
+  calculateEstimateTime(closeEstimate: Date): number {
+    const now = new Date();
+    return this.calculateWorkingHours(now, closeEstimate);
+  }
+
+  // คำนวณชั่วโมงทำงานระหว่าง now -> dueDate (lead time)*/
+  calculateLeadTime(dueDate: Date): number {
+    const now = new Date();
+    return this.calculateWorkingHours(now, dueDate);
+  }
+
+  /**
+   
+ฟังก์ชันหลักสำหรับคำนวณชั่วโมงทำงาน*/
+  private calculateWorkingHours(start: Date, end: Date): number {
+    if (end <= start) return 0;
+
+    let totalHours = 0;
+    let current = new Date(start);
+
+    while (current < end) {
+      if (this.isWorkingDay(current)) {
+        const workStart = new Date(current);
+        workStart.setHours(this.workStartHour, this.workStartMinute, 0, 0);
+
+        const workEnd = new Date(current);
+        workEnd.setHours(this.workEndHour, this.workEndMinute, 0, 0);
+
+        const effectiveStart = current > workStart ? current : workStart;
+        const effectiveEnd = end < workEnd ? end : workEnd;
+
+        if (effectiveStart < effectiveEnd) {
+          const diffMs = effectiveEnd.getTime() - effectiveStart.getTime();
+          totalHours += diffMs / (1000 * 60 * 60);
+        }
+      }
+
+      // ไปวันถัดไป 00:00
+      current.setDate(current.getDate() + 1);
+      current.setHours(0, 0, 0, 0);
+    }
+
+    return totalHours;
+  }
+
+  private isWorkingDay(date: Date): boolean {
+    const day = date.getDay(); // 0 = Sun, 6 = Sat
+    return day !== 0 && day !== 6;
   }
 
   /**
@@ -258,7 +322,7 @@ export class TicketService {
    * @returns object ผลการ validate
    */
   validateSupporterData(
-    formData: SaveSupporterFormData, 
+    formData: SaveSupporterFormData,
     files: File[] = []
   ): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
@@ -318,7 +382,7 @@ export class TicketService {
       if (!this.isValidFileType(file)) {
         errors.push(`ไฟล์ ${file.name} มีประเภทที่ไม่รองรับ`);
       }
-      
+
       if (!this.isValidFileSize(file)) {
         errors.push(`ไฟล์ ${file.name} มีขนาดใหญ่เกิน 10MB`);
       }
@@ -349,21 +413,21 @@ export class TicketService {
     type: string = 'reporter'
   ): Observable<ApiResponse<TicketAttachmentResponse>> {
     const formData = new FormData();
-    
+
     // เฉพาะกรณีที่มีไฟล์
     if (files && files.length > 0) {
       for (const file of files) {
         formData.append('files', file);
       }
     }
-    
+
     // เพิ่มข้อมูลอื่นๆ
     formData.append('project_id', projectId.toString());
     formData.append('category_id', categoryId.toString());
     formData.append('issue_description', issueDescription);
     formData.append('type', type);
     formData.append('status_id', '1'); // Default status: New
-    
+
     // รับ user_id จาก localStorage
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     if (currentUser.id) {
@@ -380,8 +444,8 @@ export class TicketService {
     });
 
     return this.http.post<ApiResponse<TicketAttachmentResponse>>(
-      `${this.apiUrl}/updateAttachment`, 
-      formData, 
+      `${this.apiUrl}/updateAttachment`,
+      formData,
       { headers: this.getAuthHeaders() }
     ).pipe(
       catchError(this.handleError)
@@ -401,16 +465,16 @@ export class TicketService {
     type: string = 'supporter'
   ): Observable<ApiResponse<TicketAttachmentResponse>> {
     const formData = new FormData();
-    
+
     // เพิ่มไฟล์ลงใน FormData
     for (const file of files) {
       formData.append('files', file);
     }
-    
+
     // เพิ่มข้อมูลที่จำเป็น
     formData.append('ticket_id', ticketId.toString());
     formData.append('type', type);
-    
+
     // รับ user_id จาก localStorage
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     if (currentUser.id) {
@@ -425,8 +489,8 @@ export class TicketService {
     });
 
     return this.http.post<ApiResponse<TicketAttachmentResponse>>(
-      `${this.apiUrl}/updateAttachment`, 
-      formData, 
+      `${this.apiUrl}/updateAttachment`,
+      formData,
       { headers: this.getAuthHeaders() }
     ).pipe(
       catchError(this.handleError)
@@ -469,7 +533,7 @@ export class TicketService {
   downloadAttachment(attachmentId: number): Observable<Blob> {
     return this.http.get(
       `${this.apiUrl}/attachment/${attachmentId}/download`,
-      { 
+      {
         headers: this.getAuthHeaders(),
         responseType: 'blob'
       }
@@ -486,7 +550,7 @@ export class TicketService {
   isValidFileType(file: File): boolean {
     const allowedTypes = [
       'image/jpeg',
-      'image/jpg', 
+      'image/jpg',
       'image/png',
       'image/gif',
       'image/webp',
@@ -498,7 +562,7 @@ export class TicketService {
       'text/plain',
       'text/csv'
     ];
-    
+
     return allowedTypes.includes(file.type);
   }
 
@@ -519,10 +583,10 @@ export class TicketService {
    * @param maxFiles จำนวนไฟล์สูงสุด (default: 5)
    * @returns object ผลการตรวจสอบ
    */
-  validateFiles(files: File[], maxFiles: number = 5): { 
-    isValid: boolean; 
-    errors: string[]; 
-    validFiles: File[] 
+  validateFiles(files: File[], maxFiles: number = 5): {
+    isValid: boolean;
+    errors: string[];
+    validFiles: File[]
   } {
     const errors: string[] = [];
     const validFiles: File[] = [];
@@ -574,11 +638,11 @@ export class TicketService {
    */
   formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
-    
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
@@ -589,7 +653,7 @@ export class TicketService {
    */
   getFileIcon(fileName: string): string {
     const extension = fileName.split('.').pop()?.toLowerCase();
-    
+
     switch (extension) {
       case 'pdf':
         return 'bi-file-earmark-pdf';
