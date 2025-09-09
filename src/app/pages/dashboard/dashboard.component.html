@@ -30,7 +30,7 @@
   <!-- Dashboard Header Card - ตรงกับ Figma -->
   <div class="dashboard-header-card">
     <h1>Dashboard</h1>
-    
+
     <!-- Stats Cards Row -->
     <div class="d-flex justify-content-between align-items-center gap-4">
       <!-- Total Ticket -->
@@ -45,7 +45,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- New Ticket -->
       <div class="stats-card bg-warning">
         <div class="card-body">
@@ -58,7 +58,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- In Progress -->
       <div class="stats-card bg-info">
         <div class="card-body">
@@ -71,7 +71,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Complete -->
       <div class="stats-card bg-success">
         <div class="card-body">
@@ -87,58 +87,142 @@
     </div>
   </div>
 
+  <!-- line chart -->
   <!-- Charts Section -->
   <div class="row mb-4">
-      <div class="col-md-12">
-        <div class="card shadow">
-          <div class="card-header py-3">
-            <div class="d-flex justify-content-between align-items-center w-100">
-              <h6 class="m-0 font-weight-bold text-primary">All Tickets at Month</h6>
-              <div class="chart-controls">
-                <div class="d-flex gap-2">
-                  <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="monthDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                      <span>{{ selectedMonth }}</span>
-                    </button>
-                    <ul class="dropdown-menu" aria-labelledby="monthDropdown">
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('January')">มกราคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('February')">กุมภาพันธ์</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('March')">มีนาคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('April')">เมษายน</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('May')">พฤษภาคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('June')">มิถุนายน</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('July')">กรกฎาคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('August')">สิงหาคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('September')">กันยายน</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('October')">ตุลาคม</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('November')">พฤศจิกายน</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('December')">ธันวาคม</a></li>
-                    </ul>
-                  </div>
-                  <div class="dropdown ms-2">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="yearDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                      <span>{{ selectedYear }}</span>
-                    </button>
-                    <ul class="dropdown-menu" aria-labelledby="yearDropdown">
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2023')">2023</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2024')">2024</a></li>
-                      <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2025')">2025</a></li>
-                    </ul>
-                  </div>
+    <div class="col-md-12">
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <h6 class="m-0 font-weight-bold text-primary">All Tickets at Month</h6>
+            <div class="chart-controls">
+              <div class="d-flex gap-2">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="monthDropdown"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                    <span>{{ selectedMonth }}</span>
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="monthDropdown">
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('January')">มกราคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectMonth('February')">กุมภาพันธ์</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('March')">มีนาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('April')">เมษายน</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('May')">พฤษภาคม</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('June')">มิถุนายน</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('July')">กรกฎาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('August')">สิงหาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectMonth('September')">กันยายน</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('October')">ตุลาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectMonth('November')">พฤศจิกายน</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectMonth('December')">ธันวาคม</a>
+                    </li>
+                  </ul>
+                </div>
+                <div class="dropdown ms-2">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="yearDropdown"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                    <span>{{ selectedYear }}</span>
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="yearDropdown">
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2023')">2023</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2024')">2024</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectYear('2025')">2025</a></li>
+                  </ul>
                 </div>
               </div>
             </div>
           </div>
-          <div class="card-body">
-            <div class="chart-area">
-              <canvas #monthlyChart id="monthlyChart" style="height: 400px;"></canvas>
-            </div>
+        </div>
+        <div class="card-body">
+          <div class="chart-area">
+            <canvas #monthlyChart id="monthlyChart" style="height: 400px;"></canvas>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
+  <!-- bar chart -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card shadow">
+        <div class="card-header py-3">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <h6 class="m-0 font-weight-bold text-primary">All Tickets at Month Bar Chart</h6>
+            <div class="chart-controls">
+              <div class="d-flex gap-2">
+                <!-- Month dropdown สำหรับ Bar Chart -->
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="barMonthDropdown"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                    <span>{{ selectedBarMonth }}</span>
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="barMonthDropdown">
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('January')">มกราคม</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('February')">กุมภาพันธ์</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarMonth('March')">มีนาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarMonth('April')">เมษายน</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarMonth('May')">พฤษภาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarMonth('June')">มิถุนายน</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarMonth('July')">กรกฎาคม</a>
+                    </li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('August')">สิงหาคม</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('September')">กันยายน</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('October')">ตุลาคม</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('November')">พฤศจิกายน</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)"
+                        (click)="selectBarMonth('December')">ธันวาคม</a></li>
+                  </ul>
+                </div>
 
+                <!-- Year dropdown สำหรับ Bar Chart -->
+                <div class="dropdown ms-2">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="barYearDropdown"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                    <span>{{ selectedBarYear }}</span>
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="barYearDropdown">
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarYear('2023')">2023</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarYear('2024')">2024</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" (click)="selectBarYear('2025')">2025</a></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart area -->
+        <div class="card-body">
+          <div class="chart-area">
+            <canvas #monthlybarChart id="monthlybarChart" style="height: 400px;"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- categories chart -->
   <div class="row">
     <!-- All Ticket Summary by Categories Chart -->
     <div class="col-md-8 mb-4">
