@@ -11,7 +11,7 @@ import {
 
 /**
  * ✅ ENHANCED: Directive สำหรับตรวจสอบ permissions และแสดง/ซ่อน elements
- * รองรับทั้ง number และ permissionEnum
+ * รองรับทั้ง number และ permissionEnum (19 permissions)
  * 
  * Usage:
  * <div *hasPermission="[1, 2]">Create Button</div>
@@ -76,12 +76,12 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
         const permissionNumber = enumToNumber(permissions as permissionEnum);
         this._permissions = [permissionNumber];
       } catch (error) {
-        console.warn('❌ Invalid permissions provided to hasPermission directive:', permissions);
+        console.warn('⚠ Invalid permissions provided to hasPermission directive:', permissions);
         this._permissions = [];
       }
     }
 
-    console.log('🔐 HasPermission directive updated:', {
+    console.log('🔍 HasPermission directive updated:', {
       original: permissions,
       processed: this._permissions,
       requireAll: this._requireAll
@@ -134,7 +134,7 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
       // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ Element hidden by permission directive');
+      console.log('⚠ Element hidden by permission directive');
     }
   }
 
@@ -199,7 +199,7 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       if (Object.values(ROLES).includes(roles as UserRole)) {
         this._roles = [roles as UserRole];
       } else {
-        console.warn('❌ Invalid role provided to hasRole directive:', roles);
+        console.warn('⚠ Invalid role provided to hasRole directive:', roles);
         this._roles = [];
       }
     } else if (Array.isArray(roles)) {
@@ -208,10 +208,10 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       
       if (this._roles.length !== roles.length) {
         const invalidRoles = roles.filter(role => !Object.values(ROLES).includes(role));
-        console.warn('❌ Some invalid roles filtered out:', invalidRoles);
+        console.warn('⚠ Some invalid roles filtered out:', invalidRoles);
       }
     } else {
-      console.warn('❌ Invalid roles provided to hasRole directive:', roles);
+      console.warn('⚠ Invalid roles provided to hasRole directive:', roles);
       this._roles = [];
     }
 
@@ -267,7 +267,7 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ Element hidden by role directive');
+      console.log('⚠ Element hidden by role directive');
     }
   }
 
@@ -349,7 +349,7 @@ export class HasAccessDirective implements OnInit, OnDestroy {
     this._requireAllPermissions = config.requireAllPermissions || false;
     this._requireAllRoles = config.requireAllRoles || false;
 
-    console.log('🔐👥 HasAccess directive updated:', {
+    console.log('🔍👥 HasAccess directive updated:', {
       permissions: this._permissions,
       roles: this._roles,
       requireAllPermissions: this._requireAllPermissions,
@@ -398,7 +398,7 @@ export class HasAccessDirective implements OnInit, OnDestroy {
       // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ Element hidden by access directive');
+      console.log('⚠ Element hidden by access directive');
     }
   }
 
@@ -469,7 +469,7 @@ export class DebugPermissionsDirective implements OnInit {
   ngOnInit(): void {
     if (this.debugPermissions) {
       console.group('🔍 Permission Debug from Directive');
-      console.log('🔐 User Permissions:', this.authService.getEffectivePermissions());
+      console.log('🔍 User Permissions:', this.authService.getEffectivePermissions());
       console.log('👥 User Roles:', this.authService.getUserRoles());
       console.log('🎯 Is Authenticated:', this.authService.isAuthenticated());
       console.log('🔧 Auth Methods:', {
@@ -536,7 +536,7 @@ export class SupporterOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ Supporter element hidden');
+      console.log('⚠ Supporter element hidden');
     }
   }
 }
@@ -589,7 +589,7 @@ export class AdminOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ Admin element hidden');
+      console.log('⚠ Admin element hidden');
     }
   }
 }
@@ -647,7 +647,173 @@ export class UserOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('❌ User-only element hidden');
+      console.log('⚠ User-only element hidden');
+    }
+  }
+}
+
+// ===== ✅ NEW: Specific Feature Directives (รองรับ 19 permissions) =====
+
+/**
+ * ✅ NEW: Directive สำหรับ Project Management features
+ */
+@Directive({
+  selector: '[canManageProject]',
+  standalone: true
+})
+export class CanManageProjectDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 CanManageProject directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    const canAccess = userPermissions.includes(10); // MANAGE_PROJECT
+    
+    console.log('🔍 Project management access check:', {
+      canAccess,
+      hasManageProject: userPermissions.includes(10),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Project management element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠ Project management element hidden');
+    }
+  }
+}
+
+/**
+ * ✅ NEW: Directive สำหรับ Category/Status Management features
+ */
+@Directive({
+  selector: '[canManageSystem]',
+  standalone: true
+})
+export class CanManageSystemDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 CanManageSystem directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    // ตรวจสอบว่ามี permission จัดการ category หรือ status
+    const canAccess = userPermissions.includes(17) || userPermissions.includes(18); // MANAGE_CATEGORY || MANAGE_STATUS
+    
+    console.log('🔍 System management access check:', {
+      canAccess,
+      hasManageCategory: userPermissions.includes(17),
+      hasManageStatus: userPermissions.includes(18),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ System management element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠ System management element hidden');
+    }
+  }
+}
+
+/**
+ * ✅ NEW: Directive สำหรับ Dashboard/Monitoring features
+ */
+@Directive({
+  selector: '[canViewDashboard]',
+  standalone: true
+})
+export class CanViewDashboardDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 CanViewDashboard directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    const canAccess = userPermissions.includes(19); // VIEW_DASHBOARD
+    
+    console.log('🔍 Dashboard access check:', {
+      canAccess,
+      hasViewDashboard: userPermissions.includes(19),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Dashboard element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠ Dashboard element hidden');
     }
   }
 }
@@ -660,5 +826,8 @@ export const PERMISSION_DIRECTIVES = [
   DebugPermissionsDirective,
   SupporterOnlyDirective,
   AdminOnlyDirective,
-  UserOnlyDirective
+  UserOnlyDirective,
+  CanManageProjectDirective,
+  CanManageSystemDirective,
+  CanViewDashboardDirective
 ] as const;

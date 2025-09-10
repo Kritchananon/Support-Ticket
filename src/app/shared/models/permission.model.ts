@@ -1,4 +1,4 @@
-// ===== Permission Enum (ตรงกับ Backend) =====
+// ===== Permission Enum (ตรงกับ Backend - 19 permissions) =====
 export enum permissionEnum {
   CREATE_TICKET = 1,          // แจ้งปัญหา
   TRACK_TICKET = 2,           // ติดตามปัญหา
@@ -9,13 +9,16 @@ export enum permissionEnum {
   CLOSE_TICKET = 7,           // ปิด ticket
   SOLVE_PROBLEM = 8,          // แก้ไขปัญหา
   ASSIGNEE = 9,               // ผู้รับเรื่อง
-  OPEN_TICKET = 10,           // เปิด ticket
+  MANAGE_PROJECT = 10,        // จัดการ project
   RESTORE_TICKET = 11,        // กู้คืน ticket
-  VIEW_OWN_TICKETS = 12,      // ดูตั๋วทั้งหมดที่ตัวเองสร้าง
-  VIEW_ALL_TICKETS = 13,      // ดูตั๋วทั้งหมด
-  SATISFACTION = 14,          // ประเมินความพึงพอใจ
+  VIEW_OWN_TICKETS = 12,      // ดูรายงานตั๋วของตัวเอง
+  VIEW_ALL_TICKETS = 13,      // ดูรายงานทั้งหมด
+  SATISFACTION = 14,          // ให้คะแนนความพึงพอใจ
   ADD_USER = 15,              // เพิ่มผู้ใช้
-  DEL_USER = 16               // ลบผู้ใช้
+  DEL_USER = 16,              // ลบผู้ใช้
+  MANAGE_CATEGORY = 17,       // จัดการ category
+  MANAGE_STATUS = 18,         // จัดการ status
+  VIEW_DASHBOARD = 19         // มอนเทอริ่ง
 }
 
 // ===== Role Constants =====
@@ -27,37 +30,49 @@ export const ROLES = {
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
 
-// ===== ✅ FIXED: Role-Based Permissions Mapping (ใช้ number[] แทน permissionEnum[]) =====
+// ===== ✅ UPDATED: Role-Based Permissions Mapping (19 permissions) =====
 export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
   [ROLES.ADMIN]: [
-    15, // ADD_USER
-    9,  // ASSIGNEE
-    5,  // CHANGE_STATUS
-    7,  // CLOSE_TICKET
-    16, // DEL_USER
-    10, // OPEN_TICKET
-    6,  // REPLY_TICKET
+    1,  // CREATE_TICKET
     2,  // TRACK_TICKET
+    3,  // EDIT_TICKET
+    4,  // DELETE_TICKET
+    5,  // CHANGE_STATUS
+    6,  // REPLY_TICKET
+    7,  // CLOSE_TICKET
+    8,  // SOLVE_PROBLEM
+    9,  // ASSIGNEE
+    10, // MANAGE_PROJECT
+    11, // RESTORE_TICKET
+    12, // VIEW_OWN_TICKETS
     13, // VIEW_ALL_TICKETS
-    8   // SOLVE_PROBLEM
+    14, // SATISFACTION
+    15, // ADD_USER
+    16, // DELETE_USER
+    17, // MANAGE_CATEGORY
+    18, // MANAGE_STATUS
+    19  // VIEW_DASHBOARD
   ],
   [ROLES.SUPPORTER]: [
+    2,  // TRACK_TICKET
+    3,  // EDIT_TICKET
     5,  // CHANGE_STATUS
-    7,  // CLOSE_TICKET
-    10, // OPEN_TICKET
     6,  // REPLY_TICKET
-    13, // VIEW_ALL_TICKETS
+    7,  // CLOSE_TICKET
     8,  // SOLVE_PROBLEM
-    9   // ASSIGNEE
+    9,  // ASSIGNEE
+    11, // RESTORE_TICKET
+    12, // VIEW_OWN_TICKETS
+    13, // VIEW_ALL_TICKETS
+    19  // VIEW_DASHBOARD
   ],
   [ROLES.USER]: [
     1,  // CREATE_TICKET
-    4,  // DELETE_TICKET
-    3,  // EDIT_TICKET
-    11, // RESTORE_TICKET
-    14, // SATISFACTION
     2,  // TRACK_TICKET
-    12  // VIEW_OWN_TICKETS
+    3,  // EDIT_TICKET (เฉพาะตั๋วของตัวเอง)
+    4,  // DELETE_TICKET (เฉพาะตั๋วของตัวเอง)
+    12, // VIEW_OWN_TICKETS
+    14  // SATISFACTION
   ]
 };
 
@@ -103,8 +118,8 @@ export function isValidPermissionNumber(num: number): boolean {
 // ===== Permission Interfaces =====
 export interface PermissionCheck {
   hasPermission: boolean;
-  missingPermissions: number[];  // ✅ เปลี่ยนเป็น number[]
-  userPermissions: number[];     // ✅ เปลี่ยนเป็ number[]
+  missingPermissions: number[];
+  userPermissions: number[];
 }
 
 export interface RoleCheck {
@@ -116,14 +131,14 @@ export interface RoleCheck {
 export interface AccessControl {
   canAccess: boolean;
   reason?: string;
-  requiredPermissions?: number[];  // ✅ เปลี่ยนเป็น number[]
+  requiredPermissions?: number[];
   requiredRoles?: UserRole[];
 }
 
 // ===== Permission Helper Functions =====
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อที่อ่านได้
+ * ✅ UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (19 permissions)
  */
 export function getPermissionName(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -138,20 +153,23 @@ export function getPermissionName(permission: number | permissionEnum): string {
     7: 'Close Ticket',
     8: 'Solve Problem',
     9: 'Assign Ticket',
-    10: 'Open Ticket',
+    10: 'Manage Project',
     11: 'Restore Ticket',
     12: 'View Own Tickets',
     13: 'View All Tickets',
     14: 'Rate Satisfaction',
     15: 'Add User',
-    16: 'Delete User'
+    16: 'Delete User',
+    17: 'Manage Category',
+    18: 'Manage Status',
+    19: 'View Dashboard'
   };
   
   return permissionNames[permissionNumber] || `Permission ${permissionNumber}`;
 }
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อภาษาไทย
+ * ✅ UPDATED: แปลง permission number เป็นชื่อภาษาไทย (19 permissions)
  */
 export function getPermissionNameTh(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -166,13 +184,16 @@ export function getPermissionNameTh(permission: number | permissionEnum): string
     7: 'ปิด ticket',
     8: 'แก้ไขปัญหา',
     9: 'ผู้รับเรื่อง',
-    10: 'เปิด ticket',
+    10: 'จัดการ project',
     11: 'กู้คืน ticket',
-    12: 'ดูตั๋วทั้งหมดที่ตัวเองสร้าง',
-    13: 'ดูตั๋วทั้งหมด',
-    14: 'ประเมินความพึงพอใจ',
+    12: 'ดูรายงานตั๋วของตัวเอง',
+    13: 'ดูรายงานทั้งหมด',
+    14: 'ให้คะแนนความพึงพอใจ',
     15: 'เพิ่มผู้ใช้',
-    16: 'ลบผู้ใช้'
+    16: 'ลบผู้ใช้',
+    17: 'จัดการ category',
+    18: 'จัดการ status',
+    19: 'มอนเทอริ่ง'
   };
   
   return permissionNamesTh[permissionNumber] || `สิทธิ์ ${permissionNumber}`;
@@ -290,7 +311,7 @@ export function checkAccess(
   };
 }
 
-// ===== ✅ UPDATED: Common Permission Groups (ใช้ number[]) =====
+// ===== ✅ UPDATED: Common Permission Groups (ใช้ number[] - 19 permissions) =====
 export const PERMISSION_GROUPS = {
   TICKET_MANAGEMENT: [
     1,  // CREATE_TICKET
@@ -302,17 +323,26 @@ export const PERMISSION_GROUPS = {
     13, // VIEW_ALL_TICKETS
     5,  // CHANGE_STATUS
     9,  // ASSIGNEE
-    7   // CLOSE_TICKET
+    7,  // CLOSE_TICKET
+    11  // RESTORE_TICKET
   ],
   USER_MANAGEMENT: [
     15, // ADD_USER
-    16  // DEL_USER
+    16  // DELETE_USER
   ],
   SUPPORT_OPERATIONS: [
     6,  // REPLY_TICKET
     8,  // SOLVE_PROBLEM
-    10, // OPEN_TICKET
-    11  // RESTORE_TICKET
+    2   // TRACK_TICKET
+  ],
+  SYSTEM_ADMINISTRATION: [
+    17, // MANAGE_CATEGORY
+    18, // MANAGE_STATUS
+    10, // MANAGE_PROJECT
+    19  // VIEW_DASHBOARD
+  ],
+  SATISFACTION: [
+    14  // SATISFACTION
   ]
 } as const;
 
@@ -389,4 +419,140 @@ export function validatePermissionMapping(): boolean {
   console.groupEnd();
   
   return isValid;
+}
+
+// ===== ✅ NEW: Specific Permission Checkers =====
+
+/**
+ * ตรวจสอบว่าสามารถจัดการ ticket ได้หรือไม่
+ */
+export function canManageTickets(userPermissions: number[]): boolean {
+  return PERMISSION_GROUPS.TICKET_ADMINISTRATION.some(permission => 
+    userPermissions.includes(permission)
+  );
+}
+
+/**
+ * ตรวจสอบว่าสามารถจัดการ user ได้หรือไม่
+ */
+export function canManageUsers(userPermissions: number[]): boolean {
+  return PERMISSION_GROUPS.USER_MANAGEMENT.some(permission => 
+    userPermissions.includes(permission)
+  );
+}
+
+/**
+ * ตรวจสอบว่าสามารถจัดการระบบได้หรือไม่
+ */
+export function canManageSystem(userPermissions: number[]): boolean {
+  return PERMISSION_GROUPS.SYSTEM_ADMINISTRATION.some(permission => 
+    userPermissions.includes(permission)
+  );
+}
+
+/**
+ * ตรวจสอบว่าสามารถทำงาน support ได้หรือไม่
+ */
+export function canDoSupport(userPermissions: number[]): boolean {
+  return PERMISSION_GROUPS.SUPPORT_OPERATIONS.some(permission => 
+    userPermissions.includes(permission)
+  );
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่าสามารถจัดการ project ได้หรือไม่
+ */
+export function canManageProject(userPermissions: number[]): boolean {
+  return userPermissions.includes(10); // MANAGE_PROJECT
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่าสามารถจัดการ category ได้หรือไม่
+ */
+export function canManageCategory(userPermissions: number[]): boolean {
+  return userPermissions.includes(17); // MANAGE_CATEGORY
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่าสามารถจัดการ status ได้หรือไม่
+ */
+export function canManageStatus(userPermissions: number[]): boolean {
+  return userPermissions.includes(18); // MANAGE_STATUS
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่าสามารถดู dashboard ได้หรือไม่
+ */
+export function canViewDashboard(userPermissions: number[]): boolean {
+  return userPermissions.includes(19); // VIEW_DASHBOARD
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่าสามารถให้คะแนนความพึงพอใจได้หรือไม่
+ */
+export function canRateSatisfaction(userPermissions: number[]): boolean {
+  return userPermissions.includes(14); // SATISFACTION
+}
+
+// ===== ✅ NEW: Permission Summary Functions =====
+
+/**
+ * สรุป permissions ที่ user มีทั้งหมด
+ */
+export function summarizeUserPermissions(userPermissions: number[]): {
+  total: number;
+  byGroup: Record<string, { permissions: number[]; names: string[] }>;
+  missing: Record<string, { permissions: number[]; names: string[] }>;
+} {
+  const summary = {
+    total: userPermissions.length,
+    byGroup: {} as Record<string, { permissions: number[]; names: string[] }>,
+    missing: {} as Record<string, { permissions: number[]; names: string[] }>
+  };
+
+  // จัดกลุ่ม permissions ที่มี
+  Object.entries(PERMISSION_GROUPS).forEach(([groupName, groupPermissions]) => {
+    const hasPermissions = groupPermissions.filter(p => userPermissions.includes(p));
+    const missingPermissions = groupPermissions.filter(p => !userPermissions.includes(p));
+    
+    summary.byGroup[groupName] = {
+      permissions: hasPermissions,
+      names: hasPermissions.map(p => getPermissionNameTh(p))
+    };
+    
+    if (missingPermissions.length > 0) {
+      summary.missing[groupName] = {
+        permissions: missingPermissions,
+        names: missingPermissions.map(p => getPermissionNameTh(p))
+      };
+    }
+  });
+
+  return summary;
+}
+
+/**
+ * แสดงสรุป permissions ใน console
+ */
+export function logPermissionSummary(userPermissions: number[], userRoles: UserRole[]): void {
+  console.group('📊 Permission Summary');
+  
+  console.log('👥 User Roles:', userRoles);
+  console.log('🔢 Total Permissions:', userPermissions.length, '/ 19');
+  
+  const summary = summarizeUserPermissions(userPermissions);
+  
+  Object.entries(summary.byGroup).forEach(([groupName, data]) => {
+    if (data.permissions.length > 0) {
+      console.log(`✅ ${groupName}:`, data.names);
+    }
+  });
+  
+  Object.entries(summary.missing).forEach(([groupName, data]) => {
+    if (data.permissions.length > 0) {
+      console.log(`❌ Missing ${groupName}:`, data.names);
+    }
+  });
+  
+  console.groupEnd();
 }
