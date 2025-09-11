@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
 // เพิ่ม imports ที่จำเป็น
@@ -9,12 +9,12 @@ import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { permissionEnum } from '../../../shared/models/permission.model';
 
-// Project interface
+// Project interface - อัปเดตให้ company เป็น optional
 export interface ProjectItem {
   id: number;
   name: string;
   description?: string;
-  company: string;
+  company?: string; // เปลี่ยนเป็น optional
   company_id?: number;
   status: 'active' | 'inactive';
   created_date: string;
@@ -25,10 +25,19 @@ export interface ProjectItem {
   end_date?: string;
 }
 
+// Create Project Form Interface
+export interface CreateProjectForm {
+  name: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  status: 'active' | 'inactive';
+}
+
 @Component({
   selector: 'app-project-add',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule], // เพิ่ม ReactiveFormsModule
   templateUrl: './project.component.html',
   styleUrls: ['./project.component.css']
 })
@@ -67,11 +76,20 @@ export class ProjectComponent implements OnInit, OnDestroy {
     newThisMonth: 0
   };
 
+  // Modal-related properties
+  isCreateModalVisible = false;
+  isSubmitting = false;
+  projectForm!: FormGroup;
+
   constructor(
     private router: Router,
     private apiService: ApiService,
-    private authService: AuthService
-  ) { }
+    private authService: AuthService,
+    private fb: FormBuilder // เพิ่ม FormBuilder
+  ) { 
+    // เรียก initForm ใน constructor เพื่อให้แน่ใจว่า form พร้อมใช้งาน
+    this.initForm();
+  }
 
   ngOnInit(): void {
     this.loadProjectData();
@@ -81,6 +99,37 @@ export class ProjectComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  /**
+   * Initialize form for modal - แก้ไขให้ทำงานถูกต้อง
+   */
+  private initForm(): void {
+    this.projectForm = this.fb.group({
+      name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
+      description: [''],
+      start_date: [''],
+      end_date: [''],
+      status: ['active', [Validators.required]]
+    });
+
+    console.log('Form initialized:', this.projectForm);
+  }
+
+  /**
+   * Check if field is invalid - ทำให้ง่ายขึ้น
+   */
+  isFieldInvalid(fieldName: string): boolean {
+    const field = this.projectForm.get(fieldName);
+    return !!(field && field.invalid && (field.dirty || field.touched));
+  }
+
+  /**
+   * Get description length
+   */
+  getDescriptionLength(): number {
+    const descValue = this.projectForm.get('description')?.value;
+    return descValue ? descValue.length : 0;
   }
 
   /**
@@ -94,7 +143,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
     console.log('Loading project data...');
 
     // จำลอง API call (ปรับตามจริง)
-    // this.apiService.getProjectsWithCache(forceRefresh)
     setTimeout(() => {
       try {
         // Mock data - ใช้แทน API response
@@ -129,7 +177,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Mock data สำหรับทดสอบ
+   * Mock data สำหรับทดสอบ - ลบ company fields ออก
    */
   private getMockProjectData(): ProjectItem[] {
     return [
@@ -137,8 +185,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 1,
         name: 'Support Ticket System',
         description: 'Customer support ticketing system',
-        company: 'Tech Solutions Co., Ltd.',
-        company_id: 1,
         status: 'active',
         created_date: '2024-01-15T00:00:00Z',
         created_by: 1,
@@ -151,8 +197,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 2,
         name: 'Digital Marketing Platform',
         description: 'Comprehensive marketing automation platform',
-        company: 'Digital Marketing Inc.',
-        company_id: 2,
         status: 'active',
         created_date: '2024-03-10T00:00:00Z',
         created_by: 1,
@@ -165,8 +209,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 3,
         name: 'Innovation Lab Portal',
         description: 'Internal innovation management system',
-        company: 'Innovation Hub Ltd.',
-        company_id: 3,
         status: 'active',
         created_date: '2024-05-20T00:00:00Z',
         created_by: 2,
@@ -178,8 +220,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 4,
         name: 'Creative Assets Manager',
         description: 'Digital asset management system',
-        company: 'Creative Agency Co.',
-        company_id: 4,
         status: 'inactive',
         created_date: '2024-02-01T00:00:00Z',
         created_by: 1,
@@ -192,8 +232,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 5,
         name: 'Startup Venture Tracker',
         description: 'Investment and startup tracking platform',
-        company: 'Startup Ventures Co.',
-        company_id: 5,
         status: 'active',
         created_date: '2024-07-01T00:00:00Z',
         created_by: 2,
@@ -236,7 +274,6 @@ export class ProjectComponent implements OnInit, OnDestroy {
     const searchableFields = [
       project.name || '',
       project.description || '',
-      project.company || '',
       project.status || ''
     ];
 
@@ -246,13 +283,11 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ตรวจสอบว่าตรงกับ filter บริษัทหรือไม่
+   * ตรวจสอบว่าตรงกับ filter บริษัทหรือไม่ - ปิดการใช้งาน company filter
    */
   private matchesCompanyFilter(project: ProjectItem, companyValue: string): boolean {
-    if (!project.company) return true;
-
-    const companyName = this.getCompanyName(companyValue);
-    return project.company.toLowerCase().includes(companyName.toLowerCase());
+    // เนื่องจากไม่มี company field แล้ว ให้ return true เสมอ
+    return true;
   }
 
   /**
@@ -277,12 +312,119 @@ export class ProjectComponent implements OnInit, OnDestroy {
     this.filterProjects();
   }
 
+  // ============ MODAL METHODS ============
+
   /**
-   * Navigate to create new project page
+   * เปิด Modal สำหรับสร้างโปรเจคใหม่
    */
   createNewProject(): void {
-    console.log('Navigating to create new project page');
-    this.router.navigate(['/settings/project-create']);
+    console.log('Opening create new project modal');
+    this.isCreateModalVisible = true;
+    this.resetForm(); // รีเซ็ต form เมื่อเปิด modal
+  }
+
+  /**
+   * ปิด Modal
+   */
+  onModalClose(): void {
+    console.log('Create project modal closed');
+    if (!this.isSubmitting) {
+      this.resetForm();
+      this.isCreateModalVisible = false;
+    }
+  }
+
+  /**
+   * Handle backdrop click
+   */
+  onBackdropClick(): void {
+    this.onModalClose();
+  }
+
+  /**
+   * Reset form - ปรับให้ทำงานถูกต้อง
+   */
+  private resetForm(): void {
+    this.projectForm.reset({
+      status: 'active'
+    });
+    this.isSubmitting = false;
+    console.log('Form reset');
+  }
+
+  /**
+   * Handle form submission - แก้ไขให้ทำงานถูกต้อง
+   */
+  onSubmit(): void {
+    console.log('Form submitted');
+    console.log('Form valid:', this.projectForm.valid);
+    console.log('Form value:', this.projectForm.value);
+    console.log('Form errors:', this.projectForm.errors);
+    
+    // ตรวจสอบทุก field
+    Object.keys(this.projectForm.controls).forEach(key => {
+      const control = this.projectForm.get(key);
+      console.log(`${key}:`, control?.value, control?.valid, control?.errors);
+    });
+
+    if (this.projectForm.valid && !this.isSubmitting) {
+      this.isSubmitting = true;
+      console.log('Creating project...');
+      
+      const formData = this.projectForm.value;
+      
+      // Simulate API call delay
+      setTimeout(() => {
+        this.onProjectCreated(formData);
+        this.isSubmitting = false;
+      }, 1000);
+    } else {
+      console.log('Form invalid, marking all fields as touched');
+      // Mark all fields as touched to show validation errors
+      Object.keys(this.projectForm.controls).forEach(key => {
+        const control = this.projectForm.get(key);
+        control?.markAsTouched();
+      });
+    }
+  }
+
+  /**
+   * จัดการการสร้างโปรเจคใหม่จาก Modal - ปรับให้ง่ายขึ้น
+   */
+  onProjectCreated(projectData: CreateProjectForm): void {
+    console.log('New project created:', projectData);
+    
+    // สร้าง project item ใหม่
+    const newProject: ProjectItem = {
+      id: Date.now(), // Temporary ID - should come from API
+      name: projectData.name,
+      description: projectData.description || '',
+      status: projectData.status,
+      created_date: new Date().toISOString(),
+      created_by: 1, // Should get from current user
+      start_date: projectData.start_date || undefined,
+      end_date: projectData.end_date || undefined
+    };
+
+    // เพิ่มเข้า projects array (ในแอปจริงจะเป็น API call)
+    this.projects.unshift(newProject);
+    this.filterProjects();
+    this.loadProjectStats();
+
+    // ปิด modal
+    this.isCreateModalVisible = false;
+
+    // แสดงข้อความสำเร็จ
+    this.showSuccessMessage(`Project "${projectData.name}" has been created successfully!`);
+  }
+
+  /**
+   * แสดงข้อความสำเร็จ
+   */
+  private showSuccessMessage(message: string): void {
+    // You can replace this with a proper toast notification
+    alert(message);
+    console.log('Success:', message);
   }
 
   /**
@@ -347,7 +489,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ แก้ไข: ตรวจสอบสิทธิ์ในการจัดการโปรเจค (ใช้ permissions ใหม่)
+   * ตรวจสอบสิทธิ์ในการจัดการโปรเจค
    */
   canManageProjects(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
@@ -355,7 +497,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ แก้ไข: ตรวจสอบสิทธิ์ในการแก้ไข
+   * ตรวจสอบสิทธิ์ในการแก้ไข
    */
   canEditProject(project: ProjectItem): boolean {
     if (this.authService.isAdmin()) {
@@ -366,19 +508,18 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ แก้ไข: ตรวจสอบสิทธิ์ในการลบ (ใช้ permission เดียวกับการจัดการ)
+   * ตรวจสอบสิทธิ์ในการลบ
    */
   canDeleteProject(project: ProjectItem): boolean {
     if (this.authService.isAdmin()) {
       return true;
     }
 
-    // ใช้ MANAGE_PROJECT สำหรับการลบด้วย หรือใช้ DELETE_USER สำหรับ admin features
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT);
   }
 
   /**
-   * ✅ เพิ่มใหม่: ตรวจสอบสิทธิ์ในการสร้าง project ใหม่
+   * ตรวจสอบสิทธิ์ในการสร้าง project ใหม่
    */
   canCreateProject(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
@@ -386,7 +527,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ เพิ่มใหม่: ตรวจสอบสิทธิ์ในการดู project ทั้งหมด
+   * ตรวจสอบสิทธิ์ในการดู project ทั้งหมด
    */
   canViewAllProjects(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
@@ -396,7 +537,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ เพิ่มใหม่: ตรวจสอบว่าเป็น project owner หรือไม่
+   * ตรวจสอบว่าเป็น project owner หรือไม่
    */
   isProjectOwner(project: ProjectItem): boolean {
     const currentUser = this.authService.getCurrentUser();
@@ -404,7 +545,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ เพิ่มใหม่: ตรวจสอบสิทธิ์แบบละเอียด
+   * ตรวจสอบสิทธิ์แบบละเอียด
    */
   canPerformAction(action: 'create' | 'edit' | 'delete' | 'view', project?: ProjectItem): boolean {
     switch (action) {
@@ -518,21 +659,21 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ เพิ่มใหม่: ได้รับ permission description สำหรับแสดงผล
+   * ได้รับ permission description สำหรับแสดงผล
    */
   getPermissionRequiredMessage(): string {
     return 'ต้องมีสิทธิ์ "จัดการ project" เพื่อดำเนินการนี้';
   }
 
   /**
-   * ✅ เพิ่มใหม่: แสดงข้อความเมื่อไม่มีสิทธิ์
+   * แสดงข้อความเมื่อไม่มีสิทธิ์
    */
   showPermissionDeniedMessage(action: string): void {
     alert(`คุณไม่มีสิทธิ์ในการ${action}\n\n${this.getPermissionRequiredMessage()}`);
   }
 
   /**
-   * ✅ เพิ่มใหม่: Wrapper methods ที่มีการตรวจสอบสิทธิ์
+   * Wrapper methods ที่มีการตรวจสอบสิทธิ์
    */
   onCreateNewProject(): void {
     if (!this.canCreateProject()) {
