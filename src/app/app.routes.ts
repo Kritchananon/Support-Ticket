@@ -17,6 +17,8 @@ import { GeneralComponent } from './pages/settings/general/general.component';
 import { UserAccountComponent } from './pages/settings/user-account/user-account.component';
 import { ProjectComponent } from './pages/settings/project/project.component';
 import { TicketCategoriesComponent } from './pages/settings/ticket-categories/ticket-categories.component';
+// ✅ NEW: Import Customers Component
+import { CustomersComponent } from './pages/settings/customers/customers.component';
 
 // ✅ Import Permission Guards
 import { 
@@ -265,6 +267,18 @@ export const routes: Routes = [
             },
             title: 'Ticket Categories - Support Ticket System'
           },
+
+          // ✅ NEW: Customers Management (Admin only - ใช้ MANAGE_PROJECT)
+          {
+            path: 'customers',
+            canActivate: [adminGuard],
+            component: CustomersComponent,
+            data: {
+              permissions: [permissionEnum.MANAGE_PROJECT],
+              requireAllPermissions: true
+            },
+            title: 'Customers Management - Support Ticket System'
+          },
           
           // ✅ NEW: Status Management (Admin only - ใช้ MANAGE_STATUS)
           // {
@@ -307,22 +321,7 @@ export const routes: Routes = [
               permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER]
             },
             title: 'User Management - Support Ticket System'
-          },
-          // ✅ NEW: System Settings
-          // {
-          //   path: 'system',
-          //   loadComponent: () => import('./pages/admin/system-settings/system-settings.component')
-          //     .then(m => m.SystemSettingsComponent),
-          //   data: {
-          //     permissions: [
-          //       permissionEnum.MANAGE_CATEGORY, 
-          //       permissionEnum.MANAGE_STATUS, 
-          //       permissionEnum.MANAGE_PROJECT
-          //     ],
-          //     requireAllPermissions: false
-          //   },
-          //   title: 'System Settings - Support Ticket System'
-          // }
+          }
         ]
       },
       
@@ -418,6 +417,7 @@ export const ROUTE_PERMISSIONS = {
     USER_EDIT: [permissionEnum.ADD_USER],   // ✅ เพิ่มใหม่
     PROJECT: [permissionEnum.MANAGE_PROJECT], // ✅ แก้ไข
     CATEGORIES: [permissionEnum.MANAGE_CATEGORY], // ✅ แก้ไข
+    CUSTOMERS: [permissionEnum.MANAGE_PROJECT], // ✅ เพิ่มใหม่
     STATUS: [permissionEnum.MANAGE_STATUS] // ✅ ใหม่
   },
   ADMIN: {
@@ -433,101 +433,7 @@ export const ROUTE_PERMISSIONS = {
   SATISFACTION: [permissionEnum.SATISFACTION] // ✅ ใหม่
 } as const;
 
-// ===== Route Utility Functions ===== ✅
-export function getRouteTitle(path: string): string {
-  const route = routes
-    .flatMap(r => r.children || [r])
-    .find(r => r.path === path);
-  
-  return route?.title as string || 'Support Ticket System';
-}
-
-export function getRoutePermissions(path: string): permissionEnum[] {
-  const route = routes
-    .flatMap(r => r.children || [r])
-    .find(r => r.path === path);
-  
-  return route?.data?.['permissions'] || [];
-}
-
-export function isRouteAccessible(path: string, userPermissions: permissionEnum[]): boolean {
-  const requiredPermissions = getRoutePermissions(path);
-  
-  if (requiredPermissions.length === 0) {
-    return true; // No specific permissions required
-  }
-  
-  return requiredPermissions.some(permission => 
-    userPermissions.includes(permission)
-  );
-}
-
-// ===== NEW: User Management Route Helpers ===== ✅
-export const USER_MANAGEMENT_ROUTES = {
-  LIST: '/settings/user-account',
-  CREATE: '/settings/user-create',
-  EDIT: '/settings/user-edit/:id'
-} as const;
-
-export function getUserEditRoute(userId: number): string {
-  return `/settings/user-edit/${userId}`;
-}
-
-export function isUserManagementRoute(path: string): boolean {
-  return path.includes('/settings/user-');
-}
-
-// ===== ✅ NEW: Permission-based Route Helpers (19 permissions) ===== 
-
-/**
- * ✅ ตรวจสอบว่า user สามารถเข้าถึง route ตาม permissions
- */
-export function canAccessRoute(
-  routePath: string, 
-  userPermissions: number[], 
-  requireAll: boolean = false
-): boolean {
-  const route = routes
-    .flatMap(r => r.children || [r])
-    .find(r => r.path === routePath);
-  
-  const requiredPermissions = route?.data?.['permissions'] as number[] || [];
-  const routeRequireAll = route?.data?.['requireAllPermissions'] || requireAll;
-  
-  if (requiredPermissions.length === 0) {
-    return true; // ไม่มีเงื่อนไข permissions
-  }
-  
-  if (routeRequireAll) {
-    // ต้องมีทุก permission
-    return requiredPermissions.every(p => userPermissions.includes(p));
-  } else {
-    // มีอย่างน้อย 1 permission
-    return requiredPermissions.some(p => userPermissions.includes(p));
-  }
-}
-
-/**
- * ✅ ได้รับ routes ที่ user สามารถเข้าถึงได้
- */
-export function getAccessibleRoutes(userPermissions: number[]): Routes {
-  return routes.filter(route => {
-    if (route.children) {
-      // Filter children routes
-      const accessibleChildren = route.children.filter(child => 
-        canAccessRoute(child.path || '', userPermissions)
-      );
-      return accessibleChildren.length > 0;
-    } else {
-      // Check single route
-      return canAccessRoute(route.path || '', userPermissions);
-    }
-  });
-}
-
-/**
- * ✅ Navigation Helper สำหรับ menu generation
- */
+// ===== Navigation Helper ===== ✅
 export interface NavigationItem {
   path: string;
   title: string;
@@ -616,55 +522,9 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
         permissions: [permissionEnum.MANAGE_CATEGORY]
       },
       {
-        path: '/settings/status-management',
-        title: 'Status Management',
-        permissions: [permissionEnum.MANAGE_STATUS]
-      }
-    ]
-  },
-  {
-    path: '/admin',
-    title: 'Administration',
-    permissions: [permissionEnum.ADD_USER], // Admin role check
-    icon: 'admin',
-    children: [
-      {
-        path: '/admin/dashboard',
-        title: 'Admin Dashboard',
-        permissions: [permissionEnum.VIEW_DASHBOARD]
-      },
-      {
-        path: '/admin/users',
-        title: 'User Management',
-        permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER]
-      },
-      {
-        path: '/admin/system',
-        title: 'System Settings',
-        permissions: [permissionEnum.MANAGE_CATEGORY, permissionEnum.MANAGE_STATUS, permissionEnum.MANAGE_PROJECT]
-      }
-    ]
-  },
-  {
-    path: '/support',
-    title: 'Support Team',
-    permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
-    icon: 'support',
-    children: [
-      {
-        path: '/support/queue',
-        title: 'Support Queue',
-        permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE]
-      },
-      {
-        path: '/support/assigned',
-        title: 'Assigned Tickets',
-        permissions: [permissionEnum.ASSIGNEE, permissionEnum.SOLVE_PROBLEM]
-      },
-      {
-        path: '/support/dashboard',
-        title: 'Support Dashboard',
-        permissions: [permissionEnum.VIEW_DASHBOARD]
+        path: '/settings/customers',
+        title: 'Customers',
+        permissions: [permissionEnum.MANAGE_PROJECT]
       }
     ]
   }

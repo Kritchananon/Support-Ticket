@@ -11,7 +11,7 @@ import {
 
 /**
  * ✅ ENHANCED: Directive สำหรับตรวจสอบ permissions และแสดง/ซ่อน elements
- * รองรับทั้ง number และ permissionEnum (19 permissions)
+ * รองรับทั้ง number และ permissionEnum (20 permissions)
  * 
  * Usage:
  * <div *hasPermission="[1, 2]">Create Button</div>
@@ -81,7 +81,7 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
       }
     }
 
-    console.log('🔍 HasPermission directive updated:', {
+    console.log('🔐 HasPermission directive updated:', {
       original: permissions,
       processed: this._permissions,
       requireAll: this._requireAll
@@ -349,7 +349,7 @@ export class HasAccessDirective implements OnInit, OnDestroy {
     this._requireAllPermissions = config.requireAllPermissions || false;
     this._requireAllRoles = config.requireAllRoles || false;
 
-    console.log('🔍👥 HasAccess directive updated:', {
+    console.log('🔐👥 HasAccess directive updated:', {
       permissions: this._permissions,
       roles: this._roles,
       requireAllPermissions: this._requireAllPermissions,
@@ -469,7 +469,7 @@ export class DebugPermissionsDirective implements OnInit {
   ngOnInit(): void {
     if (this.debugPermissions) {
       console.group('🔍 Permission Debug from Directive');
-      console.log('🔍 User Permissions:', this.authService.getEffectivePermissions());
+      console.log('🔐 User Permissions:', this.authService.getEffectivePermissions());
       console.log('👥 User Roles:', this.authService.getUserRoles());
       console.log('🎯 Is Authenticated:', this.authService.isAuthenticated());
       console.log('🔧 Auth Methods:', {
@@ -652,7 +652,61 @@ export class UserOnlyDirective implements OnInit, OnDestroy {
   }
 }
 
-// ===== ✅ NEW: Specific Feature Directives (รองรับ 19 permissions) =====
+// ===== ✅ NEW: Specific Feature Directives (รองรับ 20 permissions) =====
+
+/**
+ * ✅ NEW: Directive สำหรับ Customer Management features
+ */
+@Directive({
+  selector: '[canManageCustomer]',
+  standalone: true
+})
+export class CanManageCustomerDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 CanManageCustomer directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const userPermissions = this.authService.getEffectivePermissions();
+    const canAccess = userPermissions.includes(20); // MANAGE_CUSTOMER
+    
+    console.log('🔍 Customer management access check:', {
+      canAccess,
+      hasManageCustomer: userPermissions.includes(20),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Customer management element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠ Customer management element hidden');
+    }
+  }
+}
 
 /**
  * ✅ NEW: Directive สำหรับ Project Management features
@@ -827,6 +881,7 @@ export const PERMISSION_DIRECTIVES = [
   SupporterOnlyDirective,
   AdminOnlyDirective,
   UserOnlyDirective,
+  CanManageCustomerDirective,
   CanManageProjectDirective,
   CanManageSystemDirective,
   CanViewDashboardDirective

@@ -1,4 +1,4 @@
-// ===== Permission Enum (ตรงกับ Backend - 19 permissions) =====
+// ===== Permission Enum (ตรงกับ Backend - 20 permissions) =====
 export enum permissionEnum {
   CREATE_TICKET = 1,          // แจ้งปัญหา
   TRACK_TICKET = 2,           // ติดตามปัญหา
@@ -18,7 +18,8 @@ export enum permissionEnum {
   DEL_USER = 16,              // ลบผู้ใช้
   MANAGE_CATEGORY = 17,       // จัดการ category
   MANAGE_STATUS = 18,         // จัดการ status
-  VIEW_DASHBOARD = 19         // มอนเทอริ่ง
+  VIEW_DASHBOARD = 19,        // มอนเทอริ่ง
+  MANAGE_CUSTOMER = 20        // จัดการ customer
 }
 
 // ===== Role Constants =====
@@ -30,7 +31,7 @@ export const ROLES = {
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
 
-// ===== ✅ UPDATED: Role-Based Permissions Mapping (19 permissions) =====
+// ===== ✅ UPDATED: Role-Based Permissions Mapping (20 permissions) =====
 export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
   [ROLES.ADMIN]: [
     1,  // CREATE_TICKET
@@ -51,7 +52,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
     16, // DELETE_USER
     17, // MANAGE_CATEGORY
     18, // MANAGE_STATUS
-    19  // VIEW_DASHBOARD
+    19, // VIEW_DASHBOARD
+    20  // MANAGE_CUSTOMER
   ],
   [ROLES.SUPPORTER]: [
     2,  // TRACK_TICKET
@@ -64,7 +66,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
     11, // RESTORE_TICKET
     12, // VIEW_OWN_TICKETS
     13, // VIEW_ALL_TICKETS
-    19  // VIEW_DASHBOARD
+    19, // VIEW_DASHBOARD
+    20  // MANAGE_CUSTOMER
   ],
   [ROLES.USER]: [
     1,  // CREATE_TICKET
@@ -138,7 +141,7 @@ export interface AccessControl {
 // ===== Permission Helper Functions =====
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (19 permissions)
+ * ✅ UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
  */
 export function getPermissionName(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -162,14 +165,15 @@ export function getPermissionName(permission: number | permissionEnum): string {
     16: 'Delete User',
     17: 'Manage Category',
     18: 'Manage Status',
-    19: 'View Dashboard'
+    19: 'View Dashboard',
+    20: 'Manage Customer'
   };
   
   return permissionNames[permissionNumber] || `Permission ${permissionNumber}`;
 }
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อภาษาไทย (19 permissions)
+ * ✅ UPDATED: แปลง permission number เป็นชื่อภาษาไทย (20 permissions)
  */
 export function getPermissionNameTh(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -193,7 +197,8 @@ export function getPermissionNameTh(permission: number | permissionEnum): string
     16: 'ลบผู้ใช้',
     17: 'จัดการ category',
     18: 'จัดการ status',
-    19: 'มอนเทอริ่ง'
+    19: 'มอนเทอริ่ง',
+    20: 'จัดการ customer'
   };
   
   return permissionNamesTh[permissionNumber] || `สิทธิ์ ${permissionNumber}`;
@@ -311,7 +316,7 @@ export function checkAccess(
   };
 }
 
-// ===== ✅ UPDATED: Common Permission Groups (ใช้ number[] - 19 permissions) =====
+// ===== ✅ UPDATED: Common Permission Groups (ใช้ number[] - 20 permissions) =====
 export const PERMISSION_GROUPS = {
   TICKET_MANAGEMENT: [
     1,  // CREATE_TICKET
@@ -340,6 +345,9 @@ export const PERMISSION_GROUPS = {
     18, // MANAGE_STATUS
     10, // MANAGE_PROJECT
     19  // VIEW_DASHBOARD
+  ],
+  CUSTOMER_MANAGEMENT: [
+    20  // MANAGE_CUSTOMER
   ],
   SATISFACTION: [
     14  // SATISFACTION
@@ -460,6 +468,13 @@ export function canDoSupport(userPermissions: number[]): boolean {
 }
 
 /**
+ * ✅ NEW: ตรวจสอบว่าสามารถจัดการ customer ได้หรือไม่
+ */
+export function canManageCustomer(userPermissions: number[]): boolean {
+  return userPermissions.includes(20); // MANAGE_CUSTOMER
+}
+
+/**
  * ✅ NEW: ตรวจสอบว่าสามารถจัดการ project ได้หรือไม่
  */
 export function canManageProject(userPermissions: number[]): boolean {
@@ -538,7 +553,7 @@ export function logPermissionSummary(userPermissions: number[], userRoles: UserR
   console.group('📊 Permission Summary');
   
   console.log('👥 User Roles:', userRoles);
-  console.log('🔢 Total Permissions:', userPermissions.length, '/ 19');
+  console.log('🔢 Total Permissions:', userPermissions.length, '/ 20');
   
   const summary = summarizeUserPermissions(userPermissions);
   

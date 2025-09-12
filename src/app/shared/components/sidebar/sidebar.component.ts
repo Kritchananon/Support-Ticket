@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
 
 @Component({
   selector: 'app-sidebar',
@@ -9,12 +10,40 @@ import { Router, RouterModule } from '@angular/router';
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.css']
 })
-export class SidebarComponent {
+export class SidebarComponent implements OnInit {
   private router = inject(Router);
   
   // State for dropdown menus
   isReportDropdownOpen = false;
   isSettingDropdownOpen = false;
+
+  ngOnInit() {
+    // Auto-open appropriate dropdown based on current route
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe((event: NavigationEnd) => {
+        this.updateDropdownState(event.urlAfterRedirects || event.url);
+      });
+
+    // Set initial dropdown state
+    this.updateDropdownState(this.router.url);
+  }
+
+  /**
+   * Update dropdown state based on current route
+   */
+  private updateDropdownState(url: string) {
+    // Close all dropdowns first
+    this.isReportDropdownOpen = false;
+    this.isSettingDropdownOpen = false;
+
+    // Open appropriate dropdown based on current route
+    if (url.includes('/reports/')) {
+      this.isReportDropdownOpen = true;
+    } else if (url.includes('/settings/')) {
+      this.isSettingDropdownOpen = true;
+    }
+  }
 
   /**
    * Toggle Report dropdown menu
@@ -62,5 +91,45 @@ export class SidebarComponent {
    */
   onMenuItemClick(event: Event) {
     event.stopPropagation();
+  }
+
+  /**
+   * Check if current route is active
+   */
+  isRouteActive(route: string): boolean {
+    return this.router.url === route || this.router.url.startsWith(route + '/');
+  }
+
+  /**
+   * Check if any child route is active (for parent menu highlighting)
+   */
+  isParentRouteActive(parentPath: string): boolean {
+    return this.router.url.startsWith(parentPath);
+  }
+
+  /**
+   * Check if settings route is active
+   */
+  isSettingsRouteActive(): boolean {
+    const settingsRoutes = [
+      '/settings/general',
+      '/settings/user-account', 
+      '/settings/project',
+      '/settings/ticket-categories',
+      '/settings/customers' // ✅ เพิ่มเส้นทางใหม่
+    ];
+    return settingsRoutes.some(route => this.router.url.startsWith(route));
+  }
+
+  /**
+   * Check if reports route is active
+   */
+  isReportsRouteActive(): boolean {
+    const reportsRoutes = [
+      '/reports/weekly',
+      '/reports/monthly', 
+      '/reports/export'
+    ];
+    return reportsRoutes.some(route => this.router.url.startsWith(route));
   }
 }
