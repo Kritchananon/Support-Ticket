@@ -49,7 +49,7 @@ export class SidebarComponent implements OnInit {
    * Toggle Report dropdown menu
    */
   toggleReportDropdown() {
-    console.log('Toggling Report dropdown:', this.isReportDropdownOpen); // Debug log
+    console.log('Toggling Report dropdown:', this.isReportDropdownOpen);
     this.isReportDropdownOpen = !this.isReportDropdownOpen;
     // Close other dropdowns
     if (this.isReportDropdownOpen) {
@@ -61,7 +61,7 @@ export class SidebarComponent implements OnInit {
    * Toggle Setting dropdown menu
    */
   toggleSettingDropdown() {
-    console.log('Toggling Setting dropdown:', this.isSettingDropdownOpen); // Debug log
+    console.log('Toggling Setting dropdown:', this.isSettingDropdownOpen);
     this.isSettingDropdownOpen = !this.isSettingDropdownOpen;
     // Close other dropdowns
     if (this.isSettingDropdownOpen) {
@@ -73,7 +73,7 @@ export class SidebarComponent implements OnInit {
    * Close all dropdowns
    */
   closeAllDropdowns() {
-    console.log('Closing all dropdowns'); // Debug log
+    console.log('Closing all dropdowns');
     this.isReportDropdownOpen = false;
     this.isSettingDropdownOpen = false;
   }
@@ -116,7 +116,8 @@ export class SidebarComponent implements OnInit {
       '/settings/user-account', 
       '/settings/project',
       '/settings/ticket-categories',
-      '/settings/customers' // ✅ เพิ่มเส้นทางใหม่
+      '/settings/customers',
+      '/settings/customer-for-project' // NEW: เพิ่มเส้นทางใหม่
     ];
     return settingsRoutes.some(route => this.router.url.startsWith(route));
   }

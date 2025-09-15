@@ -49,6 +49,7 @@
       <!-- Report Menu Section -->
       <div class="menu-section">
         <div class="nav-link d-flex align-items-center justify-content-between px-3 py-3 menu-item cursor-pointer"
+             [class.active]="isReportsRouteActive()"
              (click)="toggleReportDropdown()">
           <div class="d-flex align-items-center">
             <i class="bi bi-bar-chart-line me-3"></i>
@@ -82,6 +83,7 @@
       <!-- Setting Menu Section -->
       <div class="menu-section">
         <div class="nav-link d-flex align-items-center justify-content-between px-3 py-3 menu-item cursor-pointer"
+             [class.active]="isSettingsRouteActive()"
              (click)="toggleSettingDropdown()">
           <div class="d-flex align-items-center">
             <i class="bi bi-gear me-3"></i>
@@ -115,12 +117,19 @@
              (click)="closeAllDropdowns()">
             <span>Ticket Categories</span>
           </a>
-          <!-- ✅ NEW: Customers Link -->
           <a routerLink="/settings/customers" 
              class="nav-link px-5 py-2 text-decoration-none submenu-item"
              routerLinkActive="active"
              (click)="closeAllDropdowns()">
             <span>Customers</span>
+          </a>
+          <!-- NEW: Customer for Project Link -->
+          <a routerLink="/settings/customer-for-project" 
+             class="nav-link px-5 py-2 text-decoration-none submenu-item"
+             routerLinkActive="active"
+             (click)="closeAllDropdowns()">
+            <!-- <i class="bi bi-people-fill me-2"></i> -->
+            <span>Customer for Project</span>
           </a>
         </div>
       </div>

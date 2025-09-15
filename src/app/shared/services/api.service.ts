@@ -696,7 +696,7 @@ export class ApiService {
   updateUser(userId: number, userData: any): Observable<any> {
     console.log('Calling updateUser API with:', { userId, userData });
 
-    return this.http.put<any>(`${this.apiUrl}/users/${userId}`, userData, {
+    return this.http.patch<any>(`${this.apiUrl}/users/${userId}`, userData, {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => {
@@ -1180,6 +1180,16 @@ export class ApiService {
     );
   }
 
+  /**
+   * Generic PATCH method  
+   */
+  patch<T>(endpoint: string, data: any): Observable<ApiResponse<T>> {
+    return this.http.patch<ApiResponse<T>>(`${this.apiUrl}/${endpoint}`, data, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
   /**
    * Generic DELETE method
    */
@@ -2010,7 +2020,7 @@ export class ApiService {
   updateTicketByTicketNo(ticket_no: string, data: UpdateTicketRequest): Observable<UpdateTicketResponse> {
     console.log('Calling updateTicketByTicketNo API with:', { ticket_no, data });
 
-    return this.http.put<UpdateTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, data, {
+    return this.http.patch<UpdateTicketResponse>(`${this.apiUrl}/tickets/${ticket_no}`, data, {
       headers: this.getAuthHeaders()
     }).pipe(
       tap(response => console.log('updateTicketByTicketNo API response:', response)),
@@ -2301,7 +2311,7 @@ export class ApiService {
     // ✅ เพิ่ม type parameter
     formData.append('type', 'reporter');
 
-    return this.http.put<UpdateAttachmentResponse>(
+    return this.http.patch<UpdateAttachmentResponse>(
       `${this.apiUrl}/update_attachment/${data.ticket_id}`,
       formData,
       { headers: this.getMultipartHeaders() }
