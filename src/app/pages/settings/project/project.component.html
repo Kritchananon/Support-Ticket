@@ -119,19 +119,37 @@
         </td>
         <td class="table-cell">
           <span class="status-badge" 
-                [class.status-active]="project.status === 'active'" 
-                [class.status-inactive]="project.status === 'inactive'">
+                [class.status-active]="project.status === true" 
+                [class.status-inactive]="project.status === false">
             {{ getProjectStatus(project) }}
           </span>
         </td>
         <td class="table-cell">
           <div class="action-buttons">
-            <button class="action-button edit-button" (click)="onEditProject(project.id)" *ngIf="canEditProject(project)">
+            <!-- Edit Button with both options -->
+            <button class="action-button edit-button" 
+                    (click)="openEditModal(project.id)" 
+                    *ngIf="canEditProject(project)"
+                    title="Edit project using modal">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                 <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
               </svg>
               Edit
             </button>
+            
+            <!-- Alternative: Edit via navigation (comment out openEditModal and uncomment this) -->
+            <!--
+            <button class="action-button edit-button" 
+                    (click)="onEditProject(project.id)" 
+                    *ngIf="canEditProject(project)"
+                    title="Edit project via navigation">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
+              </svg>
+              Edit
+            </button>
+            -->
+            
             <button class="action-button delete-button" (click)="onDeleteProject(project.id)" *ngIf="canDeleteProject(project)">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                 <path
@@ -158,20 +176,22 @@
   </div>
 </div>
 
-<!-- Inline Modal for Create Project -->
+<!-- Enhanced Modal for Create/Edit Project -->
 <div class="modal-backdrop" *ngIf="isCreateModalVisible" (click)="onBackdropClick()">
   <!-- Modal Container -->
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h2 class="modal-title">Create New Project</h2>
-      <button class="close-button" (click)="onModalClose()" type="button">
+      <!-- Dynamic Modal Title -->
+      <h2 class="modal-title">{{ getModalTitle() }}</h2>
+      <button class="close-button" (click)="onFormModalClose()" type="button" [disabled]="isSubmitting">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
         </svg>
       </button>
     </div>
 
-    <form [formGroup]="projectForm" (ngSubmit)="onSubmit()">
+    <!-- Updated Form with new submit handler -->
+    <form [formGroup]="projectForm" (ngSubmit)="onFormSubmit()">
       <div class="modal-body">
         <!-- Project Name -->
         <div class="form-group">
@@ -245,39 +265,40 @@
 
         <!-- Status Selection -->
         <div class="form-group">
-          <label class="form-label">Initial Status</label>
+          <label class="form-label">{{ isEditMode ? 'Project Status' : 'Initial Status' }}</label>
           <div class="radio-group">
             <label class="radio-label">
               <input
                 type="radio"
                 formControlName="status"
-                value="active"
+                [value]="true"
                 class="radio-input"
               />
               <span class="radio-custom"></span>
-              <span class="radio-text">Active</span>
+              <span class="radio-text">{{ getStatusText(true) }}</span>
             </label>
             <label class="radio-label">
               <input
                 type="radio"
                 formControlName="status"
-                value="inactive"
+                [value]="false"
                 class="radio-input"
               />
               <span class="radio-custom"></span>
-              <span class="radio-text">Inactive</span>
+              <span class="radio-text">{{ getStatusText(false) }}</span>
             </label>
           </div>
         </div>
       </div>
 
+      <!-- Updated Modal Footer -->
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="onModalClose()" [disabled]="isSubmitting">
+        <button type="button" class="btn btn-secondary" (click)="onFormModalClose()" [disabled]="isSubmitting">
           Cancel
         </button>
         <button type="submit" class="btn btn-primary" [disabled]="projectForm.invalid || isSubmitting">
           <span *ngIf="isSubmitting" class="loading-spinner"></span>
-          {{ isSubmitting ? 'Creating...' : 'Create Project' }}
+          {{ getSubmitButtonText() }}
         </button>
       </div>
     </form>
@@ -285,8 +306,8 @@
 </div>
 
 <!-- Refresh Button (Floating) -->
-<button class="refresh-button" (click)="refreshData()" title="Refresh Data">
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+<button class="refresh-button" (click)="refreshData()" title="Refresh Data" [disabled]="isLoading">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" [class.spinning]="isLoading">
     <path d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
     <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
   </svg>

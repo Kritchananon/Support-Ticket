@@ -17,8 +17,8 @@ export interface ProjectItem {
   description?: string;
   company?: string;
   company_id?: number;
-  status: 'active' | 'inactive';
-  created_date: string;
+  status: boolean; // เปลี่ยนเป็น boolean ตาม backend
+  created_date?: string;
   created_by?: number;
   create_by?: number; // รองรับทั้งสอง field name
   updated_date?: string;
@@ -33,8 +33,17 @@ export interface CreateProjectDto {
   description?: string;
   start_date?: string;
   end_date?: string;
-  status: 'active' | 'inactive';
+  status: boolean; // เปลี่ยนเป็น boolean
   create_by?: number; // จะถูกเพิ่มใน backend
+}
+
+// Update Project DTO interface
+export interface UpdateProjectDto {
+  name?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: boolean; // เปลี่ยนเป็น boolean
 }
 
 @Component({
@@ -84,6 +93,10 @@ export class ProjectComponent implements OnInit, OnDestroy {
   isSubmitting = false;
   projectForm!: FormGroup;
 
+  // Properties สำหรับ edit mode
+  editingProjectId: number | null = null;
+  isEditMode: boolean = false;
+
   constructor(
     private router: Router,
     private apiService: ApiService,
@@ -103,6 +116,44 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Get current language setting (can be extended to use translation service)
+   */
+  private getCurrentLanguage(): string {
+    // ตรวจสอบจาก localStorage, user settings, หรือ browser language
+    return localStorage.getItem('language') || 
+           document.documentElement.lang || 
+           'th'; // default to Thai
+  }
+
+  /**
+   * Get status display text based on language
+   */
+  getStatusText(status: boolean): string {
+    const language = this.getCurrentLanguage();
+    
+    if (language === 'en') {
+      return status ? 'Active' : 'Inactive';
+    } else {
+      // Thai language
+      return status ? 'ใช้งาน' : 'ไม่ใช้งาน';
+    }
+  }
+
+  /**
+   * Convert boolean status to string for internal use (if needed)
+   */
+  private booleanToStatusString(status: boolean): 'active' | 'inactive' {
+    return status ? 'active' : 'inactive';
+  }
+
+  /**
+   * Convert string status to boolean for API calls
+   */
+  private statusStringToBoolean(status: string): boolean {
+    return status === 'active';
+  }
+
+  /**
    * Initialize form for modal
    */
   private initForm(): void {
@@ -111,7 +162,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
       description: [''],
       start_date: [''],
       end_date: [''],
-      status: ['active', [Validators.required]]
+      status: [true, [Validators.required]] // เปลี่ยนเป็น boolean และ default เป็น true (active)
     });
 
     console.log('Form initialized:', this.projectForm);
@@ -231,11 +282,11 @@ export class ProjectComponent implements OnInit, OnDestroy {
    * โหลดสถิติโปรเจค
    */
   loadProjectStats(): void {
-    // คำนวณจากข้อมูลที่มีอยู่
+    // คำนวณจากข้อมูลที่มีอยู่ โดยใช้ boolean status
     this.projectStats = {
       total: this.projects.length,
-      active: this.projects.filter(p => p.status === 'active').length,
-      inactive: this.projects.filter(p => p.status === 'inactive').length,
+      active: this.projects.filter(p => p.status === true).length,
+      inactive: this.projects.filter(p => p.status === false).length,
       newThisMonth: this.calculateNewThisMonth()
     };
     console.log('Project stats calculated:', this.projectStats);
@@ -258,7 +309,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Mock data สำหรับทดสอบ - เอาออกได้ในโปรดักชัน
+   * Mock data สำหรับทดสอب - เอาออกได้ในโปรดักชัน
    */
   private getMockProjectData(): ProjectItem[] {
     return [
@@ -266,7 +317,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 1,
         name: 'Support Ticket System',
         description: 'Customer support ticketing system',
-        status: 'active',
+        status: true,
         created_date: '2024-01-15T00:00:00Z',
         create_by: 1,
         updated_date: '2025-08-27T14:30:00Z',
@@ -278,7 +329,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
         id: 2,
         name: 'Digital Marketing Platform',
         description: 'Comprehensive marketing automation platform',
-        status: 'active',
+        status: true,
         created_date: '2024-03-10T00:00:00Z',
         create_by: 1,
         updated_date: '2025-08-27T09:15:00Z',
@@ -323,7 +374,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
     const searchableFields = [
       project.name || '',
       project.description || '',
-      project.status || ''
+      this.getStatusText(project.status) || '' // แปลง boolean เป็น string
     ];
 
     return searchableFields.some(field =>
@@ -387,7 +438,9 @@ export class ProjectComponent implements OnInit, OnDestroy {
    * Handle backdrop click
    */
   onBackdropClick(): void {
-    this.onModalClose();
+    if (!this.isSubmitting) { // เพิ่มการตรวจสอบว่าไม่อยู่ระหว่าง submit
+      this.onFormModalClose();
+    }
   }
 
   /**
@@ -418,7 +471,7 @@ export class ProjectComponent implements OnInit, OnDestroy {
         description: this.projectForm.get('description')?.value?.trim() || undefined,
         start_date: this.projectForm.get('start_date')?.value || undefined,
         end_date: this.projectForm.get('end_date')?.value || undefined,
-        status: this.projectForm.get('status')?.value
+        status: this.projectForm.get('status')?.value // ค่าจะเป็น boolean แล้ว
       };
 
       // เรียก API endpoint /api/projects
@@ -542,15 +595,19 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Edit project - Navigate to edit page
+   * Edit project - Navigate to edit page หรือเปิด modal แก้ไข
    */
   editProject(projectId: number): void {
     console.log('Navigating to edit project:', projectId);
+    // ตัวเลือก 1: Navigate ไป edit page
     this.router.navigate(['/settings/project-edit', projectId]);
+    
+    // ตัวเลือก 2: เปิด modal แก้ไข (ถ้าต้องการ)
+    // this.openEditModal(projectId);
   }
 
   /**
-   * Delete project with confirmation
+   * Delete project with confirmation - เชื่อมต่อกับ API
    */
   deleteProject(projectId: number): void {
     const project = this.projects.find(p => p.id === projectId);
@@ -567,34 +624,76 @@ export class ProjectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ลบ project จริงผ่าน API
+   * ลบ project จริงผ่าน API - ใช้ API endpoint ที่ถูกต้อง
    */
   private performDeleteProject(projectId: number, projectName: string): void {
     console.log('Deleting project via API:', { projectId, projectName });
 
     this.isLoading = true;
 
-    // TODO: เพิ่ม API endpoint สำหรับลบ project
-    // this.apiService.delete(`/api/projects/${projectId}`)
+    // เรียก API endpoint /api/project/delete/{id}
+    this.apiService.delete(`project/delete/${projectId}`)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError((error: HttpErrorResponse) => {
+          console.error('Error deleting project:', error);
+          this.handleDeleteProjectError(error, projectName);
+          return of(null);
+        })
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isLoading = false;
+          
+          if (response === null) {
+            // Error already handled in catchError
+            return;
+          }
+
+          // ลบออกจาก local array
+          this.projects = this.projects.filter(p => p.id !== projectId);
+          this.filterProjects();
+          this.loadProjectStats();
+
+          // แสดงข้อความสำเร็จ
+          this.showSuccessMessage(`Project "${projectName}" has been deleted successfully.`);
+          console.log('Project deleted successfully:', projectId);
+        },
+        error: (error) => {
+          console.error('Subscription error:', error);
+          this.isLoading = false;
+          this.handleDeleteProjectError(error, projectName);
+        }
+      });
+  }
+
+  /**
+   * จัดการ error ในการลบโปรเจค
+   */
+  private handleDeleteProjectError(error: HttpErrorResponse, projectName: string): void {
+    this.isLoading = false;
     
-    // ปัจจุบันใช้ mock implementation
-    setTimeout(() => {
-      try {
-        // ลบออกจาก local array
-        this.projects = this.projects.filter(p => p.id !== projectId);
-        this.filterProjects();
+    let errorMessage = `Failed to delete project "${projectName}". Please try again.`;
+    
+    if (error.status === 401) {
+      errorMessage = 'Authentication required. Please log in again.';
+      this.authService.logout();
+      this.router.navigate(['/login']);
+    } else if (error.status === 403) {
+      errorMessage = 'You do not have permission to delete this project.';
+    } else if (error.status === 404) {
+      errorMessage = 'Project not found. It may have been already deleted.';
+      // ลบออกจาก local array เนื่องจากไม่มีแล้ว
+      this.projects = this.projects.filter(p => p.name !== projectName);
+      this.filterProjects();
+      this.loadProjectStats();
+    } else if (error.status >= 500) {
+      errorMessage = 'Server error occurred. Please try again later.';
+    } else if (error.error?.message) {
+      errorMessage = error.error.message;
+    }
 
-        // แสดงข้อความสำเร็จ
-        this.showSuccessMessage(`Project "${projectName}" has been deleted successfully.`);
-
-        this.isLoading = false;
-        this.loadProjectStats();
-      } catch (error) {
-        console.error('Error deleting project:', error);
-        this.showErrorMessage(`Failed to delete project "${projectName}". Please try again.`);
-        this.isLoading = false;
-      }
-    }, 1000);
+    this.showErrorMessage(errorMessage);
   }
 
   /**
@@ -745,18 +844,19 @@ export class ProjectComponent implements OnInit, OnDestroy {
       const endDate = new Date(project.end_date);
       const now = new Date();
       if (endDate < now) {
-        return 'Completed';
+        const language = this.getCurrentLanguage();
+        return language === 'en' ? 'Completed' : 'เสร็จสิ้น';
       }
     }
 
-    return project.status === 'active' ? 'Active' : 'Inactive';
+    return this.getStatusText(project.status);
   }
 
   /**
    * ตรวจสอบว่าควรแสดงสถานะเป็น warning หรือไม่
    */
   isProjectStatusWarning(project: ProjectItem): boolean {
-    return project.status === 'inactive' || this.getProjectStatus(project) === 'Completed';
+    return project.status === false || this.getProjectStatus(project).includes('Completed') || this.getProjectStatus(project).includes('เสร็จสิ้น');
   }
 
   /**
@@ -821,5 +921,342 @@ export class ProjectComponent implements OnInit, OnDestroy {
       return;
     }
     this.deleteProject(projectId);
+  }
+
+  /**
+   * อัปเดตโปรเจค - เชื่อมต่อกับ API
+   */
+  updateProject(projectId: number, updateData: UpdateProjectDto): void {
+    console.log('Updating project via API:', { projectId, updateData });
+
+    this.isSubmitting = true; // เปลี่ยนจาก isLoading เป็น isSubmitting
+
+    // เรียก API endpoint /api/project/update/{id}
+    this.apiService.patch(`project/update/${projectId}`, updateData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError((error: HttpErrorResponse) => {
+          console.error('Error updating project:', error);
+          this.handleUpdateProjectError(error);
+          return of(null);
+        })
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false; // Reset loading state
+          
+          if (response === null) {
+            // Error already handled in catchError
+            return;
+          }
+
+          let updatedProject: ProjectItem | null = null;
+
+          // ตรวจสอบว่า response มี structure แบบไหน
+          if (response && response.data && typeof response.data === 'object' && response.data.id) {
+            // กรณี API ส่ง response ใน format { success?, data: ProjectItem }
+            updatedProject = response.data as ProjectItem;
+            console.log('Project updated (wrapped response):', updatedProject);
+          } else if (response && typeof response === 'object' && response.id) {
+            // กรณี API ส่ง ProjectItem โดยตรง
+            updatedProject = response as ProjectItem;
+            console.log('Project updated (direct response):', updatedProject);
+          }
+
+          if (updatedProject) {
+            this.onProjectUpdatedWithModalClose(updatedProject); // ใช้ฟังก์ชันที่ปิด modal
+          } else {
+            this.showErrorMessage('Failed to update project. Please try again.');
+          }
+        },
+        error: (error) => {
+          console.error('Subscription error:', error);
+          this.isSubmitting = false; // Reset loading state
+          this.handleUpdateProjectError(error);
+        }
+      });
+  }
+
+  /**
+   * จัดการ error ในการอัปเดตโปรเจค
+   */
+  private handleUpdateProjectError(error: HttpErrorResponse): void {
+    this.isSubmitting = false; // เปลี่ยนจาก isLoading เป็น isSubmitting
+    
+    let errorMessage = 'Failed to update project. Please try again.';
+    
+    if (error.status === 401) {
+      errorMessage = 'Authentication required. Please log in again.';
+      this.authService.logout();
+      this.router.navigate(['/login']);
+    } else if (error.status === 403) {
+      errorMessage = 'You do not have permission to update this project.';
+    } else if (error.status === 404) {
+      errorMessage = 'Project not found. It may have been deleted.';
+      // รีเฟรชข้อมูลเพื่อซิงค์กับ server
+      this.loadProjectData();
+    } else if (error.status === 400) {
+      // Validation errors
+      if (error.error?.message) {
+        errorMessage = error.error.message;
+      } else if (error.error?.errors) {
+        // Handle validation errors array
+        const errors = error.error.errors;
+        errorMessage = Array.isArray(errors) ? errors.join(', ') : errors;
+      }
+    } else if (error.status >= 500) {
+      errorMessage = 'Server error occurred. Please try again later.';
+    } else if (error.error?.message) {
+      errorMessage = error.error.message;
+    }
+
+    this.showErrorMessage(errorMessage);
+  }
+
+  /**
+   * จัดการการอัปเดตโปรเจคสำเร็จ
+   */
+  onProjectUpdated(updatedProject: ProjectItem): void {
+    console.log('Project updated:', updatedProject);
+    
+    // อัปเดตใน projects array
+    const index = this.projects.findIndex(p => p.id === updatedProject.id);
+    if (index !== -1) {
+      this.projects[index] = updatedProject;
+      this.filterProjects();
+      this.loadProjectStats();
+    }
+
+    // แสดงข้อความสำเร็จ
+    this.showSuccessMessage(`Project "${updatedProject.name}" has been updated successfully!`);
+  }
+
+  /**
+   * เปิด modal แก้ไขโปรเจค (ถ้าต้องการใช้ modal แทน navigate)
+   */
+  openEditModal(projectId: number): void {
+    const project = this.projects.find(p => p.id === projectId);
+    if (!project) {
+      console.error('Project not found:', projectId);
+      return;
+    }
+
+    if (!this.canEditProject(project)) {
+      this.showPermissionDeniedMessage('แก้ไข project');
+      return;
+    }
+
+    // ตั้งค่า form ด้วยข้อมูลปัจจุบัน
+    this.projectForm.patchValue({
+      name: project.name,
+      description: project.description || '',
+      start_date: project.start_date || '',
+      end_date: project.end_date || '',
+      status: project.status // เป็น boolean แล้ว
+    });
+
+    // เก็บ ID ของโปรเจคที่กำลังแก้ไข
+    this.editingProjectId = projectId;
+    this.isCreateModalVisible = true;
+    this.isEditMode = true;
+  }
+
+  /**
+   * แก้ไข onSubmit เพื่อรองรับ edit mode
+   */
+  onSubmitWithEditSupport(): void {
+    console.log('Form submitted');
+    console.log('Form valid:', this.projectForm.valid);
+    console.log('Form value:', this.projectForm.value);
+    console.log('Is edit mode:', this.isEditMode);
+
+    if (this.projectForm.valid && !this.isSubmitting) {
+      this.isSubmitting = true;
+
+      if (this.isEditMode && this.editingProjectId) {
+        // โหมดแก้ไข
+        const updateData: UpdateProjectDto = {
+          name: this.projectForm.get('name')?.value.trim(),
+          description: this.projectForm.get('description')?.value?.trim() || undefined,
+          start_date: this.projectForm.get('start_date')?.value || undefined,
+          end_date: this.projectForm.get('end_date')?.value || undefined,
+          status: this.projectForm.get('status')?.value // ค่าจะเป็น boolean แล้ว
+        };
+
+        this.updateProject(this.editingProjectId, updateData);
+      } else {
+        // โหมดสร้างใหม่
+        const formData: CreateProjectDto = {
+          name: this.projectForm.get('name')?.value.trim(),
+          description: this.projectForm.get('description')?.value?.trim() || undefined,
+          start_date: this.projectForm.get('start_date')?.value || undefined,
+          end_date: this.projectForm.get('end_date')?.value || undefined,
+          status: this.projectForm.get('status')?.value
+        };
+
+        this.createProjectViaApi(formData);
+      }
+    } else {
+      console.log('Form invalid, marking all fields as touched');
+      Object.keys(this.projectForm.controls).forEach(key => {
+        const control = this.projectForm.get(key);
+        control?.markAsTouched();
+      });
+    }
+  }
+
+  /**
+   * แยก logic การสร้างโปรเจคใหม่ออกมา
+   */
+  private createProjectViaApi(formData: CreateProjectDto): void {
+    console.log('Creating project via API...');
+
+    // เรียก API endpoint /api/projects
+    this.apiService.post('projects', formData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError((error: HttpErrorResponse) => {
+          console.error('Error creating project:', error);
+          this.handleCreateProjectError(error);
+          return of(null);
+        })
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false;
+          
+          if (response === null) {
+            // Error already handled in catchError
+            return;
+          }
+
+          let createdProject: ProjectItem | null = null;
+
+          // ตรวจสอบว่า response มี structure แบบไหน
+          if (response && response.data && typeof response.data === 'object' && response.data.id) {
+            // กรณี API ส่ง response ใน format { success?, data: ProjectItem }
+            createdProject = response.data as ProjectItem;
+            console.log('Project created (wrapped response):', createdProject);
+          } else if (response && typeof response === 'object' && response.id) {
+            // กรณี API ส่ง ProjectItem โดยตรง
+            createdProject = response as ProjectItem;
+            console.log('Project created (direct response):', createdProject);
+          }
+
+          if (createdProject) {
+            this.onProjectCreatedWithModalClose(createdProject);
+          } else {
+            this.showErrorMessage('Failed to create project. Please try again.');
+          }
+        },
+        error: (error) => {
+          console.error('Subscription error:', error);
+          this.isSubmitting = false;
+          this.handleCreateProjectError(error);
+        }
+      });
+  }
+
+  /**
+   * Reset form
+   */
+  private resetFormWithEditSupport(): void {
+    this.projectForm.reset({
+      status: true // เปลี่ยน default เป็น true (active)
+    });
+    this.isSubmitting = false;
+    this.isEditMode = false;
+    this.editingProjectId = null;
+    console.log('Form reset');
+  }
+
+  /**
+   * แก้ไข onModalClose เพื่อรองรับ edit mode
+   */
+  onModalCloseWithEditSupport(): void {
+    console.log('Modal closed');
+    if (!this.isSubmitting) {
+      this.resetFormWithEditSupport();
+      this.isCreateModalVisible = false;
+    }
+  }
+
+  /**
+   * แก้ไข onProjectCreated เพื่อปิด modal
+   */
+  onProjectCreatedWithModalClose(newProject: ProjectItem): void {
+    console.log('New project created:', newProject);
+    
+    // เพิ่มเข้า projects array
+    this.projects.unshift(newProject);
+    this.filterProjects();
+    this.loadProjectStats();
+
+    // ปิด modal และ reset form
+    this.isCreateModalVisible = false;
+    this.resetFormWithEditSupport();
+
+    // แสดงข้อความสำเร็จ
+    this.showSuccessMessage(`Project "${newProject.name}" has been created successfully!`);
+  }
+
+  /**
+   * แก้ไข onProjectUpdated เพื่อปิด modal
+   */
+  onProjectUpdatedWithModalClose(updatedProject: ProjectItem): void {
+    console.log('Project updated:', updatedProject);
+    
+    // อัปเดตใน projects array
+    const index = this.projects.findIndex(p => p.id === updatedProject.id);
+    if (index !== -1) {
+      this.projects[index] = updatedProject;
+      this.filterProjects();
+      this.loadProjectStats();
+    }
+
+    // ปิด modal และ reset form
+    this.isCreateModalVisible = false;
+    this.resetFormWithEditSupport();
+
+    // แสดงข้อความสำเร็จ
+    this.showSuccessMessage(`Project "${updatedProject.name}" has been updated successfully!`);
+  }
+
+  /**
+   * ใช้แทน onSubmit ใน template
+   */
+  onFormSubmit(): void {
+    this.onSubmitWithEditSupport();
+  }
+
+  /**
+   * ใช้แทน onModalClose ใน template
+   */
+  onFormModalClose(): void {
+    this.onModalCloseWithEditSupport();
+  }
+
+  /**
+   * ใช้แทน resetForm
+   */
+  resetProjectForm(): void {
+    this.resetFormWithEditSupport();
+  }
+
+  /**
+   * Get modal title based on mode
+   */
+  getModalTitle(): string {
+    return this.isEditMode ? 'Edit Project' : 'Create New Project';
+  }
+
+  /**
+   * Get submit button text based on mode
+   */
+  getSubmitButtonText(): string {
+    if (this.isSubmitting) {
+      return this.isEditMode ? 'Updating...' : 'Creating...';
+    }
+    return this.isEditMode ? 'Update Project' : 'Create Project';
   }
 }
