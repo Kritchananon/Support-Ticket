@@ -48,16 +48,16 @@
     <div class="stat-label">Total Categories</div>
   </div>
   <div class="stat-card">
-    <div class="stat-number">{{ getStatsDisplay().active }}</div>
-    <div class="stat-label">Active Categories</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-number">{{ getStatsDisplay().inactive }}</div>
-    <div class="stat-label">Inactive Categories</div>
+    <div class="stat-number">{{ getStatsDisplay().totalTickets }}</div>
+    <div class="stat-label">Total Tickets</div>
   </div>
   <div class="stat-card">
     <div class="stat-number">{{ getStatsDisplay().newThisMonth }}</div>
     <div class="stat-label">New This Month</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ getStatsDisplay().avgTicketsPerCategory }}</div>
+    <div class="stat-label">Avg. per Category</div>
   </div>
 </div>
 
@@ -87,6 +87,7 @@
       <tr>
         <th>รายการที่</th>
         <th>Category</th>
+        <th>Ticket Count</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -98,19 +99,26 @@
         <td class="table-cell">
           <div class="category-info-cell">
             <div class="category-avatar" [style.background-color]="'#5873F8'">
-              {{ category.name.charAt(0).toUpperCase() }}
+              {{ getLocalizedCategoryName(category).charAt(0).toUpperCase() }}
             </div>
             <div class="category-details">
-              <div class="category-name">{{ category.name }}</div>
-              <div class="category-description">{{ category.description || 'No description' }}</div>
-              <div class="category-status">
-                <span class="status-badge" 
-                      [class.status-active]="category.status === 'active'" 
-                      [class.status-inactive]="category.status === 'inactive'">
-                  {{ getCategoryStatus(category) }}
+              <div class="category-name">{{ getLocalizedCategoryName(category) }}</div>
+              <div class="category-description">
+                <!-- แสดงชื่อในภาษาอื่น -->
+                <span *ngIf="currentLanguage === 'th'">
+                  EN: {{ getCategoryNameByLanguage(category.languages || [], 'en') }}
+                </span>
+                <span *ngIf="currentLanguage === 'en'">
+                  TH: {{ getCategoryNameByLanguage(category.languages || [], 'th') }}
                 </span>
               </div>
             </div>
+          </div>
+        </td>
+        <td class="table-cell">
+          <div class="ticket-count">
+            <span class="count-number">{{ category.ticketCount || 0 }}</span>
+            <span class="count-label">tickets</span>
           </div>
         </td>
         <td class="table-cell">
@@ -152,7 +160,7 @@
   <!-- Modal Container -->
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h2 class="modal-title">Create New Category</h2>
+      <h2 class="modal-title">{{ isEditMode ? 'Edit Category' : 'Create New Category' }}</h2>
       <button class="close-button" (click)="onModalClose()" type="button">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
@@ -162,66 +170,49 @@
 
     <form [formGroup]="categoryForm" (ngSubmit)="onSubmit()">
       <div class="modal-body">
-        <!-- Category Name -->
+        <!-- Category Name (Thai) -->
         <div class="form-group">
-          <label class="form-label" for="categoryName">
-            Category Name <span class="required">*</span>
+          <label class="form-label" for="nameTh">
+            ชื่อหมวดหมู่ (ภาษาไทย) <span class="required">*</span>
           </label>
           <input
-            id="categoryName"
+            id="nameTh"
             type="text"
             class="form-input"
-            formControlName="name"
-            placeholder="Enter category name"
-            [class.error]="isFieldInvalid('name')"
+            formControlName="nameTh"
+            placeholder="กรุณาใส่ชื่อหมวดหมู่เป็นภาษาไทย"
+            [class.error]="isFieldInvalid('nameTh')"
           />
-          <div class="error-message" *ngIf="isFieldInvalid('name')">
-            <span *ngIf="categoryForm.get('name')?.errors?.['required']">Category name is required</span>
-            <span *ngIf="categoryForm.get('name')?.errors?.['minlength']">Category name must be at least 2 characters</span>
-            <span *ngIf="categoryForm.get('name')?.errors?.['maxlength']">Category name cannot exceed 50 characters</span>
-          </div>
-        </div>
-
-        <!-- Category Description -->
-        <div class="form-group">
-          <label class="form-label" for="description">Description</label>
-          <textarea
-            id="description"
-            class="form-textarea"
-            formControlName="description"
-            placeholder="Enter category description (optional)"
-            rows="3"
-            maxlength="200"
-          ></textarea>
           <div class="character-count">
-            {{ getDescriptionLength() }}/200 characters
+            {{ getNameThLength() }}/100 characters
+          </div>
+          <div class="error-message" *ngIf="isFieldInvalid('nameTh')">
+            <span *ngIf="categoryForm.get('nameTh')?.errors?.['required']">ชื่อหมวดหมู่ภาษาไทยจำเป็นต้องกรอก</span>
+            <span *ngIf="categoryForm.get('nameTh')?.errors?.['minlength']">ชื่อหมวดหมู่ต้องมีความยาวอย่างน้อย 2 ตัวอักษร</span>
+            <span *ngIf="categoryForm.get('nameTh')?.errors?.['maxlength']">ชื่อหมวดหมู่ต้องไม่เกิน 100 ตัวอักษร</span>
           </div>
         </div>
 
-        <!-- Status Selection -->
+        <!-- Category Name (English) -->
         <div class="form-group">
-          <label class="form-label">Initial Status</label>
-          <div class="radio-group">
-            <label class="radio-label">
-              <input
-                type="radio"
-                formControlName="status"
-                value="active"
-                class="radio-input"
-              />
-              <span class="radio-custom"></span>
-              <span class="radio-text">Active</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                formControlName="status"
-                value="inactive"
-                class="radio-input"
-              />
-              <span class="radio-custom"></span>
-              <span class="radio-text">Inactive</span>
-            </label>
+          <label class="form-label" for="nameEn">
+            Category Name (English) <span class="required">*</span>
+          </label>
+          <input
+            id="nameEn"
+            type="text"
+            class="form-input"
+            formControlName="nameEn"
+            placeholder="Please enter category name in English"
+            [class.error]="isFieldInvalid('nameEn')"
+          />
+          <div class="character-count">
+            {{ getNameEnLength() }}/100 characters
+          </div>
+          <div class="error-message" *ngIf="isFieldInvalid('nameEn')">
+            <span *ngIf="categoryForm.get('nameEn')?.errors?.['required']">English category name is required</span>
+            <span *ngIf="categoryForm.get('nameEn')?.errors?.['minlength']">Category name must be at least 2 characters</span>
+            <span *ngIf="categoryForm.get('nameEn')?.errors?.['maxlength']">Category name cannot exceed 100 characters</span>
           </div>
         </div>
       </div>
@@ -232,7 +223,7 @@
         </button>
         <button type="submit" class="btn btn-primary" [disabled]="categoryForm.invalid || isSubmitting">
           <span *ngIf="isSubmitting" class="loading-spinner"></span>
-          {{ isSubmitting ? 'Creating...' : 'Create Category' }}
+          {{ isSubmitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Category' : 'Create Category') }}
         </button>
       </div>
     </form>
