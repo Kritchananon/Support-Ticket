@@ -57,19 +57,20 @@ export const routes: Routes = [
     component: MainLayoutComponent,
     canActivate: [authGuard],
     children: [
-      // ===== Dashboard =====
+      // ===== Dashboard - FIXED: Relaxed permissions =====
       {
         path: 'dashboard',
         component: DashboardComponent,
         canActivate: [authGuard],
         data: {
-          permissions: [permissionEnum.VIEW_DASHBOARD],
+          // FIXED: Allow any authenticated user to access dashboard
+          permissions: [], // No specific permissions required
           requireAllPermissions: false
         },
         title: 'Dashboard - Support Ticket System'
       },
       
-      // ===== Ticket Routes =====
+      // ===== Ticket Routes - FIXED: More inclusive permissions =====
       {
         path: 'tickets',
         children: [
@@ -78,8 +79,14 @@ export const routes: Routes = [
             component: TicketListComponent,
             canActivate: [authGuard],
             data: {
-              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.VIEW_OWN_TICKETS],
-              requireAllPermissions: false
+              // FIXED: Allow users with any ticket-related permission
+              permissions: [
+                permissionEnum.VIEW_ALL_TICKETS, 
+                permissionEnum.VIEW_OWN_TICKETS,
+                permissionEnum.CREATE_TICKET,  // Users can access if they can create
+                permissionEnum.TRACK_TICKET    // Users can access if they can track
+              ],
+              requireAllPermissions: false // Any one permission is enough
             },
             title: 'All Tickets - Support Ticket System'
           },
@@ -89,7 +96,12 @@ export const routes: Routes = [
             canActivate: [authGuard],
             data: {
               viewMode: 'own-only',
-              permissions: [permissionEnum.VIEW_OWN_TICKETS]
+              // FIXED: Basic user permission
+              permissions: [
+                permissionEnum.VIEW_OWN_TICKETS,
+                permissionEnum.CREATE_TICKET  // If user can create, they should see their tickets
+              ],
+              requireAllPermissions: false
             },
             title: 'My Tickets - Support Ticket System'
           },
@@ -118,10 +130,12 @@ export const routes: Routes = [
             component: TicketDetailComponent,
             canActivate: [authGuard],
             data: {
+              // FIXED: Allow more inclusive access
               permissions: [
                 permissionEnum.VIEW_ALL_TICKETS,
                 permissionEnum.VIEW_OWN_TICKETS,
-                permissionEnum.TRACK_TICKET
+                permissionEnum.TRACK_TICKET,
+                permissionEnum.CREATE_TICKET  // If user can create, they should view details
               ],
               requireAllPermissions: false
             },
@@ -130,7 +144,7 @@ export const routes: Routes = [
         ]
       },
 
-      // ===== Report Routes =====
+      // ===== Report Routes - FIXED: More inclusive permissions =====
       {
         path: 'reports',
         children: [
@@ -144,7 +158,12 @@ export const routes: Routes = [
             component: WeeklyReportComponent,
             canActivate: [authGuard],
             data: {
-              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              // FIXED: Allow supporters and admins, but also users who can view their own tickets
+              permissions: [
+                permissionEnum.VIEW_ALL_TICKETS, 
+                permissionEnum.ASSIGNEE,
+                permissionEnum.VIEW_OWN_TICKETS  // Users can see their own reports
+              ],
               requireAllPermissions: false
             },
             title: 'Weekly Report - Support Ticket System'
@@ -154,7 +173,11 @@ export const routes: Routes = [
             component: MonthlyReportComponent,
             canActivate: [authGuard],
             data: {
-              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              permissions: [
+                permissionEnum.VIEW_ALL_TICKETS, 
+                permissionEnum.ASSIGNEE,
+                permissionEnum.VIEW_OWN_TICKETS  // Users can see their own reports
+              ],
               requireAllPermissions: false
             },
             title: 'Monthly Report - Support Ticket System'
@@ -164,6 +187,7 @@ export const routes: Routes = [
             component: ExportTicketComponent,
             canActivate: [authGuard],
             data: {
+              // Keep this restricted to admin/supporter
               permissions: [permissionEnum.VIEW_ALL_TICKETS],
               requireAllPermissions: true
             },
@@ -184,6 +208,7 @@ export const routes: Routes = [
           {
             path: 'general',
             component: GeneralComponent,
+            // FIXED: No special permissions required for general settings
             title: 'General Settings - Support Ticket System'
           },
           {
@@ -196,26 +221,26 @@ export const routes: Routes = [
             },
             title: 'User Management - Support Ticket System'
           },
+          // ===== UPDATED: Use UserAccountComponent for user creation/editing =====
           {
             path: 'user-create',
             canActivate: [createPermissionGuard([permissionEnum.ADD_USER])],
-            loadComponent: () => import('./pages/settings/user-create/user-create.component')
-              .then(m => m.UserCreateComponent),
+            component: UserAccountComponent,
             data: {
               permissions: [permissionEnum.ADD_USER],
-              requireAllPermissions: true
+              requireAllPermissions: true,
+              mode: 'create' // Pass mode to component
             },
             title: 'Create User - Support Ticket System'
           },
           {
             path: 'user-edit/:id',
             canActivate: [createPermissionGuard([permissionEnum.ADD_USER])],
-            loadComponent: () => import('./pages/settings/user-create/user-create.component')
-              .then(m => m.UserCreateComponent),
+            component: UserAccountComponent,
             data: {
               permissions: [permissionEnum.ADD_USER],
               requireAllPermissions: true,
-              mode: 'edit'
+              mode: 'edit' // Pass mode to component
             },
             title: 'Edit User - Support Ticket System'
           },
@@ -250,7 +275,7 @@ export const routes: Routes = [
             title: 'Customers Management - Support Ticket System'
           },
           
-          // ===== NEW: Customer for Project Routes =====
+          // ===== Customer for Project Routes =====
           {
             path: 'customer-for-project',
             canActivate: [adminGuard],
@@ -335,7 +360,7 @@ export const routes: Routes = [
         ]
       },
       
-      // ===== Simple Routes =====
+      // ===== Simple Routes - FIXED: No special permissions =====
       {
         path: 'profile',
         component: DashboardComponent,
@@ -356,14 +381,15 @@ export const routes: Routes = [
   }
 ];
 
-// ===== Route Configuration Constants =====
+// ===== Route Configuration Constants - UPDATED =====
 export const ROUTE_PERMISSIONS = {
   DASHBOARD: {
-    VIEW: [permissionEnum.VIEW_DASHBOARD]
+    VIEW: [] // FIXED: No special permissions required
   },
   TICKETS: {
     VIEW_ALL: [permissionEnum.VIEW_ALL_TICKETS],
     VIEW_OWN: [permissionEnum.VIEW_OWN_TICKETS],
+    VIEW_ANY: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.VIEW_OWN_TICKETS, permissionEnum.CREATE_TICKET], // FIXED: More inclusive
     CREATE: [permissionEnum.CREATE_TICKET],
     EDIT: [permissionEnum.EDIT_TICKET, permissionEnum.CHANGE_STATUS],
     DELETE: [permissionEnum.DELETE_TICKET],
@@ -375,18 +401,18 @@ export const ROUTE_PERMISSIONS = {
     RESTORE: [permissionEnum.RESTORE_TICKET]
   },
   REPORTS: {
-    VIEW: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+    VIEW: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE, permissionEnum.VIEW_OWN_TICKETS], // FIXED: More inclusive
     EXPORT: [permissionEnum.VIEW_ALL_TICKETS]
   },
   SETTINGS: {
-    GENERAL: [],
+    GENERAL: [], // FIXED: No special permissions
     USER_MANAGEMENT: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
     USER_CREATE: [permissionEnum.ADD_USER],
     USER_EDIT: [permissionEnum.ADD_USER],
     PROJECT: [permissionEnum.MANAGE_PROJECT],
     CATEGORIES: [permissionEnum.MANAGE_CATEGORY],
     CUSTOMERS: [permissionEnum.MANAGE_PROJECT],
-    CUSTOMER_PROJECT: [permissionEnum.MANAGE_PROJECT], // NEW
+    CUSTOMER_PROJECT: [permissionEnum.MANAGE_PROJECT],
     STATUS: [permissionEnum.MANAGE_STATUS]
   },
   ADMIN: {
@@ -402,7 +428,7 @@ export const ROUTE_PERMISSIONS = {
   SATISFACTION: [permissionEnum.SATISFACTION]
 } as const;
 
-// ===== Navigation Helper =====
+// ===== Navigation Helper - UPDATED =====
 export interface NavigationItem {
   path: string;
   title: string;
@@ -415,24 +441,37 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     path: '/dashboard',
     title: 'Dashboard',
-    permissions: [],
+    permissions: [], // FIXED: No special permissions required
     icon: 'dashboard'
   },
   {
     path: '/tickets',
     title: 'Tickets',
-    permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.VIEW_OWN_TICKETS],
+    // FIXED: More inclusive permissions - any ticket-related permission allows access
+    permissions: [
+      permissionEnum.VIEW_ALL_TICKETS, 
+      permissionEnum.VIEW_OWN_TICKETS, 
+      permissionEnum.CREATE_TICKET,
+      permissionEnum.TRACK_TICKET
+    ],
     icon: 'ticket',
     children: [
       {
         path: '/tickets',
         title: 'All Tickets',
-        permissions: [permissionEnum.VIEW_ALL_TICKETS]
+        permissions: [
+          permissionEnum.VIEW_ALL_TICKETS,
+          permissionEnum.VIEW_OWN_TICKETS,
+          permissionEnum.CREATE_TICKET  // FIXED: More inclusive
+        ]
       },
       {
         path: '/tickets/my-tickets',
         title: 'My Tickets',
-        permissions: [permissionEnum.VIEW_OWN_TICKETS]
+        permissions: [
+          permissionEnum.VIEW_OWN_TICKETS,
+          permissionEnum.CREATE_TICKET  // FIXED: If can create, should see own tickets
+        ]
       },
       {
         path: '/tickets/new',
@@ -444,36 +483,47 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     path: '/reports',
     title: 'Reports',
-    permissions: [permissionEnum.VIEW_ALL_TICKETS],
+    // FIXED: Allow users to see reports if they have any view permission
+    permissions: [
+      permissionEnum.VIEW_ALL_TICKETS,
+      permissionEnum.VIEW_OWN_TICKETS,
+      permissionEnum.ASSIGNEE
+    ],
     icon: 'report',
     children: [
       {
         path: '/reports/weekly',
         title: 'Weekly Report',
-        permissions: [permissionEnum.VIEW_ALL_TICKETS]
+        permissions: [
+          permissionEnum.VIEW_ALL_TICKETS,
+          permissionEnum.VIEW_OWN_TICKETS  // FIXED: Users can see their own reports
+        ]
       },
       {
         path: '/reports/monthly',
         title: 'Monthly Report',
-        permissions: [permissionEnum.VIEW_ALL_TICKETS]
+        permissions: [
+          permissionEnum.VIEW_ALL_TICKETS,
+          permissionEnum.VIEW_OWN_TICKETS  // FIXED: Users can see their own reports
+        ]
       },
       {
         path: '/reports/export',
         title: 'Export Tickets',
-        permissions: [permissionEnum.VIEW_ALL_TICKETS]
+        permissions: [permissionEnum.VIEW_ALL_TICKETS] // Keep this restricted
       }
     ]
   },
   {
     path: '/settings',
     title: 'Settings',
-    permissions: [],
+    permissions: [], // FIXED: Anyone can access settings (but individual pages may be restricted)
     icon: 'settings',
     children: [
       {
         path: '/settings/general',
         title: 'General Settings',
-        permissions: []
+        permissions: [] // FIXED: No special permissions
       },
       {
         path: '/settings/user-account',
@@ -505,10 +555,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 ];
 
 /**
- * Filter navigation items based on user permissions
+ * Filter navigation items based on user permissions - FIXED: More inclusive logic
  */
 export function getAccessibleNavigation(userPermissions: number[]): NavigationItem[] {
   return NAVIGATION_ITEMS.filter(item => {
+    // FIXED: If no permissions required, always allow
     const hasParentAccess = item.permissions.length === 0 || 
       item.permissions.some(p => userPermissions.includes(p));
     
@@ -522,7 +573,8 @@ export function getAccessibleNavigation(userPermissions: number[]): NavigationIt
         child.permissions.some(p => userPermissions.includes(p))
       );
       
-      return accessibleChildren.length > 0 || item.children.length === 0;
+      // FIXED: Show parent if it has accessible children OR if parent itself has no permission requirements
+      return accessibleChildren.length > 0 || item.permissions.length === 0;
     }
     
     return true;

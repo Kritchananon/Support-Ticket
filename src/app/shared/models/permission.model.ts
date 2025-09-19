@@ -31,7 +31,7 @@ export const ROLES = {
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
 
-// ===== ✅ UPDATED: Role-Based Permissions Mapping (20 permissions) =====
+// ===== UPDATED: Role-Based Permissions Mapping (20 permissions) =====
 export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
   [ROLES.ADMIN]: [
     1,  // CREATE_TICKET
@@ -79,7 +79,95 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
   ]
 };
 
-// ===== ✅ Utility Functions (ไม่ duplicate) =====
+// ===== NEW: Safe Validation Functions =====
+
+/**
+ * Safe permission validation function
+ */
+export function validateAndNormalizePermissions(permissions: any): number[] {
+  if (!permissions) {
+    console.warn('No permissions provided');
+    return [];
+  }
+
+  if (!Array.isArray(permissions)) {
+    console.warn('Permissions is not an array:', typeof permissions);
+    return [];
+  }
+
+  const validPermissions: number[] = [];
+  
+  for (const permission of permissions) {
+    if (typeof permission === 'number' && !isNaN(permission)) {
+      if (isValidPermissionNumber(permission)) {
+        validPermissions.push(permission);
+      } else {
+        console.warn(`Invalid permission number: ${permission}`);
+      }
+    } else if (typeof permission === 'string') {
+      const numPermission = parseInt(permission, 10);
+      if (!isNaN(numPermission) && isValidPermissionNumber(numPermission)) {
+        validPermissions.push(numPermission);
+      } else {
+        console.warn(`Cannot convert permission to number: ${permission}`);
+      }
+    } else {
+      console.warn(`Invalid permission type:`, permission);
+    }
+  }
+
+  console.log(`Validated ${validPermissions.length}/${permissions.length} permissions`);
+  return validPermissions;
+}
+
+/**
+ * Safe role validation function
+ */
+export function validateAndNormalizeRoles(roles: any): UserRole[] {
+  if (!roles) {
+    console.warn('No roles provided');
+    return [];
+  }
+
+  if (!Array.isArray(roles)) {
+    console.warn('Roles is not an array:', typeof roles);
+    return [];
+  }
+
+  const validRoles: UserRole[] = [];
+  
+  for (const role of roles) {
+    if (typeof role === 'string' && Object.values(ROLES).includes(role as UserRole)) {
+      validRoles.push(role as UserRole);
+    } else {
+      console.warn(`Invalid role: ${role}`);
+    }
+  }
+
+  console.log(`Validated ${validRoles.length}/${roles.length} roles`);
+  return validRoles;
+}
+
+/**
+ * Get safe fallback permissions for user
+ */
+export function getSafeFallbackPermissions(): number[] {
+  return [
+    permissionEnum.CREATE_TICKET,     // 1
+    permissionEnum.TRACK_TICKET,      // 2
+    permissionEnum.VIEW_OWN_TICKETS,  // 12
+    permissionEnum.SATISFACTION       // 14
+  ];
+}
+
+/**
+ * Get safe fallback roles for user
+ */
+export function getSafeFallbackRoles(): UserRole[] {
+  return [ROLES.USER];
+}
+
+// ===== Utility Functions =====
 
 /**
  * แปลง permissionEnum เป็น number
@@ -141,7 +229,7 @@ export interface AccessControl {
 // ===== Permission Helper Functions =====
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
+ * UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
  */
 export function getPermissionName(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -173,7 +261,7 @@ export function getPermissionName(permission: number | permissionEnum): string {
 }
 
 /**
- * ✅ UPDATED: แปลง permission number เป็นชื่อภาษาไทย (20 permissions)
+ * UPDATED: แปลง permission number เป็นชื่อภาษาไทย (20 permissions)
  */
 export function getPermissionNameTh(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -205,14 +293,14 @@ export function getPermissionNameTh(permission: number | permissionEnum): string
 }
 
 /**
- * ✅ UPDATED: ดึง permissions ทั้งหมดของ role (return number[])
+ * UPDATED: ดึง permissions ทั้งหมดของ role (return number[])
  */
 export function getRolePermissions(role: UserRole): number[] {
   return ROLE_PERMISSIONS[role] || [];
 }
 
 /**
- * ✅ UPDATED: ตรวจสอบว่า role มี permission หรือไม่
+ * UPDATED: ตรวจสอบว่า role มี permission หรือไม่
  */
 export function roleHasPermission(role: UserRole, permission: number | permissionEnum): boolean {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -221,7 +309,7 @@ export function roleHasPermission(role: UserRole, permission: number | permissio
 }
 
 /**
- * ✅ UPDATED: ดึง permissions ทั้งหมดจาก roles หลายตัว (return number[])
+ * UPDATED: ดึง permissions ทั้งหมดจาก roles หลายตัว (return number[])
  */
 export function getPermissionsFromRoles(roles: UserRole[]): number[] {
   const allPermissions = roles.flatMap(role => getRolePermissions(role));
@@ -229,7 +317,7 @@ export function getPermissionsFromRoles(roles: UserRole[]): number[] {
 }
 
 /**
- * ✅ UPDATED: ตรวจสอบว่า user มี permission หรือไม่
+ * UPDATED: ตรวจสอบว่า user มี permission หรือไม่
  */
 export function checkUserPermission(
   userPermissions: number[], 
@@ -247,7 +335,7 @@ export function checkUserPermission(
 }
 
 /**
- * ✅ ตรวจสอบว่า user มี role หรือไม่
+ * ตรวจสอบว่า user มี role หรือไม่
  */
 export function checkUserRole(
   userRoles: UserRole[], 
@@ -265,7 +353,7 @@ export function checkUserRole(
 }
 
 /**
- * ✅ UPDATED: ตรวจสอบ access control แบบรวม (permissions + roles)
+ * UPDATED: ตรวจสอบ access control แบบรวม (permissions + roles)
  */
 export function checkAccess(
   userPermissions: number[],
@@ -316,7 +404,7 @@ export function checkAccess(
   };
 }
 
-// ===== ✅ UPDATED: Common Permission Groups (ใช้ number[] - 20 permissions) =====
+// ===== UPDATED: Common Permission Groups (ใช้ number[] - 20 permissions) =====
 export const PERMISSION_GROUPS = {
   TICKET_MANAGEMENT: [
     1,  // CREATE_TICKET
@@ -371,7 +459,7 @@ export function isPermissionNumberArray(value: any): value is number[] {
   return Array.isArray(value) && value.every(isValidPermissionNumber);
 }
 
-// ===== ✅ Debug Helper Functions (ไม่ duplicate) =====
+// ===== Debug Helper Functions =====
 
 /**
  * แสดงข้อมูล role และ permissions สำหรับ debug
@@ -429,7 +517,7 @@ export function validatePermissionMapping(): boolean {
   return isValid;
 }
 
-// ===== ✅ NEW: Specific Permission Checkers =====
+// ===== NEW: Specific Permission Checkers =====
 
 /**
  * ตรวจสอบว่าสามารถจัดการ ticket ได้หรือไม่
@@ -468,48 +556,48 @@ export function canDoSupport(userPermissions: number[]): boolean {
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถจัดการ customer ได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถจัดการ customer ได้หรือไม่
  */
 export function canManageCustomer(userPermissions: number[]): boolean {
   return userPermissions.includes(20); // MANAGE_CUSTOMER
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถจัดการ project ได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถจัดการ project ได้หรือไม่
  */
 export function canManageProject(userPermissions: number[]): boolean {
   return userPermissions.includes(10); // MANAGE_PROJECT
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถจัดการ category ได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถจัดการ category ได้หรือไม่
  */
 export function canManageCategory(userPermissions: number[]): boolean {
   return userPermissions.includes(17); // MANAGE_CATEGORY
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถจัดการ status ได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถจัดการ status ได้หรือไม่
  */
 export function canManageStatus(userPermissions: number[]): boolean {
   return userPermissions.includes(18); // MANAGE_STATUS
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถดู dashboard ได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถดู dashboard ได้หรือไม่
  */
 export function canViewDashboard(userPermissions: number[]): boolean {
   return userPermissions.includes(19); // VIEW_DASHBOARD
 }
 
 /**
- * ✅ NEW: ตรวจสอบว่าสามารถให้คะแนนความพึงพอใจได้หรือไม่
+ * NEW: ตรวจสอบว่าสามารถให้คะแนนความพึงพอใจได้หรือไม่
  */
 export function canRateSatisfaction(userPermissions: number[]): boolean {
   return userPermissions.includes(14); // SATISFACTION
 }
 
-// ===== ✅ NEW: Permission Summary Functions =====
+// ===== NEW: Permission Summary Functions =====
 
 /**
  * สรุป permissions ที่ user มีทั้งหมด

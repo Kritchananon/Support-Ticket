@@ -36,11 +36,11 @@
 
 <!-- ===== LOADING STATE ===== ✅ -->
 <div class="loading-container" *ngIf="isLoading">
-    <div class="static-loading-indicator">
-      <div class="loading-spinner"></div>
-      <p class="static-loading-text">Loading ticket details...</p>
-    </div>
+  <div class="static-loading-indicator">
+    <div class="loading-spinner"></div>
+    <p class="static-loading-text">Loading ticket details...</p>
   </div>
+</div>
 
 <!-- ===== ERROR STATE ===== ✅ -->
 <div *ngIf="error && !isLoading" class="error-container">
@@ -309,21 +309,15 @@
       </div>
 
       <!-- ===== ✅ SUPPORT INFORMATION SECTION - ใช้ Components แยก ===== -->
-      
+
       <!-- สำหรับผู้ใช้ทั่วไป (ไม่ใช่ Supporter/Admin) - แสดง Display Component -->
-      <app-support-information-display 
-        *ngIf="!authService.isSupporter() && !authService.isAdmin()"
-        [ticketData]="ticketData">
+      <app-support-information-display *ngIf="!canShowForm()" [ticketData]="ticketData">
       </app-support-information-display>
 
       <!-- สำหรับ Supporter/Admin - แสดง Form Component -->
-      <app-support-information-form 
-        *ngIf="!authService.isSupporter() && !authService.isAdmin()"
-        [ticketData]="ticketData"
-        [ticket_no]="ticket_no"
-        (supporterDataSaved)="onSupporterDataSaved($event)"
-        (ticketAssigned)="onTicketAssigned($event)"
-        (refreshRequired)="onRefreshRequired()">
+      <app-support-information-form *ngIf="canShowForm()" [ticketData]="ticketData" [ticket_no]="ticket_no"
+        [isLoadingTicketData]="isLoading" (supporterDataSaved)="onSupporterDataSaved($event)"
+        (ticketAssigned)="onTicketAssigned($event)" (refreshRequired)="onRefreshRequired()">
       </app-support-information-form>
 
     </div>

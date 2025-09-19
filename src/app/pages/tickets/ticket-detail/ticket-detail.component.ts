@@ -90,9 +90,9 @@ interface TicketData {
     create_date: string;
   }>;
   assign: Array<{
-      ticket_no: string;
-      assignTo: string;
-      assignBy: string;
+    ticket_no: string;
+    assignTo: string;
+    assignBy: string;
   }>;
 }
 
@@ -1662,5 +1662,12 @@ export class TicketDetailComponent implements OnInit {
 
   backToList(): void {
     this.router.navigate(['/tickets']);
+  }
+
+  canShowForm(): boolean {
+    const userPermissions = this.authService.getEffectivePermissions();
+    return userPermissions.includes(5) || // VIEW_ALL_TICKETS
+      userPermissions.includes(8) || // CHANGE_STATUS 
+      userPermissions.includes(19);  // ASSIGNEE
   }
 }

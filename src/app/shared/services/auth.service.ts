@@ -5,7 +5,7 @@ import { tap, catchError } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 
-// ✅ Import interfaces จาก user.model.ts ที่อัปเดตแล้ว
+// Import interfaces จาก user.model.ts ที่อัปเดตแล้ว
 import { 
   LoginRequest, 
   LoginResponse, 
@@ -26,7 +26,7 @@ import {
   LOGIN_SUCCESS_CODE 
 } from '../models/user.model';
 
-// ✅ Import permission-related types
+// Import permission-related types
 import { 
   permissionEnum, 
   UserRole, 
@@ -37,10 +37,14 @@ import {
   checkUserPermission,
   checkUserRole,
   checkAccess,
-  AccessControl
+  AccessControl,
+  validateAndNormalizePermissions,
+  validateAndNormalizeRoles,
+  getSafeFallbackPermissions,
+  getSafeFallbackRoles
 } from '../models/permission.model';
 
-// ✅ Re-export TokenData สำหรับ api.service.ts
+// Re-export TokenData สำหรับ api.service.ts
 export type { TokenData } from '../models/user.model';
 
 @Injectable({
@@ -49,14 +53,14 @@ export type { TokenData } from '../models/user.model';
 export class AuthService {
   private apiUrl = environment.apiUrl;
   
-  // ✅ State Management with proper types
+  // State Management with proper types
   private authStateSubject = new BehaviorSubject<AuthState>(createEmptyAuthState());
   public authState$ = this.authStateSubject.asObservable();
   
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
   
-  // ✅ Token management
+  // Token management
   private tokenSubject = new BehaviorSubject<string | null>(null);
   private warningSubject = new BehaviorSubject<boolean>(false);
   private refreshInProgress = false;
@@ -70,16 +74,16 @@ export class AuthService {
     this.initTokenCheck();
   }
 
-  // ===== CORE LOGIN METHOD ===== ✅
+  // ===== CORE LOGIN METHOD ===== 
   
   /**
-   * ✅ เข้าสู่ระบบผ่าน Backend API
+   * เข้าสู่ระบบผ่าน Backend API - Enhanced with better error handling
    */
   async login(username: string, password: string, language: string = 'th'): Promise<LoginResponse> {
     console.log('🔄 Starting login process for:', username);
     
     try {
-      // ✅ Set loading state
+      // Set loading state
       this.updateAuthState({ isLoading: true });
 
       const headers = new HttpHeaders({
@@ -92,74 +96,159 @@ export class AuthService {
         password: password
       };
 
-      console.log('📤 Sending login request to:', `${this.apiUrl}/login`);
+      console.log('📤 Sending login request to:', `${this.apiUrl}/auth/login`);
 
-      // ✅ เรียก Backend API ตาม endpoint ที่ถูกต้อง
       const response = await firstValueFrom(
         this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, body, { headers })
           .pipe(
-            tap(res => console.log('📥 Raw backend response:', res)),
+            tap(res => {
+              console.log('📥 Raw backend response:', res);
+              // เพิ่ม detailed logging
+              console.log('🔍 Response analysis:', {
+                hasUser: !!res.user,
+                hasToken: !!res.access_token,
+                hasPermissions: !!res.permission,
+                permissionType: typeof res.permission,
+                permissionLength: res.permission?.length,
+                hasRoles: !!res.roles,
+                roleType: typeof res.roles,
+                roleLength: res.roles?.length,
+                responseCode: res.code,
+                responseStatus: res.status
+              });
+            }),
             catchError((error: HttpErrorResponse) => this.handleLoginError(error))
           )
       );
 
       console.log('📋 Processing login response...');
       
-      // ✅ Debug login response
+      // Debug login response
       this.debugLoginResponse(response);
 
-      // ✅ ตรวจสอบความสำเร็จของ response
+      // ตรวจสอบความสำเร็จของ response
       if (isLoginSuccessResponse(response)) {
         console.log('✅ Login successful, processing tokens and user data');
-        console.log('🔍 Backend response data:', {
-          hasPermissions: !!response.permission,
-          permissionCount: response.permission?.length || 0,
-          permissions: response.permission,
-          hasRoles: !!response.roles,
-          roles: response.roles
-        });
         
-        // ✅ แยกข้อมูล token และ user
         const tokenData = extractTokenData(response);
         const userData = extractUserData(response);
 
-        if (tokenData && userData) {
-          // ✅ บันทึก tokens
-          this.setTokens(tokenData);
-          
-          // ✅ บันทึก user data พร้อม permissions และ roles
-          this.setCurrentUser(userData);
-          
-          // ✅ บันทึก permissions และ roles แยก (สำคัญมาก!)
-          if (response.permission && Array.isArray(response.permission)) {
-            this.setUserPermissions(response.permission);
-            console.log('🔐 Permissions set:', response.permission);
-          } else {
-            console.warn('⚠️ No permissions received from backend!');
-            // ✅ ถ้าไม่ได้รับ permissions ให้ใช้ default ตาม role
-            this.setDefaultPermissionsByRole(userData.roles || []);
-          }
+        // เพิ่มการตรวจสอบ null/undefined
+        if (!tokenData) {
+          console.error('❌ Failed to extract token data:', response);
+          throw new Error('Invalid token data in response');
+        }
 
-          if (response.roles && Array.isArray(response.roles)) {
-            this.setUserRoles(response.roles);
-            console.log('👥 Roles set:', response.roles);
-          } else if (userData.roles && Array.isArray(userData.roles)) {
-            this.setUserRoles(userData.roles);
-            console.log('👥 Roles set from user data:', userData.roles);
-          } else {
-            console.warn('⚠️ No roles received from backend!');
-            // ✅ ถ้าไม่ได้รับ roles ให้ใช้ default
-            this.setUserRoles([ROLES.USER]); // Default fallback
-          }
+        if (!userData) {
+          console.error('❌ Failed to extract user data:', response);
+          throw new Error('Invalid user data in response');
+        }
 
-          // ✅ อัปเดต auth state ด้วย helper function
+        console.log('🔍 Extracted data:', {
+          tokenData: {
+            hasAccessToken: !!tokenData.access_token,
+            hasRefreshToken: !!tokenData.refresh_token,
+            expiresAt: tokenData.expires_at
+          },
+          userData: {
+            id: userData.id,
+            username: userData.username,
+            roles: userData.roles
+          }
+        });
+
+        // บันทึก tokens
+        this.setTokens(tokenData);
+        
+        // บันทึก user data
+        this.setCurrentUser(userData);
+        
+        // แก้ไขการจัดการ permissions และ roles ด้วย safe validation
+        let userPermissions: number[] = [];
+        let userRoles: UserRole[] = [];
+        
+        try {
+          // Validate และ normalize permissions
+          if (response.permission) {
+            userPermissions = validateAndNormalizePermissions(response.permission);
+            console.log('🔐 Validated permissions:', userPermissions);
+          }
+          
+          // Validate และ normalize roles
+          if (response.roles) {
+            userRoles = validateAndNormalizeRoles(response.roles);
+          } else if (userData.roles) {
+            userRoles = validateAndNormalizeRoles(userData.roles);
+          }
+          
+          console.log('👥 Validated roles:', userRoles);
+          
+          // ใช้ fallback หากไม่มีข้อมูล
+          if (userPermissions.length === 0) {
+            console.log('🔄 Using fallback permissions');
+            
+            if (userRoles.length > 0) {
+              // ลองดึง permissions จาก roles ก่อน
+              userPermissions = getPermissionsFromRoles(userRoles);
+              console.log('🔐 Permissions from roles:', userPermissions);
+            }
+            
+            // ถ้ายังไม่มี ใช้ safe fallback
+            if (userPermissions.length === 0) {
+              userPermissions = getSafeFallbackPermissions();
+              console.warn('⚠️ Using safe fallback permissions:', userPermissions);
+            }
+          }
+          
+          if (userRoles.length === 0) {
+            console.log('🔄 Using fallback roles');
+            userRoles = getSafeFallbackRoles();
+            console.warn('⚠️ Using safe fallback roles:', userRoles);
+          }
+          
+          // บันทึกข้อมูล
+          this.setUserPermissions(userPermissions);
+          this.setUserRoles(userRoles);
+          
+          // สร้าง auth state
           const newAuthState = createAuthStateFromLoginResponse(response, userData, tokenData.access_token);
           this.authStateSubject.next(newAuthState);
-
+          
           console.log('🎉 Login process completed successfully');
-        } else {
-          throw new Error('Invalid token or user data in response');
+          console.log('📊 Final user status:', {
+            username: userData.username,
+            roles: userRoles,
+            permissions: userPermissions,
+            isAuthenticated: this.isAuthenticated(),
+            canCreateTickets: this.hasPermission(1),
+            canViewOwnTickets: this.hasPermission(12)
+          });
+          
+          // ตรวจสอบว่า user สามารถเข้าถึงได้หรือไม่
+          setTimeout(() => {
+            this.validateUserAccess();
+          }, 100);
+          
+        } catch (validationError) {
+          console.error('❌ Error during permission/role validation:', validationError);
+          
+          // ใช้ safe fallback ทั้งหมด
+          const fallbackPermissions = getSafeFallbackPermissions();
+          const fallbackRoles = getSafeFallbackRoles();
+          
+          this.setUserPermissions(fallbackPermissions);
+          this.setUserRoles(fallbackRoles);
+          
+          console.log('🛡️ Applied safe fallback settings:', {
+            permissions: fallbackPermissions,
+            roles: fallbackRoles
+          });
+          
+          // ยังคงให้ login สำเร็จ
+          const newAuthState = createAuthStateFromLoginResponse(response, userData, tokenData.access_token);
+          this.authStateSubject.next(newAuthState);
         }
+        
       } else {
         console.log('❌ Login failed:', response.message);
         this.updateAuthState({ isLoading: false });
@@ -171,15 +260,15 @@ export class AuthService {
       console.error('❌ Login error:', error);
       this.updateAuthState({ isLoading: false });
       
-      // ✅ ส่งต่อ error โดยไม่แปลง format
+      // ส่งต่อ error โดยไม่แปลง format
       throw error;
     }
   }
 
-  // ===== TOKEN MANAGEMENT ===== ✅
+  // ===== TOKEN MANAGEMENT =====
 
   /**
-   * ✅ บันทึก tokens ลง localStorage
+   * บันทึก tokens ลง localStorage
    */
   setTokens(tokenData: TokenData): void {
     try {
@@ -206,28 +295,28 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึง access token
+   * ดึง access token
    */
   getToken(): string | null {
     return localStorage.getItem('access_token');
   }
 
   /**
-   * ✅ ดึง refresh token
+   * ดึง refresh token
    */
   getRefreshToken(): string | null {
     return localStorage.getItem('refresh_token');
   }
 
   /**
-   * ✅ ตรวจสอบว่า token หมดอายุแล้วหรือยัง
+   * ตรวจสอบว่า token หมดอายุแล้วหรือยัง
    */
   isTokenExpired(): boolean {
     const token = this.getToken();
     if (!token) return true;
 
     try {
-      // ✅ ลอง decode JWT token
+      // ลอง decode JWT token
       const payload = JSON.parse(atob(token.split('.')[1]));
       const currentTime = Math.floor(Date.now() / 1000);
       const isExpired = payload.exp < currentTime;
@@ -244,7 +333,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่า token ใกล้หมดอายุหรือยัง (5 นาที)
+   * ตรวจสอบว่า token ใกล้หมดอายุหรือยัง (5 นาที)
    */
   isTokenExpiring(): boolean {
     const token = this.getToken();
@@ -261,7 +350,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่ามี token ที่ใช้งานได้หรือไม่
+   * ตรวจสอบว่ามี token ที่ใช้งานได้หรือไม่
    */
   hasValidToken(): boolean {
     const token = this.getToken();
@@ -269,10 +358,10 @@ export class AuthService {
     return !this.isTokenExpired();
   }
 
-  // ===== USER MANAGEMENT ===== ✅
+  // ===== USER MANAGEMENT =====
 
   /**
-   * ✅ บันทึก user data
+   * บันทึก user data
    */
   setCurrentUser(user: User | UserWithPermissions): void {
     try {
@@ -285,7 +374,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึง user data
+   * ดึง user data
    */
   getCurrentUser(): User | null {
     const currentUser = this.currentUserSubject.value;
@@ -310,7 +399,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึง user data พร้อม permissions และ roles
+   * ดึง user data พร้อม permissions และ roles
    */
   getCurrentUserWithPermissions(): UserWithPermissions | null {
     const user = this.getCurrentUser();
@@ -327,22 +416,29 @@ export class AuthService {
     };
   }
 
-  // ===== PERMISSION MANAGEMENT ===== ✅
+  // ===== PERMISSION MANAGEMENT =====
 
   /**
-   * ✅ บันทึก permissions (รับ number[] โดยตรง)
+   * บันทึก permissions (รับ number[] โดยตรง) - Enhanced with validation
    */
   setUserPermissions(permissions: number[]): void {
     try {
-      localStorage.setItem('user_permissions', JSON.stringify(permissions));
-      console.log('🔐 Permissions saved:', permissions);
+      // Validate permissions ก่อนบันทึก
+      const validPermissions = permissions.filter(p => 
+        typeof p === 'number' && !isNaN(p) && p >= 1 && p <= 20
+      );
+      
+      localStorage.setItem('user_permissions', JSON.stringify(validPermissions));
+      console.log('🔐 Permissions saved:', validPermissions);
     } catch (error) {
       console.error('❌ Error saving permissions:', error);
+      // ใช้ fallback permissions
+      localStorage.setItem('user_permissions', JSON.stringify([1, 12, 14])); // Basic user permissions
     }
   }
 
   /**
-   * ✅ ดึง permissions (return number[] โดยตรง)
+   * ดึง permissions (return number[] โดยตรง)
    */
   getUserPermissions(): number[] {
     try {
@@ -355,7 +451,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบสิทธิ์เดี่ยว (รับ number)
+   * ตรวจสอบสิทธิ์เดี่ยว (รับ number)
    */
   hasPermission(permission: number): boolean {
     const permissions = this.getUserPermissions();
@@ -363,7 +459,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบสิทธิ์หลายตัว (ต้องมีทั้งหมด)
+   * ตรวจสอบสิทธิ์หลายตัว (ต้องมีทั้งหมด)
    */
   hasAllPermissions(permissions: number[]): boolean {
     const userPermissions = this.getUserPermissions();
@@ -371,29 +467,36 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบสิทธิ์หลายตัว (มีอย่างน้อย 1 ตัว)
+   * ตรวจสอบสิทธิ์หลายตัว (มีอย่างน้อย 1 ตัว)
    */
   hasAnyPermission(permissions: number[]): boolean {
     const userPermissions = this.getUserPermissions();
     return permissions.some(permission => userPermissions.includes(permission));
   }
 
-  // ===== ROLE MANAGEMENT ===== ✅
+  // ===== ROLE MANAGEMENT =====
 
   /**
-   * ✅ บันทึก roles
+   * บันทึก roles - Enhanced with validation
    */
   setUserRoles(roles: UserRole[]): void {
     try {
-      localStorage.setItem('user_roles', JSON.stringify(roles));
-      console.log('👥 Roles saved:', roles);
+      // Validate roles ก่อนบันทึก
+      const validRoles = roles.filter(role => 
+        typeof role === 'string' && Object.values(ROLES).includes(role)
+      );
+      
+      localStorage.setItem('user_roles', JSON.stringify(validRoles));
+      console.log('👥 Roles saved:', validRoles);
     } catch (error) {
       console.error('❌ Error saving roles:', error);
+      // ใช้ fallback role
+      localStorage.setItem('user_roles', JSON.stringify([ROLES.USER]));
     }
   }
 
   /**
-   * ✅ ดึง roles
+   * ดึง roles
    */
   getUserRoles(): UserRole[] {
     try {
@@ -406,7 +509,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบ role เดี่ยว
+   * ตรวจสอบ role เดี่ยว
    */
   hasRole(role: UserRole): boolean {
     const roles = this.getUserRoles();
@@ -414,7 +517,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบ roles หลายตัว (ต้องมีทั้งหมด)
+   * ตรวจสอบ roles หลายตัว (ต้องมีทั้งหมด)
    */
   hasAllRoles(roles: UserRole[]): boolean {
     const userRoles = this.getUserRoles();
@@ -422,7 +525,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบ roles หลายตัว (มีอย่างน้อย 1 ตัว)
+   * ตรวจสอบ roles หลายตัว (มีอย่างน้อย 1 ตัว)
    */
   hasAnyRole(roles: UserRole[]): boolean {
     const userRoles = this.getUserRoles();
@@ -430,28 +533,28 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่าเป็น Admin หรือไม่
+   * ตรวจสอบว่าเป็น Admin หรือไม่
    */
   isAdmin(): boolean {
     return this.hasRole(ROLES.ADMIN);
   }
 
   /**
-   * ✅ ตรวจสอบว่าเป็น Supporter หรือไม่
+   * ตรวจสอบว่าเป็น Supporter หรือไม่
    */
   isSupporter(): boolean {
     return this.hasRole(ROLES.SUPPORTER);
   }
 
   /**
-   * ✅ ตรวจสอบว่าเป็น User หรือไม่
+   * ตรวจสอบว่าเป็น User หรือไม่
    */
   isUser(): boolean {
     return this.hasRole(ROLES.USER);
   }
 
   /**
-   * ✅ ดึง primary role (role ที่สำคัญที่สุด)
+   * ดึง primary role (role ที่สำคัญที่สุด)
    */
   getPrimaryRole(): UserRole | null {
     if (this.isAdmin()) return ROLES.ADMIN;
@@ -461,7 +564,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึง permissions ที่ได้จาก roles
+   * ดึง permissions ที่ได้จาก roles
    */
   getEffectivePermissions(): number[] {
     const userRoles = this.getUserRoles();
@@ -473,10 +576,10 @@ export class AuthService {
     return allPermissions;
   }
 
-  // ===== ACCESS CONTROL ===== ✅
+  // ===== ACCESS CONTROL =====
 
   /**
-   * ✅ ตรวจสอบการเข้าถึงแบบรวม (permissions + roles)
+   * ตรวจสอบการเข้าถึงแบบรวม (permissions + roles)
    */
   checkAccess(
     requiredPermissions?: number[],
@@ -489,7 +592,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่าสามารถจัดการ tickets ได้หรือไม่
+   * ตรวจสอบว่าสามารถจัดการ tickets ได้หรือไม่
    */
   canManageTickets(): boolean {
     return this.hasAnyPermission([
@@ -500,7 +603,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่าสามารถจัดการ users ได้หรือไม่
+   * ตรวจสอบว่าสามารถจัดการ users ได้หรือไม่
    */
   canManageUsers(): boolean {
     return this.hasAnyPermission([
@@ -510,31 +613,31 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบว่าสามารถสร้าง ticket ได้หรือไม่
+   * ตรวจสอบว่าสามารถสร้าง ticket ได้หรือไม่
    */
   canCreateTickets(): boolean {
     return this.hasPermission(1); // CREATE_TICKET
   }
 
   /**
-   * ✅ ตรวจสอบว่าสามารถดู tickets ทั้งหมดได้หรือไม่
+   * ตรวจสอบว่าสามารถดู tickets ทั้งหมดได้หรือไม่
    */
   canViewAllTickets(): boolean {
     return this.hasPermission(13); // VIEW_ALL_TICKETS
   }
 
   /**
-   * ✅ ตรวจสอบว่าสามารถดูแค่ tickets ของตัวเองได้หรือไม่
+   * ตรวจสอบว่าสามารถดูแค่ tickets ของตัวเองได้หรือไม่
    */
   canViewOwnTicketsOnly(): boolean {
     return this.hasPermission(12) && // VIEW_OWN_TICKETS
            !this.hasPermission(13);  // และไม่มี VIEW_ALL_TICKETS
   }
 
-  // ===== AUTHENTICATION STATUS ===== ✅
+  // ===== AUTHENTICATION STATUS =====
 
   /**
-   * ✅ ตรวจสอบการ authentication
+   * ตรวจสอบการ authentication
    */
   isAuthenticated(): boolean {
     const token = this.getToken();
@@ -553,23 +656,23 @@ export class AuthService {
   }
 
   /**
-   * ✅ Alias สำหรับ isAuthenticated
+   * Alias สำหรับ isAuthenticated
    */
   isLoggedIn(): boolean {
     return this.isAuthenticated();
   }
 
-  // ===== LOGOUT ===== ✅
+  // ===== LOGOUT =====
 
   /**
-   * ✅ ออกจากระบบ
+   * ออกจากระบบ
    */
   logout(): void {
     console.log('🚪 Starting logout process');
     
     const refreshToken = this.getRefreshToken();
     
-    // ✅ เรียก logout API ถ้ามี refresh token
+    // เรียก logout API ถ้ามี refresh token
     if (refreshToken) {
       const headers = new HttpHeaders({
         'Content-Type': 'application/json',
@@ -590,12 +693,12 @@ export class AuthService {
   }
 
   /**
-   * ✅ ล้างข้อมูล authentication และ redirect
+   * ล้างข้อมูล authentication และ redirect
    */
   clearAuthData(): void {
     console.log('🧹 Clearing authentication data');
     
-    // ✅ ล้าง localStorage
+    // ล้าง localStorage
     const keysToRemove = [
       'access_token',
       'refresh_token', 
@@ -603,13 +706,13 @@ export class AuthService {
       'token_expires_timestamp',
       'user_data',
       'user_permissions',
-      'user_roles',           // ✅ เพิ่มการล้าง roles
+      'user_roles',
       'remember_me'
     ];
     
     keysToRemove.forEach(key => localStorage.removeItem(key));
 
-    // ✅ รีเซ็ต subjects
+    // รีเซ็ต subjects
     this.currentUserSubject.next(null);
     this.tokenSubject.next(null);
     this.warningSubject.next(false);
@@ -621,16 +724,16 @@ export class AuthService {
   }
 
   /**
-   * ✅ Alias สำหรับ clearAuthData (ใช้ใน api.service.ts)
+   * Alias สำหรับ clearAuthData (ใช้ใน api.service.ts)
    */
   clearTokensAndRedirect(): void {
     this.clearAuthData();
   }
 
-  // ===== TOKEN REFRESH (ถ้า Backend รองรับ) ===== ✅
+  // ===== TOKEN REFRESH (ถ้า Backend รองรับ) =====
 
   /**
-   * ✅ รีเฟรช access token
+   * รีเฟรช access token
    */
   refreshAccessToken(): Observable<TokenData> {
     const refreshToken = this.getRefreshToken();
@@ -697,19 +800,47 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตั้งค่า default permissions ตาม roles (fallback)
+   * NEW: ตรวจสอบการเข้าถึงของ user หลัง login
    */
-  private setDefaultPermissionsByRole(roles: UserRole[]): void {
-    console.log('🔄 Setting default permissions for roles:', roles);
+  private validateUserAccess(): void {
+    console.group('🔍 Validating User Access');
     
-    const defaultPermissions = getPermissionsFromRoles(roles);
-    this.setUserPermissions(defaultPermissions);
+    const user = this.getCurrentUser();
+    const roles = this.getUserRoles();
+    const permissions = this.getEffectivePermissions();
     
-    console.log('✅ Default permissions set:', defaultPermissions);
+    console.log('User validation:', {
+      hasUser: !!user,
+      username: user?.username,
+      roles: roles,
+      permissions: permissions,
+      isAuthenticated: this.isAuthenticated(),
+      canViewDashboard: this.hasPermission(19), // VIEW_DASHBOARD
+      isAdmin: this.isAdmin(),
+      isSupporter: this.isSupporter(),
+      isUser: this.isUser()
+    });
+    
+    // ตรวจสอบว่า user มีสิทธิ์ขั้นต้นหรือไม่
+    const hasBasicAccess = roles.length > 0 && (
+      this.hasPermission(1) || // CREATE_TICKET
+      this.hasPermission(12) || // VIEW_OWN_TICKETS
+      this.hasPermission(13) || // VIEW_ALL_TICKETS
+      this.isAdmin() ||
+      this.isSupporter()
+    );
+    
+    if (!hasBasicAccess) {
+      console.warn('⚠️ User has no basic access permissions!');
+      console.log('Available permissions:', permissions);
+      console.log('Available roles:', roles);
+    }
+    
+    console.groupEnd();
   }
 
   /**
-   * ✅ Debug method - แสดงข้อมูล login response
+   * Debug method - แสดงข้อมูล login response
    */
   debugLoginResponse(response: LoginResponse): void {
     console.group('🔍 Login Response Debug');
@@ -734,7 +865,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ โหลด user data จาก localStorage เมื่อเริ่มต้น
+   * โหลด user data จาก localStorage เมื่อเริ่มต้น
    */
   private loadUserFromStorage(): void {
     console.log('📂 Loading user data from storage');
@@ -756,9 +887,9 @@ export class AuthService {
         user: user,
         token: token,
         permissions: permissions,
-        roles: roles,                    // ✅ เพิ่ม roles
+        roles: roles,
         last_activity: new Date(),
-        effective_permissions: this.getEffectivePermissions() // ✅ เพิ่ม effective permissions
+        effective_permissions: this.getEffectivePermissions()
       });
       
     } else {
@@ -768,7 +899,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ อัปเดต auth state
+   * อัปเดต auth state
    */
   private updateAuthState(updates: Partial<AuthState>): void {
     const currentState = this.authStateSubject.value;
@@ -777,7 +908,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ จัดการ login errors
+   * จัดการ login errors
    */
   private handleLoginError(error: HttpErrorResponse): Observable<never> {
     console.error('❌ Login API error:', error);
@@ -803,7 +934,7 @@ export class AuthService {
       errorMessage = error.error.message;
     }
     
-    // ✅ เพิ่มข้อมูล debug ใน console
+    // เพิ่มข้อมูล debug ใน console
     console.error('🔍 Debug info:', {
       status: error.status,
       statusText: error.statusText,
@@ -816,7 +947,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตั้งค่า token check timer
+   * ตั้งค่า token check timer
    */
   private initTokenCheck(): void {
     setInterval(() => {
@@ -846,33 +977,33 @@ export class AuthService {
     }, 30000); // ตรวจสอบทุก 30 วินาที
   }
 
-  // ===== OBSERVABLE GETTERS ===== ✅
+  // ===== OBSERVABLE GETTERS =====
 
   /**
-   * ✅ ดู warning status (token ใกล้หมดอายุ)
+   * ดู warning status (token ใกล้หมดอายุ)
    */
   getWarningStatus(): Observable<boolean> {
     return this.warningSubject.asObservable();
   }
 
   /**
-   * ✅ ดู token changes
+   * ดู token changes
    */
   getTokenChanges(): Observable<string | null> {
     return this.tokenSubject.asObservable();
   }
 
   /**
-   * ✅ Manual refresh สำหรับ UI
+   * Manual refresh สำหรับ UI
    */
   manualRefresh(): Observable<TokenData> {
     return this.refreshAccessToken();
   }
 
-  // ===== ADVANCED PERMISSION METHODS ===== ✅
+  // ===== ADVANCED PERMISSION METHODS =====
 
   /**
-   * ✅ ตรวจสอบ permission พร้อม fallback logic
+   * ตรวจสอบ permission พร้อม fallback logic
    */
   hasPermissionWithFallback(permission: permissionEnum, fallbackRoles?: UserRole[]): boolean {
     // ตรวจสอบ direct permission ก่อน
@@ -894,7 +1025,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึงรายการ permissions ที่ขาดหายไป
+   * ดึงรายการ permissions ที่ขาดหายไป
    */
   getMissingPermissions(requiredPermissions: number[]): number[] {
     const userPermissions = this.getEffectivePermissions();
@@ -902,17 +1033,17 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึงรายการ roles ที่ขาดหายไป
+   * ดึงรายการ roles ที่ขาดหายไป
    */
   getMissingRoles(requiredRoles: UserRole[]): UserRole[] {
     const userRoles = this.getUserRoles();
     return requiredRoles.filter(role => !userRoles.includes(role));
   }
 
-  // ===== DEBUG METHODS ===== ✅
+  // ===== DEBUG METHODS =====
 
   /**
-   * ✅ Debug authentication status
+   * Debug authentication status
    */
   debugAuthStatus(): void {
     console.group('🔍 Authentication Debug Info');
@@ -980,7 +1111,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดู token info
+   * ดู token info
    */
   getTokenInfo(): any {
     const token = this.getToken();
@@ -1006,7 +1137,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ ตรวจสอบสถานะ permission ปัจจุบัน
+   * ตรวจสอบสถานะ permission ปัจจุบัน
    */
   checkCurrentPermissionStatus(): void {
     console.group('🔍 Current Permission Status');
@@ -1033,7 +1164,7 @@ export class AuthService {
       canViewAllTickets: this.canViewAllTickets()
     });
     
-    // ✅ ตรวจสอบข้อมูลใน localStorage
+    // ตรวจสอบข้อมูลใน localStorage
     console.log('LocalStorage Data:', {
       hasUserData: !!localStorage.getItem('user_data'),
       hasPermissions: !!localStorage.getItem('user_permissions'),
@@ -1045,7 +1176,7 @@ export class AuthService {
   }
 
   /**
-   * ✅ Debug permissions ใน localStorage
+   * Debug permissions ใน localStorage
    */
   debugPermissionsInStorage(): void {
     console.group('🔍 Permissions Storage Debug');
@@ -1085,14 +1216,14 @@ export class AuthService {
   }
 
   /**
-   * ✅ ดึงข้อมูล auth state สำหรับ debug
+   * ดึงข้อมูล auth state สำหรับ debug
    */
   getAuthState(): AuthState {
     return this.authStateSubject.value;
   }
 
   /**
-   * ✅ ดึงสถิติการใช้งาน
+   * ดึงสถิติการใช้งาน
    */
   getUsageStats(): {
     loginTime: Date | null;
@@ -1110,5 +1241,305 @@ export class AuthService {
       sessionDuration: loginTime ? now.getTime() - loginTime.getTime() : 0,
       tokenRefreshCount: 0 // TODO: implement refresh counter if needed
     };
+  }
+
+  // ===== NEW: COMPREHENSIVE DEBUG METHODS =====
+
+  /**
+   * ฟังก์ชันสำหรับ debug login process ทั้งหมด
+   */
+  debugFullLoginProcess(): void {
+    console.group('🔍 FULL LOGIN PROCESS DEBUG');
+    
+    // 1. ตรวจสอบ localStorage ก่อน
+    this.debugLocalStorageData();
+    
+    // 2. ตรวจสอบ AuthService state
+    this.debugAuthServiceState();
+    
+    // 3. ตรวจสอบ permissions และ roles
+    this.debugPermissionsAndRoles();
+    
+    // 4. ตรวจสอบ navigation access
+    this.debugNavigationAccess();
+    
+    console.groupEnd();
+  }
+
+  /**
+   * Debug localStorage data
+   */
+  debugLocalStorageData(): void {
+    console.group('📦 LocalStorage Debug');
+    
+    const keys = [
+      'access_token',
+      'refresh_token',
+      'user_data',
+      'user_permissions',
+      'user_roles'
+    ];
+    
+    keys.forEach(key => {
+      const value = localStorage.getItem(key);
+      console.log(`${key}:`, value ? 'EXISTS' : 'MISSING', value);
+      
+      if (value && (key === 'user_data' || key === 'user_permissions' || key === 'user_roles')) {
+        try {
+          const parsed = JSON.parse(value);
+          console.log(`${key} (parsed):`, parsed);
+        } catch (error) {
+          console.error(`Error parsing ${key}:`, error);
+        }
+      }
+    });
+    
+    console.groupEnd();
+  }
+
+  /**
+   * Debug AuthService current state
+   */
+  debugAuthServiceState(): void {
+    console.group('🔧 AuthService State Debug');
+    
+    console.log('Authentication Status:', {
+      isAuthenticated: this.isAuthenticated(),
+      isLoggedIn: this.isLoggedIn(),
+      hasValidToken: this.hasValidToken(),
+      isTokenExpired: this.isTokenExpired(),
+      isTokenExpiring: this.isTokenExpiring()
+    });
+    
+    console.log('User Info:', {
+      currentUser: this.getCurrentUser(),
+      token: this.getToken() ? 'EXISTS' : 'MISSING',
+      tokenInfo: this.getTokenInfo()
+    });
+    
+    console.groupEnd();
+  }
+
+  /**
+   * Debug permissions and roles
+   */
+  debugPermissionsAndRoles(): void {
+    console.group('🔐 Permissions & Roles Debug');
+    
+    const permissions = this.getUserPermissions();
+    const roles = this.getUserRoles();
+    const effectivePermissions = this.getEffectivePermissions();
+    
+    console.log('Direct Permissions:', permissions);
+    console.log('User Roles:', roles);
+    console.log('Effective Permissions:', effectivePermissions);
+    
+    console.log('Role Checks:', {
+      isAdmin: this.isAdmin(),
+      isSupporter: this.isSupporter(),
+      isUser: this.isUser(),
+      primaryRole: this.getPrimaryRole()
+    });
+    
+    console.log('Permission Checks:', {
+      canCreateTickets: this.canCreateTickets(),
+      canViewAllTickets: this.canViewAllTickets(),
+      canViewOwnTicketsOnly: this.canViewOwnTicketsOnly(),
+      canManageTickets: this.canManageTickets(),
+      canManageUsers: this.canManageUsers()
+    });
+    
+    // Test specific permissions
+    const testPermissions = [1, 12, 13, 19]; // CREATE_TICKET, VIEW_OWN_TICKETS, VIEW_ALL_TICKETS, VIEW_DASHBOARD
+    console.log('Specific Permission Tests:');
+    testPermissions.forEach(perm => {
+      console.log(`Permission ${perm}:`, this.hasPermission(perm));
+    });
+    
+    console.groupEnd();
+  }
+
+  /**
+   * Debug navigation access
+   */
+  debugNavigationAccess(): void {
+    console.group('🧭 Navigation Access Debug');
+    
+    const userPermissions = this.getEffectivePermissions();
+    console.log('User Permissions for Navigation:', userPermissions);
+    
+    // Test access to common routes
+    const routeTests = [
+      { path: '/dashboard', requiredPermissions: [] },
+      { path: '/tickets', requiredPermissions: [1, 12, 13] }, // CREATE_TICKET, VIEW_OWN_TICKETS, VIEW_ALL_TICKETS
+      { path: '/tickets/my-tickets', requiredPermissions: [12] }, // VIEW_OWN_TICKETS
+      { path: '/reports', requiredPermissions: [12, 13] }, // VIEW_OWN_TICKETS, VIEW_ALL_TICKETS
+      { path: '/settings/general', requiredPermissions: [] }
+    ];
+    
+    console.log('Route Access Tests:');
+    routeTests.forEach(route => {
+      const hasAccess = route.requiredPermissions.length === 0 || 
+        route.requiredPermissions.some(p => userPermissions.includes(p));
+      console.log(`${route.path}:`, hasAccess ? 'ACCESSIBLE' : 'BLOCKED');
+    });
+    
+    console.groupEnd();
+  }
+
+  /**
+   * Debug ข้อมูล Backend response (ใช้หลัง login)
+   */
+  debugBackendResponse(response: any): void {
+    console.group('📡 Backend Response Debug');
+    
+    console.log('Raw Response:', response);
+    
+    console.log('Response Analysis:', {
+      hasUser: !!response.user,
+      hasToken: !!response.access_token,
+      hasPermissions: !!response.permission,
+      hasRoles: !!response.roles,
+      permissionType: typeof response.permission,
+      roleType: typeof response.roles,
+      permissionCount: response.permission?.length || 0,
+      roleCount: response.roles?.length || 0
+    });
+    
+    if (response.permission) {
+      console.log('Permission Details:', {
+        raw: response.permission,
+        isArray: Array.isArray(response.permission),
+        first5: response.permission?.slice(0, 5),
+        types: response.permission?.map((p: any) => typeof p)
+      });
+    }
+    
+    if (response.roles) {
+      console.log('Role Details:', {
+        raw: response.roles,
+        isArray: Array.isArray(response.roles),
+        values: response.roles
+      });
+    }
+    
+    console.groupEnd();
+  }
+
+  /**
+   * แสดงคำแนะนำการแก้ไขปัญหา
+   */
+  showTroubleshootingGuide(): void {
+    console.group('🛠️ Login Troubleshooting Guide');
+    
+    console.log(`
+📝 TROUBLESHOOTING STEPS:
+
+1. ตรวจสอบ Backend Response:
+   - เปิด Network tab ใน DevTools
+   - ดู response จาก /auth/login
+   - ตรวจสอบว่ามี permission และ roles หรือไม่
+
+2. ตรวจสอบ Console Errors:
+   - มี error ใน console หรือไม่
+   - Permission validation ผิดพลาดหรือไม่
+   - Route guard ถูก block หรือไม่
+
+3. ตรวจสอบ LocalStorage:
+   - Run: authService.debugPermissionsInStorage()
+   - ตรวจสอบว่าข้อมูลถูกบันทึกหรือไม่
+
+4. ทดสอบ Permissions:
+   - Run: authService.checkCurrentPermissionStatus()
+   - ตรวจสอบว่า user มี basic permissions หรือไม่
+
+5. ทดสอบ Routes:
+   - ลองเข้า /dashboard โดยตรง
+   - ดูว่า route guard ทำงานถูกต้องหรือไม่
+
+6. Backend Issues:
+   - ตรวจสอบว่า Backend ส่ง permission array ถูกต้องหรือไม่
+   - ตรวจสอบ permission numbers (1-20)
+   - ตรวจสอบ role strings ('admin', 'supporter', 'user')
+    `);
+    
+    console.log('🔧 Quick Debug Commands:');
+    console.log('authService.debugAuthStatus() - Full auth debug');
+    console.log('authService.checkCurrentPermissionStatus() - Permission status');
+    console.log('authService.debugPermissionsInStorage() - Storage debug');
+    console.log('authService.debugFullLoginProcess() - Complete debug');
+    
+    console.groupEnd();
+  }
+
+  /**
+   * สร้าง test data สำหรับ different user types
+   */
+  generateTestData(): void {
+    console.group('📋 Test Data Examples');
+    
+    const testData = {
+      admin: {
+        user: { id: 1, username: 'admin', firstname: 'Admin', lastname: 'User' },
+        permission: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],
+        roles: ['admin'],
+        access_token: 'mock-admin-token'
+      },
+      supporter: {
+        user: { id: 2, username: 'supporter', firstname: 'Support', lastname: 'User' },
+        permission: [2,3,5,6,7,8,9,11,12,13,19,20],
+        roles: ['supporter'],
+        access_token: 'mock-supporter-token'
+      },
+      user: {
+        user: { id: 3, username: 'user', firstname: 'Regular', lastname: 'User' },
+        permission: [1,2,3,4,12,14],
+        roles: ['user'],
+        access_token: 'mock-user-token'
+      },
+      brokenUser: {
+        user: { id: 4, username: 'broken', firstname: 'Broken', lastname: 'User' },
+        permission: null, // This might cause issues
+        roles: undefined, // This might cause issues
+        access_token: 'mock-broken-token'
+      }
+    };
+    
+    Object.entries(testData).forEach(([type, data]) => {
+      console.log(`${type.toUpperCase()} Test Data:`, data);
+    });
+    
+    console.log('\n🧪 To test with this data:');
+    console.log('authService.simulateLoginTest(testData.user)');
+    
+    // Make it available globally for testing
+    (window as any).testLoginData = testData;
+    
+    console.groupEnd();
+  }
+
+  /**
+   * ทดสอบ login กับ test data
+   */
+  simulateLoginTest(mockResponse: any): void {
+    console.group('🧪 Login Simulation Test');
+    
+    console.log('Simulating login with mock data...');
+    this.debugBackendResponse(mockResponse);
+    
+    // Simulate the validation process
+    console.log('Testing permission validation...');
+    
+    if (mockResponse.permission) {
+      console.log('Would set permissions:', mockResponse.permission);
+    }
+    
+    if (mockResponse.roles) {
+      console.log('Would set roles:', mockResponse.roles);
+    }
+    
+    console.log('Simulation complete. Check if this would cause issues.');
+    
+    console.groupEnd();
   }
 }
