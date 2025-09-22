@@ -137,7 +137,18 @@
         </td>
         <td class="table-cell">
           <div class="user-roles">
-            <div class="roles-display">{{ getUserRoles(user) }}</div>
+            <!-- Role badges แบบใหม่ -->
+            <div class="roles-badges" *ngIf="getUserImportantRoles(user).length > 0">
+              <span *ngFor="let role of getUserImportantRoles(user)" 
+                    class="role-badge"
+                    [class]="'role-badge-' + role.type">
+                {{ role.name }}
+              </span>
+            </div>
+            <!-- แสดงเมื่อไม่มี roles -->
+            <div class="no-roles" *ngIf="getUserImportantRoles(user).length === 0">
+              No roles assigned
+            </div>
           </div>
         </td>
         <td class="table-cell">
@@ -340,7 +351,7 @@
             Roles <span class="required">*</span>
           </label>
           <div class="roles-container">
-            <div class="role-checkbox" *ngFor="let role of availableRoles">
+            <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
               <label class="checkbox-label">
                 <input
                   type="checkbox"
@@ -352,6 +363,11 @@
                 <span class="checkbox-custom"></span>
                 <span class="checkbox-text">{{ role.name }}</span>
               </label>
+            </div>
+            
+            <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
+            <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
+              No roles available
             </div>
           </div>
           <div class="selected-roles-preview">
@@ -382,7 +398,7 @@
   </div>
 </div>
 
-<!-- Edit User Modal -->
+<!-- Edit User Modal - ปรับปรุงแล้ว -->
 <div class="modal-backdrop" *ngIf="isEditModalVisible" (click)="onEditBackdropClick()">
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
@@ -396,6 +412,16 @@
 
     <form [formGroup]="editForm" (ngSubmit)="onEditSubmit()" novalidate>
       <div class="modal-body">
+        <!-- Debug info (สำหรับการทดสอบ - เอาออกได้เมื่อ production) -->
+        <!-- 
+        <div style="font-size: 12px; color: #666; margin-bottom: 16px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+          Debug Info:<br>
+          Editing User: {{ editingUser?.name }}<br>
+          Form Role IDs: {{ editForm.get('role_id')?.value | json }}<br>
+          Available Roles: {{ availableRoles.length }}
+        </div>
+        -->
+
         <!-- Username -->
         <div class="form-group">
           <label class="form-label" for="editUsername">
@@ -496,13 +522,14 @@
           </div>
         </div>
 
-        <!-- Roles Selection -->
+        <!-- Roles Selection - ปรับปรุงแล้ว -->
         <div class="form-group">
           <label class="form-label">
             Roles <span class="required">*</span>
           </label>
+          
           <div class="roles-container">
-            <div class="role-checkbox" *ngFor="let role of availableRoles">
+            <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
               <label class="checkbox-label">
                 <input
                   type="checkbox"
@@ -515,11 +542,18 @@
                 <span class="checkbox-text">{{ role.name }}</span>
               </label>
             </div>
+            
+            <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
+            <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
+              No roles available
+            </div>
           </div>
+          
           <div class="selected-roles-preview">
             <span class="preview-label">Selected:</span>
             <span class="preview-text">{{ getSelectedRoleNames(editForm) }}</span>
           </div>
+          
           <div class="error-message" *ngIf="isFieldInvalid('role_id', editForm)">
             {{ getFieldError('role_id', editForm) }}
           </div>

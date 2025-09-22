@@ -161,13 +161,13 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zก-๙\s\-\.]+$/) // Allow Thai, English, spaces, hyphens, dots
+        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/) // Allow Thai, English, spaces, hyphens, dots
       ]],
       lastname: ['', [
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zก-๙\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
       ]],
       email: ['', [
         Validators.required, 
@@ -199,13 +199,13 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zก-๙\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
       ]],
       lastname: ['', [
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zก-๙\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
       ]],
       email: ['', [
         Validators.required, 
@@ -406,16 +406,19 @@ export class UserAccountComponent implements OnInit, OnDestroy {
           
           if (this.isValidApiResponse(response)) {
             const userData = this.extractUserData(response);
-            const normalizedData = this.normalizeUserData(userData);
+            console.log('Extracted user data:', userData);
             
-            this.users = normalizedData;
-            this.filterUsers();
-            this.calculateUserStats();
-            
-            console.log(`Successfully loaded ${this.users.length} users`);
-            
-            if (forceRefresh) {
-              this.showNotification('success', 'User data refreshed successfully');
+            // รอให้ availableRoles โหลดเสร็จก่อน normalize
+            if (this.availableRoles.length === 0) {
+              console.log('Waiting for roles to load...');
+              // รอ 1 วินาทีแล้วลองใหม่
+              setTimeout(() => {
+                const normalizedData = this.normalizeUserDataWithRoles(userData);
+                this.updateUsersList(normalizedData, forceRefresh);
+              }, 1000);
+            } else {
+              const normalizedData = this.normalizeUserDataWithRoles(userData);
+              this.updateUsersList(normalizedData, forceRefresh);
             }
           } else {
             console.warn('Invalid API response format:', response);
@@ -429,6 +432,106 @@ export class UserAccountComponent implements OnInit, OnDestroy {
           this.isLoading = false;
         }
       });
+  }
+
+  /**
+   * Update users list with normalized data
+   */
+  private updateUsersList(normalizedData: UserAccountItem[], forceRefresh: boolean): void {
+    this.users = normalizedData;
+    this.filterUsers();
+    this.calculateUserStats();
+    
+    console.log(`Successfully loaded ${this.users.length} users`);
+    
+    if (forceRefresh) {
+      this.showNotification('success', 'User data refreshed successfully');
+    }
+  }
+
+  /**
+   * Normalize user data with role mapping
+   */
+  private normalizeUserDataWithRoles(users: any[]): UserAccountItem[] {
+    return users.map((user, index) => {
+      // Try to get ID from various possible field names
+      const userId = user.id || user.user_id || user.userId;
+      
+      // Normalize roles data - รองรับรูปแบบ roles ที่หลากหลาย
+      let normalizedRoles: Role[] = [];
+      
+      // กรณีที่มี role_ids (array of numbers)
+      if (user.role_ids && Array.isArray(user.role_ids)) {
+        console.log(`Processing role_ids for user ${userId}:`, user.role_ids);
+        console.log('Available roles for mapping:', this.availableRoles);
+        
+        normalizedRoles = user.role_ids.map((roleId: number) => {
+          // หา role name จาก availableRoles
+          const roleInfo = this.availableRoles.find(r => r.id === roleId);
+          const role = {
+            id: roleId,
+            name: roleInfo?.name || `Role ${roleId}`,
+            description: roleInfo?.description || ''
+          };
+          
+          console.log(`Mapped role ${roleId}:`, role);
+          return role;
+        }).filter((role: Role) => role.id !== undefined);
+      }
+      // กรณีที่มี roles (array of objects) - รูปแบบเดิม
+      else if (user.roles && Array.isArray(user.roles)) {
+        normalizedRoles = user.roles.map((role: any) => ({
+          id: role.id || role.role_id || role.roleId,
+          name: role.name || role.role_name || role.roleName || 'Unknown Role',
+          description: role.description || role.desc
+        }));
+      }
+      
+      // จัดการ name fields - ลองหาข้อมูลจากหลาย sources
+      let firstname = user.firstname || user.first_name || '';
+      let lastname = user.lastname || user.last_name || '';
+      
+      // ถ้าไม่มี firstname/lastname แต่มี name ให้ split name
+      if (!firstname && !lastname && user.name) {
+        const nameParts = user.name.trim().split(' ');
+        firstname = nameParts[0] || '';
+        lastname = nameParts.slice(1).join(' ') || '';
+      }
+      
+      // ถ้ายังไม่มี name ให้สร้างจาก firstname + lastname
+      const displayName = user.name || `${firstname} ${lastname}`.trim() || 'Unknown User';
+      
+      // Ensure all required fields exist with proper types
+      const normalized: UserAccountItem = {
+        id: userId || (index + 1000),
+        name: this.sanitizeString(displayName),
+        user_email: this.sanitizeString(user.user_email || user.email || '').toLowerCase(),
+        company: this.sanitizeString(user.company || ''),
+        company_address: this.sanitizeString(user.company_address || ''),
+        user_phone: this.sanitizeString(user.user_phone || user.phone || ''),
+        company_phone: this.sanitizeString(user.company_phone || ''),
+        username: this.sanitizeString(user.username || ''),
+        firstname: this.sanitizeString(firstname),
+        lastname: this.sanitizeString(lastname),
+        created_date: user.created_date || new Date().toISOString(),
+        updated_date: user.updated_date,
+        roles: normalizedRoles
+      };
+
+      // Debug comprehensive user data
+      console.log('Complete user normalization:', {
+        userId: normalized.id,
+        originalUser: user,
+        normalizedUser: normalized,
+        rolesMapping: {
+          originalRoleIds: user.role_ids,
+          normalizedRoles: normalizedRoles,
+          availableRolesCount: this.availableRoles.length
+        }
+      });
+
+      return normalized;
+    });
   }
 
   /**
@@ -501,43 +604,6 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     }
 
     console.error('API Error:', this.errorMessage);
-  }
-
-  /**
-   * Normalize user data to match interface
-   */
-  private normalizeUserData(users: any[]): UserAccountItem[] {
-    return users.map((user, index) => {
-      // Try to get ID from various possible field names
-      const userId = user.id || user.user_id || user.userId;
-      
-      // Ensure all required fields exist with proper types
-      const normalized: UserAccountItem = {
-        id: userId || (index + 1000), // Use 1000+ for fallback to avoid conflicts with real IDs
-        name: this.sanitizeString(user.name || `${user.firstname || ''} ${user.lastname || ''}`.trim()),
-        user_email: this.sanitizeString(user.user_email || user.email || '').toLowerCase(),
-        company: this.sanitizeString(user.company || ''),
-        company_address: this.sanitizeString(user.company_address || ''),
-        user_phone: this.sanitizeString(user.user_phone || user.phone || ''),
-        company_phone: this.sanitizeString(user.company_phone || ''),
-        username: this.sanitizeString(user.username || ''),
-        firstname: this.sanitizeString(user.firstname || ''),
-        lastname: this.sanitizeString(user.lastname || ''),
-        created_date: user.created_date || new Date().toISOString(),
-        updated_date: user.updated_date,
-        roles: user.roles || []
-      };
-
-      // Debug: Check ID mapping
-      if (!userId) {
-        console.warn('User missing database ID, using fallback:', {
-          original: user,
-          normalized: normalized.id
-        });
-      }
-
-      return normalized;
-    });
   }
 
   /**
@@ -1116,7 +1182,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   private onUserCreated(newUser: any): void {
     console.log('User created successfully:', newUser);
     
-    const normalizedUser = this.normalizeUserData([newUser])[0];
+    const normalizedUser = this.normalizeUserDataWithRoles([newUser])[0];
     
     // Add to local array
     this.users.unshift(normalizedUser);
@@ -1139,7 +1205,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   private onUserUpdated(userId: number, updatedUser: any): void {
     console.log('User updated successfully:', updatedUser);
     
-    const normalizedUser = this.normalizeUserData([updatedUser])[0];
+    const normalizedUser = this.normalizeUserDataWithRoles([updatedUser])[0];
     
     // Update in local array
     const userIndex = this.users.findIndex(u => u.id === userId);
@@ -1164,7 +1230,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   // ============ USER ACTIONS ============
 
   /**
-   * Edit user
+   * Edit user - แก้ไขให้ดึงข้อมูลครบถ้วน
    */
   editUser(userId: number): void {
     const user = this.users.find(u => u.id === userId);
@@ -1174,20 +1240,77 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     }
 
     console.log('Opening edit modal for user:', userId);
+    console.log('Complete user data:', user);
     
-    // Extract role IDs from user data
-    const roleIds = user.roles?.map(role => role.id) || [];
-    
-    // Set editing user and populate form
-    this.editingUser = user;
-    this.editForm.patchValue({
+    // Debug: แสดงข้อมูลทั้งหมดของ user
+    console.log('User fields check:', {
+      id: user.id,
+      name: user.name,
       username: user.username,
       firstname: user.firstname,
       lastname: user.lastname,
-      email: user.user_email,
-      phone: user.user_phone,
-      role_id: roleIds
+      user_email: user.user_email,
+      user_phone: user.user_phone,
+      roles: user.roles,
+      'roles length': user.roles?.length || 0
     });
+    
+    // Extract role IDs from user data - ปรับปรุงการดึง role IDs
+    let roleIds: number[] = [];
+    
+    if (user.roles && Array.isArray(user.roles)) {
+      console.log('Processing user roles:', user.roles);
+      roleIds = user.roles.map(role => {
+        console.log('Processing role:', role);
+        // Handle different role ID field names
+        const roleId = role.id || (role as any).role_id || (role as any).roleId;
+        console.log('Extracted role ID:', roleId);
+        return roleId;
+      }).filter(id => id !== undefined && id !== null);
+    }
+    
+    console.log('Final extracted role IDs:', roleIds);
+    
+    // Set editing user and populate form with complete data
+    this.editingUser = user;
+    
+    // Reset form first to clear any previous data
+    this.editForm.reset();
+    
+    // Prepare form data with fallbacks
+    const formData = {
+      username: user.username || '',
+      firstname: user.firstname || user.name?.split(' ')[0] || '', // ลองดึงจาก name ถ้าไม่มี firstname
+      lastname: user.lastname || user.name?.split(' ').slice(1).join(' ') || '', // ลองดึงจาก name ถ้าไม่มี lastname
+      email: user.user_email || '', 
+      phone: user.user_phone || '', 
+      role_id: roleIds
+    };
+    
+    console.log('Form data to populate:', formData);
+    
+    // Populate form with user data
+    this.editForm.patchValue(formData);
+    
+    // Mark form as pristine after setting values
+    this.editForm.markAsPristine();
+    
+    console.log('Edit form populated with values:', this.editForm.value);
+    console.log('Form role_id control value:', this.editForm.get('role_id')?.value);
+    
+    // Double-check roles selection
+    setTimeout(() => {
+      console.log('After timeout - form role_id value:', this.editForm.get('role_id')?.value);
+      console.log('Available roles for comparison:', this.availableRoles);
+      
+      // Debug roles selection
+      if (roleIds.length > 0) {
+        roleIds.forEach(roleId => {
+          const isSelected = this.isRoleSelected(roleId, this.editForm);
+          console.log(`Role ${roleId} is selected:`, isSelected);
+        });
+      }
+    }, 100);
     
     this.isEditModalVisible = true;
   }
@@ -1313,34 +1436,40 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     this.createNewUser();
   }
 
+  /**
+   * แก้ไข onEditUser เพื่อเพิ่มการตรวจสอบ
+   */
   onEditUser(userId: number): void {
-  console.log('Edit clicked. userId:', userId);
+    console.log('Edit clicked. userId:', userId);
 
-  const user = this.users.find(u => u.id === userId);
-  console.log('Found user:', user);
-  if (!user) {
-    console.warn('User not found with id:', userId);
-    return;
+    const user = this.users.find(u => u.id === userId);
+    console.log('Found user:', user);
+    if (!user) {
+      console.warn('User not found with id:', userId);
+      return;
+    }
+
+    // Debug user roles ก่อนเริ่ม edit
+    this.debugUserRoles(user);
+    this.validateUserRoles(user);
+
+    const isReal = this.isRealDatabaseId(user);
+    console.log('isRealDatabaseId:', isReal);
+    if (!isReal) {
+      this.showNotification('warning', 'Cannot edit user: Invalid database ID');
+      return;
+    }
+
+    const canEdit = this.canEditUser(user);
+    console.log('canEditUser:', canEdit);
+    if (!canEdit) {
+      this.showPermissionDeniedMessage('edit user');
+      return;
+    }
+
+    console.log('All checks passed. Calling editUser...');
+    this.editUser(userId);
   }
-
-  const isReal = this.isRealDatabaseId(user);
-  console.log('isRealDatabaseId:', isReal);
-  if (!isReal) {
-    this.showNotification('warning', 'Cannot edit user: Invalid database ID');
-    return;
-  }
-
-  const canEdit = this.canEditUser(user);
-  console.log('canEditUser:', canEdit);
-  if (!canEdit) {
-    this.showPermissionDeniedMessage('edit user');
-    return;
-  }
-
-  console.log('All checks passed. Calling editUser...');
-  this.editUser(userId);
-}
-
 
   onDeleteUser(userId: number): void {
     const user = this.users.find(u => u.id === userId);
@@ -1412,13 +1541,113 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get user roles display
+   * Track by function for roles ngFor optimization
+   */
+  trackRoleById(index: number, role: Role): number {
+    return role.id || index;
+  }
+
+  /**
+   * Debug: ตรวจสอบว่า roles ถูกโหลดมาถูกต้องหรือไม่
+   */
+  debugUserRoles(user: UserAccountItem): void {
+    console.log('Debug user roles:', {
+      userId: user.id,
+      userName: user.name,
+      roles: user.roles,
+      roleIds: user.roles?.map(r => r.id),
+      roleNames: user.roles?.map(r => r.name)
+    });
+  }
+
+  /**
+   * ตรวจสอบว่า role ID ที่เลือกอยู่ตรงกับข้อมูล user หรือไม่
+   */
+  validateUserRoles(user: UserAccountItem): boolean {
+    if (!user.roles || !Array.isArray(user.roles)) {
+      console.warn('User has no roles or invalid roles data:', user);
+      return false;
+    }
+    
+    const hasValidRoles = user.roles.every(role => 
+      role.id !== undefined && 
+      role.id !== null && 
+      typeof role.name === 'string'
+    );
+    
+    if (!hasValidRoles) {
+      console.warn('User has invalid role data:', user.roles);
+    }
+    
+    return hasValidRoles;
+  }
+
+  /**
+   * Get user roles display - แสดงเฉพาะ roles ที่สำคัญ
    */
   getUserRoles(user: UserAccountItem): string {
     if (!user.roles || user.roles.length === 0) {
       return 'No roles assigned';
     }
-    return user.roles.map(role => role.name).join(', ');
+
+    const importantRoles: string[] = [];
+    
+    // ตรวจสอบ role_ids และแสดงเฉพาะ roles ที่สำคัญ
+    user.roles.forEach(role => {
+      switch (role.id) {
+        case 1:
+          importantRoles.push('Customer');
+          break;
+        case 8:
+          importantRoles.push('Supporter');
+          break;
+        case 15:
+          importantRoles.push('Admin');
+          break;
+        // ไม่แสดง roles อื่นๆ
+      }
+    });
+
+    // ถ้าไม่มี important roles แต่มี roles อื่น
+    if (importantRoles.length === 0 && user.roles.length > 0) {
+      return 'Other roles';
+    }
+
+    // ถ้าไม่มี roles เลย
+    if (importantRoles.length === 0) {
+      return 'No roles assigned';
+    }
+
+    return importantRoles.join(', ');
+  }
+
+  /**
+   * Get user important roles as array - สำหรับการแสดงผลแบบ badges
+   */
+  getUserImportantRoles(user: UserAccountItem): Array<{name: string, type: string}> {
+    if (!user.roles || user.roles.length === 0) {
+      return [];
+    }
+
+    const importantRoles: Array<{name: string, type: string}> = [];
+    
+    // ตรวจสอบ role_ids และแสดงเฉพาะ roles ที่สำคัญพร้อม type สำหรับ styling
+    user.roles.forEach(role => {
+      switch (role.id) {
+        case 1:
+          importantRoles.push({name: 'Customer', type: 'customer'});
+          break;
+        case 8:
+          importantRoles.push({name: 'Supporter', type: 'supporter'});
+          break;
+        case 15:
+          importantRoles.push({name: 'Admin', type: 'admin'});
+          break;
+        // ไม่แสดง roles อื่นๆ
+      }
+    });
+
+    return importantRoles;
   }
 
   /**

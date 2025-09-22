@@ -229,7 +229,7 @@
 
 /* Column Width Specifications for User Table */
 .user-table th:nth-child(1),
-.user-table td:nth-child(1) { /* à¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆ */
+.user-table td:nth-child(1) { /* รายการที่ */
   width: 80px;
   min-width: 80px;
 }
@@ -470,18 +470,75 @@
   font-style: italic;
 }
 
-/* User Roles */
+/* ===== ROLE BADGES STYLES - ใหม่ ===== */
+
+/* User Roles Container */
 .user-roles {
   display: flex;
   flex-direction: column;
 }
 
-.roles-display {
+.roles-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.no-roles {
   font-size: 13px;
-  color: #495057;
-  line-height: 1.4;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  color: #6C757D;
+  font-style: italic;
+}
+
+/* Role Badge Base Style */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+/* Customer Badge (สีเขียว) */
+.role-badge-customer {
+  background: #D4EDDA;
+  color: #155724;
+  border-color: #C3E6CB;
+}
+
+.role-badge-customer:hover {
+  background: #C3E6CB;
+  transform: translateY(-1px);
+}
+
+/* Supporter Badge (สีเหลือง/ส้ม) */
+.role-badge-supporter {
+  background: #FFF3CD;
+  color: #856404;
+  border-color: #FFEAA7;
+}
+
+.role-badge-supporter:hover {
+  background: #FFEAA7;
+  transform: translateY(-1px);
+}
+
+/* Admin Badge (สีแดง) */
+.role-badge-admin {
+  background: #F8D7DA;
+  color: #721C24;
+  border-color: #F1C2C7;
+}
+
+.role-badge-admin:hover {
+  background: #F1C2C7;
+  transform: translateY(-1px);
 }
 
 /* Action Buttons */
@@ -1102,6 +1159,16 @@
     width: 260px;
     min-width: 260px;
   }
+
+  /* Role badges responsive */
+  .roles-badges {
+    gap: 4px;
+  }
+  
+  .role-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1206,6 +1273,18 @@
     grid-template-columns: 1fr;
     max-height: 150px;
   }
+
+  /* Role badges mobile */
+  .roles-badges {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  
+  .role-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -1293,6 +1372,13 @@
   .checkbox-label {
     font-size: 13px;
   }
+
+  /* Role badges very small screens */
+  .role-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 12px;
+  }
 }
 
 /* Accessibility */
@@ -1341,6 +1427,25 @@
     background: #000000;
     border-color: #000000;
   }
+
+  /* Role badges high contrast */
+  .role-badge-customer {
+    background: #006600;
+    color: #FFFFFF;
+    border-color: #006600;
+  }
+
+  .role-badge-supporter {
+    background: #CC6600;
+    color: #FFFFFF;
+    border-color: #CC6600;
+  }
+
+  .role-badge-admin {
+    background: #CC0000;
+    color: #FFFFFF;
+    border-color: #CC0000;
+  }
 }
 
 /* Print styles */
@@ -1380,6 +1485,13 @@
   .username-badge {
     background: #F0F0F0 !important;
     color: #000000 !important;
+  }
+
+  /* Role badges print styles */
+  .role-badge {
+    background: #F0F0F0 !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
   }
 }
 
@@ -1492,36 +1604,4 @@
   background: #6C757D;
   border: 2px solid #FFFFFF;
   border-radius: 50%;
-}
-
-/* Role badge styles for table display */
-.role-badge {
-  display: inline-block;
-  background: rgba(88, 115, 248, 0.1);
-  color: #5873F8;
-  padding: 2px 6px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 500;
-  margin-right: 4px;
-  margin-bottom: 2px;
-}
-
-.role-badge:last-child {
-  margin-right: 0;
-}
-
-.role-badge.admin {
-  background: rgba(220, 53, 69, 0.1);
-  color: #DC3545;
-}
-
-.role-badge.supporter {
-  background: rgba(255, 193, 7, 0.1);
-  color: #FFC107;
-}
-
-.role-badge.user {
-  background: rgba(40, 167, 69, 0.1);
-  color: #28A745;
 }
