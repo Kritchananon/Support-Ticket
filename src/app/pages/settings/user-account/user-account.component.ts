@@ -45,7 +45,7 @@ export interface CreateUserDto {
   role_id: number[];
 }
 
-// Update User DTO - matches backend expectations
+// Update User DTO - matches backend expectations (เพิ่ม password field)
 export interface UpdateUserDto {
   id?: number;
   username?: string;
@@ -54,6 +54,7 @@ export interface UpdateUserDto {
   email?: string;
   phone?: string;
   role_id?: number[];
+  new_password?: string; // เพิ่ม optional password field สำหรับ admin
 }
 
 // User stats interface
@@ -161,13 +162,13 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/) // Allow Thai, English, spaces, hyphens, dots
+        Validators.pattern(/^[a-zA-ZÀ-ÿ\s\-\.]+$/) // Allow Thai, English, spaces, hyphens, dots
       ]],
       lastname: ['', [
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-ZÀ-ÿ\s\-\.]+$/)
       ]],
       email: ['', [
         Validators.required, 
@@ -185,7 +186,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Initialize edit form with proper validation
+   * Initialize edit form with proper validation - เพิ่ม password fields
    */
   private initEditForm(): void {
     this.editForm = this.fb.group({
@@ -199,13 +200,13 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-ZÀ-ÿ\s\-\.]+$/)
       ]],
       lastname: ['', [
         Validators.required, 
         Validators.minLength(2), 
         Validators.maxLength(50),
-        Validators.pattern(/^[a-zA-Zà¸-à¹™\s\-\.]+$/)
+        Validators.pattern(/^[a-zA-ZÀ-ÿ\s\-\.]+$/)
       ]],
       email: ['', [
         Validators.required, 
@@ -216,10 +217,16 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         Validators.required, 
         Validators.pattern(/^[\d\s\-\+\(\)]{8,15}$/)
       ]],
-      role_id: [[], [Validators.required]]
-    });
+      role_id: [[], [Validators.required]],
+      // เพิ่ม password fields สำหรับ admin
+      newPassword: ['', [
+        Validators.minLength(8),
+        Validators.maxLength(50)
+      ]],
+      confirmPassword: ['']
+    }, { validators: this.editPasswordMatchValidator }); // เพิ่ม custom validator สำหรับ edit form
 
-    console.log('Edit form initialized with validation rules');
+    console.log('Edit form initialized with validation rules including password fields');
   }
 
   /**
@@ -300,7 +307,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Custom validator for password matching
+   * Custom validator for password matching (Create form)
    */
   private passwordMatchValidator(formGroup: FormGroup): {[key: string]: any} | null {
     const password = formGroup.get('password');
@@ -329,6 +336,56 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Custom validator for password matching (Edit form) - เฉพาะเมื่อใส่ password
+   */
+  private editPasswordMatchValidator(formGroup: FormGroup): {[key: string]: any} | null {
+    const newPassword = formGroup.get('newPassword');
+    const confirmPassword = formGroup.get('confirmPassword');
+    
+    if (!newPassword || !confirmPassword) {
+      return null;
+    }
+
+    const newPasswordValue = newPassword.value;
+    const confirmPasswordValue = confirmPassword.value;
+
+    // ถ้าใส่ newPassword แต่ไม่ใส่ confirmPassword
+    if (newPasswordValue && !confirmPasswordValue) {
+      confirmPassword.setErrors({ required: true });
+      return { confirmPasswordRequired: true };
+    }
+
+    // ถ้าใส่ confirmPassword แต่ไม่ใส่ newPassword
+    if (confirmPasswordValue && !newPasswordValue) {
+      newPassword.setErrors({ required: true });
+      return { newPasswordRequired: true };
+    }
+
+    // ถ้าใส่ทั้งสอง field แต่ไม่ตรงกัน
+    if (newPasswordValue && confirmPasswordValue && newPasswordValue !== confirmPasswordValue) {
+      confirmPassword.setErrors({ passwordMismatch: true });
+      return { passwordMismatch: true };
+    }
+
+    // Clear errors if everything is valid
+    if (newPasswordValue && confirmPasswordValue && newPasswordValue === confirmPasswordValue) {
+      if (confirmPassword.hasError('passwordMismatch') || confirmPassword.hasError('required')) {
+        const errors = { ...confirmPassword.errors };
+        delete errors['passwordMismatch'];
+        delete errors['required'];
+        confirmPassword.setErrors(Object.keys(errors).length > 0 ? errors : null);
+      }
+      if (newPassword.hasError('required')) {
+        const errors = { ...newPassword.errors };
+        delete errors['required'];
+        newPassword.setErrors(Object.keys(errors).length > 0 ? errors : null);
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Check if field is invalid and show errors
    */
   isFieldInvalid(fieldName: string, formGroup?: FormGroup): boolean {
@@ -347,7 +404,13 @@ export class UserAccountComponent implements OnInit, OnDestroy {
 
     const errors = field.errors;
     
-    if (errors['required']) return `${this.getFieldDisplayName(fieldName)} is required`;
+    if (errors['required']) {
+      // Special case for confirm password in edit form
+      if (fieldName === 'confirmPassword' && formGroup === this.editForm) {
+        return 'Confirm password is required when setting a new password';
+      }
+      return `${this.getFieldDisplayName(fieldName)} is required`;
+    }
     if (errors['minlength']) return `${this.getFieldDisplayName(fieldName)} must be at least ${errors['minlength'].requiredLength} characters`;
     if (errors['maxlength']) return `${this.getFieldDisplayName(fieldName)} cannot exceed ${errors['maxlength'].requiredLength} characters`;
     if (errors['email']) return 'Please enter a valid email address';
@@ -356,7 +419,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
       if (fieldName === 'phone') return 'Please enter a valid phone number (8-15 digits)';
       if (fieldName === 'username') return 'Username can only contain letters, numbers, underscore, and hyphen';
       if (fieldName === 'firstname' || fieldName === 'lastname') return 'Name can only contain letters, spaces, hyphens, and dots';
-      if (fieldName === 'password') return 'Password must contain at least 8 characters';
+      if (fieldName === 'password' || fieldName === 'newPassword') return 'Password must contain at least 8 characters';
       return 'Invalid format';
     }
 
@@ -371,6 +434,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
       'username': 'Username',
       'password': 'Password', 
       'confirmPassword': 'Confirm Password',
+      'newPassword': 'New Password',
       'firstname': 'First Name',
       'lastname': 'Last Name',
       'email': 'Email',
@@ -379,6 +443,16 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     };
     
     return displayNames[fieldName] || fieldName;
+  }
+
+  /**
+   * Check if password fields are being used in edit form
+   */
+  isChangingPassword(): boolean {
+    if (!this.editForm) return false;
+    const newPassword = this.editForm.get('newPassword')?.value;
+    const confirmPassword = this.editForm.get('confirmPassword')?.value;
+    return !!(newPassword || confirmPassword);
   }
 
   /**
@@ -945,7 +1019,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Handle edit form submission
+   * Handle edit form submission - อัพเดทเพื่อรองรับ password
    */
   onEditSubmit(): void {
     console.log('Edit form submission initiated');
@@ -961,6 +1035,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     if (this.editForm.valid && !this.isSubmitting) {
       this.isSubmitting = true;
       
+      // เตรียมข้อมูลพื้นฐาน
       const formData: UpdateUserDto = {
         id: this.editingUser.id,
         username: this.editForm.value.username.trim(),
@@ -970,12 +1045,26 @@ export class UserAccountComponent implements OnInit, OnDestroy {
         phone: this.editForm.value.phone.trim(),
         role_id: this.editForm.value.role_id || []
       };
+
+      // เพิ่ม password หากมีการกรอก
+      const newPassword = this.editForm.value.newPassword;
+      if (newPassword && newPassword.trim()) {
+        formData.new_password = newPassword.trim();
+        console.log('Password will be updated');
+      }
       
       console.log('Updating user with complete data:', formData);
       this.updateUserViaApi(this.editingUser.id, formData);
     } else {
       console.log('Edit form is invalid or already submitting');
-      this.showNotification('error', 'Please correct the errors before submitting');
+      
+      // Show specific validation errors
+      const errors = this.getFormValidationErrors(this.editForm);
+      if (errors.length > 0) {
+        this.showNotification('error', `Please correct the following errors: ${errors.join(', ')}`);
+      } else {
+        this.showNotification('error', 'Please correct the errors before submitting');
+      }
     }
   }
 
@@ -1023,7 +1112,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Update user via API
+   * Update user via API - อัพเดทเพื่อแสดงข้อความที่เหมาะสมเกี่ยวกับ password
    */
   private updateUserViaApi(userId: number, userData: UpdateUserDto): void {
     console.log('Updating user with ID:', userId);
@@ -1049,7 +1138,8 @@ export class UserAccountComponent implements OnInit, OnDestroy {
           
           if (this.isValidUpdateResponse(response)) {
             const updatedUser = this.extractUpdatedUser(response);
-            this.onUserUpdated(userId, updatedUser);
+            // ส่งข้อมูลว่ามีการอัพเดท password ด้วยหรือไม่
+            this.onUserUpdated(userId, updatedUser, !!userData.new_password);
           } else {
             console.error('Invalid update response:', response);
             this.showNotification('error', 'Failed to update user. Invalid response from server.');
@@ -1200,9 +1290,9 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Handle successful user update
+   * Handle successful user update - อัพเดทเพื่อแสดงข้อความที่เหมาะสม
    */
-  private onUserUpdated(userId: number, updatedUser: any): void {
+  private onUserUpdated(userId: number, updatedUser: any, passwordChanged: boolean = false): void {
     console.log('User updated successfully:', updatedUser);
     
     const normalizedUser = this.normalizeUserDataWithRoles([updatedUser])[0];
@@ -1216,10 +1306,17 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     this.filterUsers();
     this.calculateUserStats();
 
-    // Close modal and show success
+    // Close modal and show appropriate success message
     this.isEditModalVisible = false;
     this.editingUser = null;
-    this.showNotification('success', `User "${normalizedUser.name}" updated successfully!`);
+    
+    let successMessage = `User "${normalizedUser.name}" updated successfully`;
+    if (passwordChanged) {
+      successMessage += ' and password has been changed';
+    }
+    successMessage += '!';
+    
+    this.showNotification('success', successMessage);
     
     // Refresh data from server after a short delay
     setTimeout(() => {
@@ -1230,7 +1327,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
   // ============ USER ACTIONS ============
 
   /**
-   * Edit user - แก้ไขให้ดึงข้อมูลครบถ้วน
+   * Edit user - แก้ไขให้ดึงข้อมูลครบถ้วน และเคลียร์ password fields
    */
   editUser(userId: number): void {
     const user = this.users.find(u => u.id === userId);
@@ -1284,7 +1381,10 @@ export class UserAccountComponent implements OnInit, OnDestroy {
       lastname: user.lastname || user.name?.split(' ').slice(1).join(' ') || '', // ลองดึงจาก name ถ้าไม่มี lastname
       email: user.user_email || '', 
       phone: user.user_phone || '', 
-      role_id: roleIds
+      role_id: roleIds,
+      // เคลียร์ password fields เมื่อเปิด modal
+      newPassword: '',
+      confirmPassword: ''
     };
     
     console.log('Form data to populate:', formData);
@@ -1596,7 +1696,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     user.roles.forEach(role => {
       switch (role.id) {
         case 1:
-          importantRoles.push('Customer');
+          importantRoles.push('User');
           break;
         case 8:
           importantRoles.push('Supporter');
@@ -1635,7 +1735,7 @@ export class UserAccountComponent implements OnInit, OnDestroy {
     user.roles.forEach(role => {
       switch (role.id) {
         case 1:
-          importantRoles.push({name: 'Customer', type: 'customer'});
+          importantRoles.push({name: 'User', type: 'user'});
           break;
         case 8:
           importantRoles.push({name: 'Supporter', type: 'supporter'});

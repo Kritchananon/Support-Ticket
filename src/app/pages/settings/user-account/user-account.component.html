@@ -205,177 +205,193 @@
 
     <form [formGroup]="userForm" (ngSubmit)="onSubmit()" novalidate>
       <div class="modal-body">
-        <!-- Username -->
-        <div class="form-group">
-          <label class="form-label" for="username">
-            Username <span class="required">*</span>
-          </label>
-          <input
-            id="username"
-            type="text"
-            class="form-input"
-            formControlName="username"
-            placeholder="Enter username"
-            [class.error]="isFieldInvalid('username')"
-            [disabled]="isSubmitting"
-            autocomplete="username"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('username')">
-            {{ getFieldError('username') }}
+        <!-- Section 1: Authentication -->
+        <div class="form-section">
+          <!-- Username -->
+          <div class="form-group full-width">
+            <label class="form-label" for="username">
+              Username <span class="required">*</span>
+            </label>
+            <input
+              id="username"
+              type="text"
+              class="form-input"
+              formControlName="username"
+              placeholder="Enter username"
+              [class.error]="isFieldInvalid('username')"
+              [disabled]="isSubmitting"
+              autocomplete="username"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('username')">
+              {{ getFieldError('username') }}
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div class="form-group full-width">
+            <label class="form-label" for="password">
+              Password <span class="required">*</span>
+            </label>
+            <input
+              id="password"
+              type="password"
+              class="form-input"
+              formControlName="password"
+              placeholder="Enter password"
+              [class.error]="isFieldInvalid('password')"
+              [disabled]="isSubmitting"
+              autocomplete="new-password"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('password')">
+              {{ getFieldError('password') }}
+            </div>
+          </div>
+
+          <!-- Confirm Password -->
+          <div class="form-group full-width">
+            <label class="form-label" for="confirmPassword">
+              Confirm Password <span class="required">*</span>
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              class="form-input"
+              formControlName="confirmPassword"
+              placeholder="Confirm password"
+              [class.error]="isFieldInvalid('confirmPassword')"
+              [disabled]="isSubmitting"
+              autocomplete="new-password"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('confirmPassword')">
+              {{ getFieldError('confirmPassword') }}
+            </div>
           </div>
         </div>
 
-        <!-- Password -->
-        <div class="form-group">
-          <label class="form-label" for="password">
-            Password <span class="required">*</span>
-          </label>
-          <input
-            id="password"
-            type="password"
-            class="form-input"
-            formControlName="password"
-            placeholder="Enter password"
-            [class.error]="isFieldInvalid('password')"
-            [disabled]="isSubmitting"
-            autocomplete="new-password"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('password')">
-            {{ getFieldError('password') }}
-          </div>
-        </div>
+        <!-- Section Divider -->
+        <div class="form-divider"></div>
 
-        <!-- Confirm Password -->
-        <div class="form-group">
-          <label class="form-label" for="confirmPassword">
-            Confirm Password <span class="required">*</span>
-          </label>
-          <input
-            id="confirmPassword"
-            type="password"
-            class="form-input"
-            formControlName="confirmPassword"
-            placeholder="Confirm password"
-            [class.error]="isFieldInvalid('confirmPassword')"
-            [disabled]="isSubmitting"
-            autocomplete="new-password"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('confirmPassword')">
-            {{ getFieldError('confirmPassword') }}
-          </div>
-        </div>
-
-        <!-- First Name -->
-        <div class="form-group">
-          <label class="form-label" for="firstname">
-            First Name <span class="required">*</span>
-          </label>
-          <input
-            id="firstname"
-            type="text"
-            class="form-input"
-            formControlName="firstname"
-            placeholder="Enter first name"
-            [class.error]="isFieldInvalid('firstname')"
-            [disabled]="isSubmitting"
-            autocomplete="given-name"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('firstname')">
-            {{ getFieldError('firstname') }}
-          </div>
-        </div>
-
-        <!-- Last Name -->
-        <div class="form-group">
-          <label class="form-label" for="lastname">
-            Last Name <span class="required">*</span>
-          </label>
-          <input
-            id="lastname"
-            type="text"
-            class="form-input"
-            formControlName="lastname"
-            placeholder="Enter last name"
-            [class.error]="isFieldInvalid('lastname')"
-            [disabled]="isSubmitting"
-            autocomplete="family-name"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('lastname')">
-            {{ getFieldError('lastname') }}
-          </div>
-        </div>
-
-        <!-- Email -->
-        <div class="form-group">
-          <label class="form-label" for="email">
-            Email <span class="required">*</span>
-          </label>
-          <input
-            id="email"
-            type="email"
-            class="form-input"
-            formControlName="email"
-            placeholder="Enter email address"
-            [class.error]="isFieldInvalid('email')"
-            [disabled]="isSubmitting"
-            autocomplete="email"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('email')">
-            {{ getFieldError('email') }}
-          </div>
-        </div>
-
-        <!-- Phone -->
-        <div class="form-group">
-          <label class="form-label" for="phone">
-            Phone Number <span class="required">*</span>
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            class="form-input"
-            formControlName="phone"
-            placeholder="Enter phone number"
-            [class.error]="isFieldInvalid('phone')"
-            [disabled]="isSubmitting"
-            autocomplete="tel"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('phone')">
-            {{ getFieldError('phone') }}
-          </div>
-        </div>
-
-        <!-- Roles Selection -->
-        <div class="form-group">
-          <label class="form-label">
-            Roles <span class="required">*</span>
-          </label>
-          <div class="roles-container">
-            <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  [checked]="isRoleSelected(role.id)"
-                  (change)="toggleRoleSelection(role.id)"
-                  class="checkbox-input"
-                  [disabled]="isSubmitting"
-                />
-                <span class="checkbox-custom"></span>
-                <span class="checkbox-text">{{ role.name }}</span>
+        <!-- Section 2: Personal Information -->
+        <div class="form-section">
+          <div class="form-grid">
+            <!-- First Name -->
+            <div class="form-group">
+              <label class="form-label" for="firstname">
+                First Name <span class="required">*</span>
               </label>
+              <input
+                id="firstname"
+                type="text"
+                class="form-input"
+                formControlName="firstname"
+                placeholder="Enter first name"
+                [class.error]="isFieldInvalid('firstname')"
+                [disabled]="isSubmitting"
+                autocomplete="given-name"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('firstname')">
+                {{ getFieldError('firstname') }}
+              </div>
             </div>
-            
-            <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
-            <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
-              No roles available
+
+            <!-- Last Name -->
+            <div class="form-group">
+              <label class="form-label" for="lastname">
+                Last Name <span class="required">*</span>
+              </label>
+              <input
+                id="lastname"
+                type="text"
+                class="form-input"
+                formControlName="lastname"
+                placeholder="Enter last name"
+                [class.error]="isFieldInvalid('lastname')"
+                [disabled]="isSubmitting"
+                autocomplete="family-name"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('lastname')">
+                {{ getFieldError('lastname') }}
+              </div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+              <label class="form-label" for="email">
+                Email <span class="required">*</span>
+              </label>
+              <input
+                id="email"
+                type="email"
+                class="form-input"
+                formControlName="email"
+                placeholder="Enter email address"
+                [class.error]="isFieldInvalid('email')"
+                [disabled]="isSubmitting"
+                autocomplete="email"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('email')">
+                {{ getFieldError('email') }}
+              </div>
+            </div>
+
+            <!-- Phone -->
+            <div class="form-group">
+              <label class="form-label" for="phone">
+                Phone Number <span class="required">*</span>
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                class="form-input"
+                formControlName="phone"
+                placeholder="Enter phone number"
+                [class.error]="isFieldInvalid('phone')"
+                [disabled]="isSubmitting"
+                autocomplete="tel"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('phone')">
+                {{ getFieldError('phone') }}
+              </div>
             </div>
           </div>
-          <div class="selected-roles-preview">
-            <span class="preview-label">Selected:</span>
-            <span class="preview-text">{{ getSelectedRoleNames() }}</span>
-          </div>
-          <div class="error-message" *ngIf="isFieldInvalid('role_id')">
-            {{ getFieldError('role_id') }}
+        </div>
+
+        <!-- Section Divider -->
+        <div class="form-divider"></div>
+
+        <!-- Section 3: Roles -->
+        <div class="form-section">
+          <div class="form-group full-width">
+            <label class="form-label">
+              Roles <span class="required">*</span>
+            </label>
+            <div class="roles-container">
+              <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [checked]="isRoleSelected(role.id)"
+                    (change)="toggleRoleSelection(role.id)"
+                    class="checkbox-input"
+                    [disabled]="isSubmitting"
+                  />
+                  <span class="checkbox-custom"></span>
+                  <span class="checkbox-text">{{ role.name }}</span>
+                </label>
+              </div>
+              
+              <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
+              <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
+                No roles available
+              </div>
+            </div>
+            <div class="selected-roles-preview">
+              <span class="preview-label">Selected:</span>
+              <span class="preview-text">{{ getSelectedRoleNames() }}</span>
+            </div>
+            <div class="error-message" *ngIf="isFieldInvalid('role_id')">
+              {{ getFieldError('role_id') }}
+            </div>
           </div>
         </div>
       </div>
@@ -398,7 +414,7 @@
   </div>
 </div>
 
-<!-- Edit User Modal - ปรับปรุงแล้ว -->
+<!-- Edit User Modal -->
 <div class="modal-backdrop" *ngIf="isEditModalVisible" (click)="onEditBackdropClick()">
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
@@ -412,150 +428,211 @@
 
     <form [formGroup]="editForm" (ngSubmit)="onEditSubmit()" novalidate>
       <div class="modal-body">
-        <!-- Debug info (สำหรับการทดสอบ - เอาออกได้เมื่อ production) -->
-        <!-- 
-        <div style="font-size: 12px; color: #666; margin-bottom: 16px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-          Debug Info:<br>
-          Editing User: {{ editingUser?.name }}<br>
-          Form Role IDs: {{ editForm.get('role_id')?.value | json }}<br>
-          Available Roles: {{ availableRoles.length }}
-        </div>
-        -->
-
-        <!-- Username -->
-        <div class="form-group">
-          <label class="form-label" for="editUsername">
-            Username <span class="required">*</span>
-          </label>
-          <input
-            id="editUsername"
-            type="text"
-            class="form-input"
-            formControlName="username"
-            placeholder="Enter username"
-            [class.error]="isFieldInvalid('username', editForm)"
-            [disabled]="isSubmitting"
-            autocomplete="username"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('username', editForm)">
-            {{ getFieldError('username', editForm) }}
+        <!-- Section 1: User Info -->
+        <div class="form-section">
+          <!-- Username -->
+          <div class="form-group full-width">
+            <label class="form-label" for="editUsername">
+              Username <span class="required">*</span>
+            </label>
+            <input
+              id="editUsername"
+              type="text"
+              class="form-input"
+              formControlName="username"
+              placeholder="Enter username"
+              [class.error]="isFieldInvalid('username', editForm)"
+              [disabled]="isSubmitting"
+              autocomplete="username"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('username', editForm)">
+              {{ getFieldError('username', editForm) }}
+            </div>
           </div>
         </div>
 
-        <!-- First Name -->
-        <div class="form-group">
-          <label class="form-label" for="editFirstname">
-            First Name <span class="required">*</span>
-          </label>
-          <input
-            id="editFirstname"
-            type="text"
-            class="form-input"
-            formControlName="firstname"
-            placeholder="Enter first name"
-            [class.error]="isFieldInvalid('firstname', editForm)"
-            [disabled]="isSubmitting"
-            autocomplete="given-name"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('firstname', editForm)">
-            {{ getFieldError('firstname', editForm) }}
-          </div>
-        </div>
+        <!-- Section Divider -->
+        <div class="form-divider"></div>
 
-        <!-- Last Name -->
-        <div class="form-group">
-          <label class="form-label" for="editLastname">
-            Last Name <span class="required">*</span>
-          </label>
-          <input
-            id="editLastname"
-            type="text"
-            class="form-input"
-            formControlName="lastname"
-            placeholder="Enter last name"
-            [class.error]="isFieldInvalid('lastname', editForm)"
-            [disabled]="isSubmitting"
-            autocomplete="family-name"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('lastname', editForm)">
-            {{ getFieldError('lastname', editForm) }}
-          </div>
-        </div>
-
-        <!-- Email -->
-        <div class="form-group">
-          <label class="form-label" for="editEmail">
-            Email <span class="required">*</span>
-          </label>
-          <input
-            id="editEmail"
-            type="email"
-            class="form-input"
-            formControlName="email"
-            placeholder="Enter email address"
-            [class.error]="isFieldInvalid('email', editForm)"
-            [disabled]="isSubmitting"
-            autocomplete="email"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('email', editForm)">
-            {{ getFieldError('email', editForm) }}
-          </div>
-        </div>
-
-        <!-- Phone -->
-        <div class="form-group">
-          <label class="form-label" for="editPhone">
-            Phone Number <span class="required">*</span>
-          </label>
-          <input
-            id="editPhone"
-            type="tel"
-            class="form-input"
-            formControlName="phone"
-            placeholder="Enter phone number"
-            [class.error]="isFieldInvalid('phone', editForm)"
-            [disabled]="isSubmitting"
-            autocomplete="tel"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('phone', editForm)">
-            {{ getFieldError('phone', editForm) }}
-          </div>
-        </div>
-
-        <!-- Roles Selection - ปรับปรุงแล้ว -->
-        <div class="form-group">
-          <label class="form-label">
-            Roles <span class="required">*</span>
-          </label>
-          
-          <div class="roles-container">
-            <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  [checked]="isRoleSelected(role.id, editForm)"
-                  (change)="toggleRoleSelection(role.id, editForm)"
-                  class="checkbox-input"
-                  [disabled]="isSubmitting"
-                />
-                <span class="checkbox-custom"></span>
-                <span class="checkbox-text">{{ role.name }}</span>
+        <!-- Section 2: Personal Information -->
+        <div class="form-section">
+          <div class="form-grid">
+            <!-- First Name -->
+            <div class="form-group">
+              <label class="form-label" for="editFirstname">
+                First Name <span class="required">*</span>
               </label>
+              <input
+                id="editFirstname"
+                type="text"
+                class="form-input"
+                formControlName="firstname"
+                placeholder="Enter first name"
+                [class.error]="isFieldInvalid('firstname', editForm)"
+                [disabled]="isSubmitting"
+                autocomplete="given-name"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('firstname', editForm)">
+                {{ getFieldError('firstname', editForm) }}
+              </div>
+            </div>
+
+            <!-- Last Name -->
+            <div class="form-group">
+              <label class="form-label" for="editLastname">
+                Last Name <span class="required">*</span>
+              </label>
+              <input
+                id="editLastname"
+                type="text"
+                class="form-input"
+                formControlName="lastname"
+                placeholder="Enter last name"
+                [class.error]="isFieldInvalid('lastname', editForm)"
+                [disabled]="isSubmitting"
+                autocomplete="family-name"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('lastname', editForm)">
+                {{ getFieldError('lastname', editForm) }}
+              </div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+              <label class="form-label" for="editEmail">
+                Email <span class="required">*</span>
+              </label>
+              <input
+                id="editEmail"
+                type="email"
+                class="form-input"
+                formControlName="email"
+                placeholder="Enter email address"
+                [class.error]="isFieldInvalid('email', editForm)"
+                [disabled]="isSubmitting"
+                autocomplete="email"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('email', editForm)">
+                {{ getFieldError('email', editForm) }}
+              </div>
+            </div>
+
+            <!-- Phone -->
+            <div class="form-group">
+              <label class="form-label" for="editPhone">
+                Phone Number <span class="required">*</span>
+              </label>
+              <input
+                id="editPhone"
+                type="tel"
+                class="form-input"
+                formControlName="phone"
+                placeholder="Enter phone number"
+                [class.error]="isFieldInvalid('phone', editForm)"
+                [disabled]="isSubmitting"
+                autocomplete="tel"
+              />
+              <div class="error-message" *ngIf="isFieldInvalid('phone', editForm)">
+                {{ getFieldError('phone', editForm) }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Divider -->
+        <div class="form-divider"></div>
+
+        <!-- Section 3: Roles -->
+        <div class="form-section">
+          <div class="form-group full-width">
+            <label class="form-label">
+              Roles <span class="required">*</span>
+            </label>
+            
+            <div class="roles-container">
+              <div class="role-checkbox" *ngFor="let role of availableRoles; trackBy: trackRoleById">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [checked]="isRoleSelected(role.id, editForm)"
+                    (change)="toggleRoleSelection(role.id, editForm)"
+                    class="checkbox-input"
+                    [disabled]="isSubmitting"
+                  />
+                  <span class="checkbox-custom"></span>
+                  <span class="checkbox-text">{{ role.name }}</span>
+                </label>
+              </div>
+              
+              <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
+              <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
+                No roles available
+              </div>
             </div>
             
-            <!-- แสดงเมื่อไม่มี roles ให้เลือก -->
-            <div *ngIf="availableRoles.length === 0" style="color: #6C757D; font-style: italic;">
-              No roles available
+            <div class="selected-roles-preview">
+              <span class="preview-label">Selected:</span>
+              <span class="preview-text">{{ getSelectedRoleNames(editForm) }}</span>
+            </div>
+            
+            <div class="error-message" *ngIf="isFieldInvalid('role_id', editForm)">
+              {{ getFieldError('role_id', editForm) }}
             </div>
           </div>
-          
-          <div class="selected-roles-preview">
-            <span class="preview-label">Selected:</span>
-            <span class="preview-text">{{ getSelectedRoleNames(editForm) }}</span>
-          </div>
-          
-          <div class="error-message" *ngIf="isFieldInvalid('role_id', editForm)">
-            {{ getFieldError('role_id', editForm) }}
+        </div>
+
+        <!-- Section Divider -->
+        <div class="form-divider"></div>
+
+        <!-- Section 4: Change Password (Optional) -->
+        <div class="form-section">
+          <div class="password-group">
+            <div class="password-header">
+              <label class="form-label">Change Password (Optional)</label>
+              <small class="password-help">Leave blank to keep current password</small>
+            </div>
+
+            <div class="form-grid">
+              <!-- New Password -->
+              <div class="form-group">
+                <label class="form-label" for="editNewPassword">
+                  New Password
+                </label>
+                <input
+                  id="editNewPassword"
+                  type="password"
+                  class="form-input"
+                  formControlName="newPassword"
+                  placeholder="Enter new password"
+                  [class.error]="isFieldInvalid('newPassword', editForm)"
+                  [disabled]="isSubmitting"
+                  autocomplete="new-password"
+                />
+                <div class="error-message" *ngIf="isFieldInvalid('newPassword', editForm)">
+                  {{ getFieldError('newPassword', editForm) }}
+                </div>
+              </div>
+
+              <!-- Confirm New Password -->
+              <div class="form-group">
+                <label class="form-label" for="editConfirmPassword">
+                  Confirm New Password
+                </label>
+                <input
+                  id="editConfirmPassword"
+                  type="password"
+                  class="form-input"
+                  formControlName="confirmPassword"
+                  placeholder="Confirm new password"
+                  [class.error]="isFieldInvalid('confirmPassword', editForm)"
+                  [disabled]="isSubmitting"
+                  autocomplete="new-password"
+                />
+                <div class="error-message" *ngIf="isFieldInvalid('confirmPassword', editForm)">
+                  {{ getFieldError('confirmPassword', editForm) }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

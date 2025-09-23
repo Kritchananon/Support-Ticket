@@ -505,14 +505,14 @@
   transition: all 0.2s ease;
 }
 
-/* Customer Badge (สีเขียว) */
-.role-badge-customer {
+/* User Badge (สีเขียว) */
+.role-badge-user {
   background: #D4EDDA;
   color: #155724;
   border-color: #C3E6CB;
 }
 
-.role-badge-customer:hover {
+.role-badge-user:hover {
   background: #C3E6CB;
   transform: translateY(-1px);
 }
@@ -922,6 +922,50 @@
   gap: 4px;
 }
 
+/* ===== PASSWORD GROUP STYLES - แบบเรียบง่าย ===== */
+
+/* Password Group Container */
+.password-group {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #E9ECEF;
+}
+
+.password-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.password-header .form-label {
+  margin-bottom: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.password-help {
+  color: #6C757D;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Password Fields ใช้ style เดียวกับ form-group ปกติ */
+.password-group .form-group {
+  margin-bottom: 16px;
+}
+
+.password-group .form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Text Helper Styles */
+.text-muted {
+  color: #6C757D !important;
+  font-size: 13px;
+}
+
 /* Roles Selection Styles */
 .roles-container {
   display: grid;
@@ -1091,6 +1135,72 @@
 
 .permission-denied:focus-within {
   box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2);
+}
+
+/* Password Section Focus States */
+.form-section:focus-within {
+  box-shadow: 0 0 0 3px rgba(88, 115, 248, 0.1);
+}
+
+.password-section:focus-within {
+  border-color: #5873F8;
+  box-shadow: 0 0 0 3px rgba(88, 115, 248, 0.1);
+}
+
+/* Password Field Enhanced Styles */
+.password-section .form-input[type="password"] {
+  background: #FFFFFF;
+  border-color: #D1ECF1;
+}
+
+.password-section .form-input[type="password"]:focus {
+  border-color: #5873F8;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(88, 115, 248, 0.1);
+}
+
+.password-section .form-input[type="password"].error {
+  border-color: #DC3545;
+  background: #FFF5F5;
+}
+
+/* Enhanced Error Styling for Password Section */
+.password-section .error-message {
+  background: #FFF5F5;
+  border: 1px solid #FFCCCB;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+.password-section .error-message::before {
+  content: "⚠️";
+  margin-right: 6px;
+}
+
+/* Success States for Password Section */
+.password-section .form-input.valid {
+  border-color: #28A745;
+  background: #F8FFF8;
+}
+
+.password-section .success-message {
+  color: #155724;
+  background: #D4EDDA;
+  border: 1px solid #C3E6CB;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.password-section .success-message::before {
+  content: "✓";
+  color: #28A745;
+  font-weight: bold;
 }
 
 /* Responsive Design */
@@ -1285,6 +1395,26 @@
     font-size: 10px;
     padding: 2px 8px;
   }
+
+  /* Password Group Mobile */
+  .password-group {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+
+  .password-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .password-header .form-label {
+    font-size: 14px;
+  }
+
+  .password-help {
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -1379,6 +1509,20 @@
     padding: 2px 6px;
     border-radius: 12px;
   }
+
+  /* Password Group Very Small Screens */
+  .password-group {
+    padding: 12px 0;
+    margin-bottom: 16px;
+  }
+
+  .password-header .form-label {
+    font-size: 13px;
+  }
+
+  .password-help {
+    font-size: 10px;
+  }
 }
 
 /* Accessibility */
@@ -1429,7 +1573,7 @@
   }
 
   /* Role badges high contrast */
-  .role-badge-customer {
+  .role-badge-user {
     background: #006600;
     color: #FFFFFF;
     border-color: #006600;
@@ -1492,6 +1636,12 @@
     background: #F0F0F0 !important;
     color: #000000 !important;
     border: 1px solid #000000 !important;
+  }
+
+  /* Password Group Print */
+  .password-group {
+    border-bottom: 1px solid #000000;
+    page-break-inside: avoid;
   }
 }
 
@@ -1604,4 +1754,38 @@
   background: #6C757D;
   border: 2px solid #FFFFFF;
   border-radius: 50%;
+}
+
+.form-section {
+  margin-bottom: 24px;
+}
+
+.form-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #E9ECEF 20%, #E9ECEF 80%, transparent);
+  margin: 32px 0;
+  position: relative;
+}
+
+.form-divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background: #FFFFFF;
+  border: 2px solid #E9ECEF;
+  border-radius: 50%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-section .form-group.full-width {
+  grid-column: 1 / -1;
 }

@@ -1,4 +1,278 @@
-<!-- Breadcrumb -->
+<!-- Assign Project Modal -->
+<div class="modal-backdrop" *ngIf="isAssignProjectModalVisible" (click)="closeAssignProjectModal()">
+  <div class="modal-container assign-project-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Assign Project to Customer</h2>
+      <button class="close-button" (click)="closeAssignProjectModal()" type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
+        </svg>
+      </button>
+    </div>
+
+    <form [formGroup]="assignProjectForm" (ngSubmit)="onSubmitAssignProject()">
+      <div class="modal-body">
+        <!-- Customer Info Display -->
+        <div class="customer-info-display" *ngIf="selectedCustomer">
+          <div class="info-label">Assigning project to:</div>
+          <div class="info-value">{{ selectedCustomer.company }}</div>
+        </div>
+
+        <!-- Project Selection -->
+        <div class="form-group">
+          <label class="form-label" for="projectSelect">
+            Select Project <span class="required">*</span>
+          </label>
+          <select
+            id="projectSelect"
+            class="form-input"
+            formControlName="project_id"
+            (change)="onProjectSelect()"
+            [class.error]="isFieldInvalid('assign', 'project_id')"
+          >
+            <option value="">-- Select a project --</option>
+            <option *ngFor="let project of availableProjects" [value]="project.id">
+              {{ project.name }}
+            </option>
+          </select>
+          <div class="error-message" *ngIf="isFieldInvalid('assign', 'project_id')">
+            <span *ngIf="assignProjectForm.get('project_id')?.errors?.['required']">Project selection is required</span>
+          </div>
+          <div class="loading-message" *ngIf="isLoadingProjects">
+            Loading available projects...
+          </div>
+        </div>
+
+        <!-- Selected Project Info -->
+        <div class="selected-project-info" *ngIf="selectedProject">
+          <div class="project-card-small">
+            <div class="project-header">
+              <div class="project-icon">
+                {{ getProjectAvatarLetter(selectedProject.name) }}
+              </div>
+              <div class="project-details">
+                <h4>{{ selectedProject.name }}</h4>
+                <p>{{ selectedProject.description || 'No description available' }}</p>
+                <div class="project-meta">
+                  <span>Status: <strong>{{ selectedProject.status | titlecase }}</strong></span>
+                  <span *ngIf="selectedProject.current_users_count">Current Users: <strong>{{ selectedProject.current_users_count }}</strong></span>
+                  <span *ngIf="selectedProject.estimated_hours">Est. Hours: <strong>{{ selectedProject.estimated_hours }}</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Selection Section -->
+        <div class="form-group" *ngIf="selectedProject">
+          <label class="form-label">
+            Assign Users <span class="required">*</span>
+          </label>
+          
+          <!-- User Search -->
+          <div class="user-search-section">
+            <div class="search-input">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M7.333 12.667A5.333 5.333 0 1 0 7.333 2a5.333 5.333 0 0 0 0 10.667ZM14 14l-2.9-2.9" 
+                      stroke="#9CA3AF" stroke-width="1.333" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <input type="text" 
+                     placeholder="Search users..." 
+                     (input)="onUserSearchChange($event)">
+            </div>
+          </div>
+
+          <!-- Selected Users Display -->
+          <div class="selected-users-display" *ngIf="selectedUsers.length > 0">
+            <div class="selected-users-header">
+              <span class="selected-count">{{ selectedUsers.length }} user(s) selected</span>
+            </div>
+            <div class="selected-users-list">
+              <div class="selected-user-tag" *ngFor="let user of selectedUsers">
+                <div class="user-info">
+                  <div class="user-avatar-small">{{ getUserAvatarLetter(user.name) }}</div>
+                  <div class="user-details">
+                    <span class="user-name">{{ getUserDisplayName(user) }}</span>
+                    <span class="user-role">{{ user.role }}</span>
+                  </div>
+                </div>
+                <button type="button" class="remove-user-btn" (click)="removeSelectedUser(user)">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M.293.293a1 1 0 011.414 0L6 4.586 10.293.293a1 1 0 111.414 1.414L7.414 6l4.293 4.293a1 1 0 01-1.414 1.414L6 7.414l-4.293 4.293a1 1 0 01-1.414-1.414L5.586 6 1.293 1.707a1 1 0 010-1.414z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Available Users List -->
+          <div class="users-selection-list">
+            <div class="loading-message" *ngIf="isLoadingUsers">
+              Loading system users...
+            </div>
+            
+            <div class="user-selection-item" 
+                 *ngFor="let user of filteredUsers" 
+                 [class.unavailable]="!user.is_available"
+                 (click)="user.is_available ? toggleUserSelection(user) : null">
+              <!-- Removed checkbox section -->
+              <div class="user-avatar-medium">{{ getUserAvatarLetter(user.name) }}</div>
+              <div class="user-info-detail">
+                <div class="user-name-role">
+                  <span class="name">{{ getUserDisplayName(user) }}</span>
+                  <span class="role-badge">{{ user.role }}</span>
+                </div>
+                <div class="user-contact">
+                  <span class="email">{{ user.email }}</span>
+                  <span class="department" *ngIf="user.department"> • {{ user.department }}</span>
+                </div>
+                <div class="user-status">
+                  <span class="projects-count" *ngIf="user.current_projects_count">
+                    {{ user.current_projects_count }} current projects
+                  </span>
+                  <span class="availability-status" [class.unavailable]="!user.is_available">
+                    {{ user.is_available ? 'Available' : 'Already assigned to this project' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-users-state" *ngIf="!isLoadingUsers && filteredUsers.length === 0">
+              <p>No users found matching your search criteria.</p>
+            </div>
+          </div>
+
+          <!-- Validation Error -->
+          <div class="error-message" *ngIf="isFieldInvalid('assign', 'assigned_user_ids')">
+            <span *ngIf="assignProjectForm.get('assigned_user_ids')?.errors?.['required']">At least one user must be selected</span>
+            <span *ngIf="assignProjectForm.get('assigned_user_ids')?.errors?.['minlength']">At least one user must be selected</span>
+          </div>
+        </div>
+
+        <!-- Assignment Summary -->
+        <div class="assignment-summary" *ngIf="selectedProject && selectedUsers.length > 0">
+          <div class="summary-header">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#6366F1">
+              <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+            </svg>
+            <span>Assignment Summary</span>
+          </div>
+          <div class="summary-content">
+            <p><strong>{{ selectedProject.name }}</strong> will be assigned to <strong>{{ selectedCustomer?.company }}</strong> with <strong>{{ selectedUsers.length }}</strong> user(s).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeAssignProjectModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="!selectedProject || selectedUsers.length === 0 || isSubmitting">
+          <span *ngIf="isSubmitting" class="loading-spinner"></span>
+          {{ isSubmitting ? 'Assigning...' : 'Assign Project' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create Project Modal (เก็บไว้สำหรับอนาคต) -->
+<div class="modal-backdrop" *ngIf="isCreateProjectModalVisible" (click)="closeCreateProjectModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Create New Project</h2>
+      <button class="close-button" (click)="closeCreateProjectModal()" type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
+        </svg>
+      </button>
+    </div>
+
+    <form [formGroup]="projectForm" (ngSubmit)="onSubmitProject()">
+      <div class="modal-body">
+        <!-- Customer Info Display -->
+        <div class="customer-info-display" *ngIf="selectedCustomer">
+          <div class="info-label">Creating project for:</div>
+          <div class="info-value">{{ selectedCustomer.company }}</div>
+        </div>
+
+        <!-- Project Name -->
+        <div class="form-group">
+          <label class="form-label" for="projectName">
+            Project Name <span class="required">*</span>
+          </label>
+          <input
+            id="projectName"
+            type="text"
+            class="form-input"
+            formControlName="name"
+            placeholder="Enter project name"
+            [class.error]="isFieldInvalid('project', 'name')"
+          />
+          <div class="error-message" *ngIf="isFieldInvalid('project', 'name')">
+            <span *ngIf="projectForm.get('name')?.errors?.['required']">Project name is required</span>
+            <span *ngIf="projectForm.get('name')?.errors?.['minlength']">Project name must be at least 3 characters</span>
+            <span *ngIf="projectForm.get('name')?.errors?.['maxlength']">Project name cannot exceed 100 characters</span>
+          </div>
+        </div>
+
+        <!-- Project Description -->
+        <div class="form-group">
+          <label class="form-label" for="projectDescription">Description</label>
+          <textarea
+            id="projectDescription"
+            class="form-textarea"
+            formControlName="description"
+            placeholder="Enter project description (optional)"
+            rows="3"
+            maxlength="500"
+          ></textarea>
+          <div class="character-count">
+            {{ getProjectDescriptionLength() }}/500 characters
+          </div>
+        </div>
+
+        <!-- Status Selection -->
+        <div class="form-group">
+          <label class="form-label">Initial Status <span class="required">*</span></label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input
+                type="radio"
+                formControlName="status"
+                value="active"
+                class="radio-input"
+              />
+              <span class="radio-custom"></span>
+              <span class="radio-text">Active</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                formControlName="status"
+                value="inactive"
+                class="radio-input"
+              />
+              <span class="radio-custom"></span>
+              <span class="radio-text">Inactive</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeCreateProjectModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="projectForm.invalid || isSubmitting">
+          <span *ngIf="isSubmitting" class="loading-spinner"></span>
+          {{ isSubmitting ? 'Creating...' : 'Create Project' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div><!-- Breadcrumb -->
 <div class="breadcrumb">
   <span class="breadcrumb-item inactive">Settings</span>
   <svg class="breadcrumb-separator" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -105,7 +379,7 @@
 
 <!-- Selected Customer Section -->
 <div class="selected-customer-section" *ngIf="selectedCustomer && customerStats">
-  <!-- Customer Header -->
+  <!-- Customer Header with Edit/Delete Actions -->
   <div class="customer-header">
     <div class="customer-info">
       <div class="customer-avatar-large">
@@ -119,6 +393,26 @@
           <span class="customer-tier-large">⭐ {{ selectedCustomer.tier }}</span>
         </div>
       </div>
+    </div>
+    
+    <!-- Customer Action Buttons -->
+    <div class="customer-actions" *ngIf="canEditCustomers() || canDeleteCustomers()">
+      <button class="btn btn-secondary" 
+              (click)="openEditCustomerModal()" 
+              *ngIf="canEditCustomers()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
+        </svg>
+        Edit Customer
+      </button>
+      <button class="btn btn-danger" 
+              (click)="deleteCustomer()" 
+              *ngIf="canDeleteCustomers()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 1a.5.5 0 0 0-.5.5v.5h4v-.5a.5.5 0 0 0-.5-.5h-3zM3 3v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3H3z" />
+        </svg>
+        Delete Customer
+      </button>
     </div>
   </div>
 
@@ -172,12 +466,12 @@
         Export
       </button>
       <button class="btn btn-primary" 
-              (click)="openCreateProjectModal()" 
+              (click)="openAssignProjectModal()" 
               *ngIf="canCreateProjects()">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
         </svg>
-        Add New Project
+        Assign Project
       </button>
     </div>
   </div>
@@ -335,97 +629,84 @@
   </div>
 </div>
 
-<!-- Create Project Modal -->
-<div class="modal-backdrop" *ngIf="isCreateProjectModalVisible" (click)="closeCreateProjectModal()">
+<!-- Edit Customer Modal -->
+<div class="modal-backdrop" *ngIf="isEditCustomerModalVisible" (click)="closeEditCustomerModal()">
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h2 class="modal-title">Create New Project</h2>
-      <button class="close-button" (click)="closeCreateProjectModal()" type="button">
+      <h2 class="modal-title">Edit Customer</h2>
+      <button class="close-button" (click)="closeEditCustomerModal()" type="button">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
         </svg>
       </button>
     </div>
 
-    <form [formGroup]="projectForm" (ngSubmit)="onSubmitProject()">
+    <form [formGroup]="customerForm" (ngSubmit)="onSubmitCustomer()">
       <div class="modal-body">
-        <!-- Customer Info Display -->
-        <div class="customer-info-display" *ngIf="selectedCustomer">
-          <div class="info-label">Creating project for:</div>
-          <div class="info-value">{{ selectedCustomer.company }}</div>
-        </div>
-
-        <!-- Project Name -->
+        <!-- Customer Name -->
         <div class="form-group">
-          <label class="form-label" for="projectName">
-            Project Name <span class="required">*</span>
+          <label class="form-label" for="customerName">
+            Company Name <span class="required">*</span>
           </label>
           <input
-            id="projectName"
+            id="customerName"
             type="text"
             class="form-input"
-            formControlName="name"
-            placeholder="Enter project name"
-            [class.error]="isFieldInvalid('project', 'name')"
+            formControlName="customer_name"
+            placeholder="Enter company name"
+            [class.error]="isFieldInvalid('customer', 'customer_name')"
           />
-          <div class="error-message" *ngIf="isFieldInvalid('project', 'name')">
-            <span *ngIf="projectForm.get('name')?.errors?.['required']">Project name is required</span>
-            <span *ngIf="projectForm.get('name')?.errors?.['minlength']">Project name must be at least 3 characters</span>
-            <span *ngIf="projectForm.get('name')?.errors?.['maxlength']">Project name cannot exceed 100 characters</span>
+          <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_name')">
+            <span *ngIf="customerForm.get('customer_name')?.errors?.['required']">Company name is required</span>
+            <span *ngIf="customerForm.get('customer_name')?.errors?.['minlength']">Company name must be at least 2 characters</span>
+            <span *ngIf="customerForm.get('customer_name')?.errors?.['maxlength']">Company name cannot exceed 100 characters</span>
           </div>
         </div>
 
-        <!-- Project Description -->
-        <div class="form-group">
-          <label class="form-label" for="projectDescription">Description</label>
-          <textarea
-            id="projectDescription"
-            class="form-textarea"
-            formControlName="description"
-            placeholder="Enter project description (optional)"
-            rows="3"
-            maxlength="500"
-          ></textarea>
-          <div class="character-count">
-            {{ getProjectDescriptionLength() }}/500 characters
+        <!-- Email and Phone Row -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="customerEmail">
+              Email <span class="required">*</span>
+            </label>
+            <input
+              id="customerEmail"
+              type="email"
+              class="form-input"
+              formControlName="customer_email"
+              placeholder="Enter email address"
+              [class.error]="isFieldInvalid('customer', 'customer_email')"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_email')">
+              <span *ngIf="customerForm.get('customer_email')?.errors?.['required']">Email is required</span>
+              <span *ngIf="customerForm.get('customer_email')?.errors?.['email']">Please enter a valid email address</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Status Selection -->
-        <div class="form-group">
-          <label class="form-label">Initial Status <span class="required">*</span></label>
-          <div class="radio-group">
-            <label class="radio-label">
-              <input
-                type="radio"
-                formControlName="status"
-                value="active"
-                class="radio-input"
-              />
-              <span class="radio-custom"></span>
-              <span class="radio-text">Active</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                formControlName="status"
-                value="inactive"
-                class="radio-input"
-              />
-              <span class="radio-custom"></span>
-              <span class="radio-text">Inactive</span>
-            </label>
+          <div class="form-group">
+            <label class="form-label" for="customerPhone">Phone Number</label>
+            <input
+              id="customerPhone"
+              type="tel"
+              class="form-input"
+              formControlName="customer_phone"
+              placeholder="Enter phone number"
+              [class.error]="isFieldInvalid('customer', 'customer_phone')"
+            />
+            <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_phone')">
+              <span *ngIf="customerForm.get('customer_phone')?.errors?.['pattern']">Please enter a valid phone number</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="closeCreateProjectModal()" [disabled]="isSubmitting">
+        <button type="button" class="btn btn-secondary" (click)="closeEditCustomerModal()" [disabled]="isSubmitting">
           Cancel
         </button>
-        <button type="submit" class="btn btn-primary" [disabled]="projectForm.invalid || isSubmitting">
+        <button type="submit" class="btn btn-primary" [disabled]="customerForm.invalid || isSubmitting">
           <span *ngIf="isSubmitting" class="loading-spinner"></span>
-          {{ isSubmitting ? 'Creating...' : 'Create Project' }}
+          {{ isSubmitting ? 'Updating...' : 'Update Customer' }}
         </button>
       </div>
     </form>

@@ -5,12 +5,11 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { Subject, takeUntil, catchError, of } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
-// เพิ่ม imports ที่จำเป็น
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { permissionEnum } from '../../../shared/models/permission.model';
 
-// Updated interfaces to match backend response
+// ============ INTERFACES ============
 export interface CFPCustomerData {
   customer_id: number;
   customer_name: string;
@@ -29,7 +28,6 @@ export interface CFPProjectData {
   open_ticket_count: number;
 }
 
-// Transformed interfaces for UI consistency
 export interface CustomerItem {
   id: number;
   company: string;
@@ -42,7 +40,6 @@ export interface CustomerItem {
   created_by: number;
   updated_date?: string;
   updated_by?: number;
-  // New fields from backend
   total_projects?: number;
   total_users?: number;
   total_open_tickets?: number;
@@ -66,7 +63,6 @@ export interface CustomerProjectItem {
   project_manager_id?: number;
   open_tickets_count?: number;
   assigned_users?: CustomerUserItem[];
-  // New fields from backend
   assigned_user_names?: string[];
   user_count?: number;
 }
@@ -92,14 +88,48 @@ export interface CustomerStats {
   open_tickets: number;
 }
 
-export interface CreateCustomerProjectDto {
-  customer_id: number;
+// Backend API Interfaces
+export interface ProjectDDLItem {
+  id: number;
   name: string;
   description?: string;
-  priority: 'high' | 'medium' | 'low';
-  start_date?: string;
-  end_date?: string;
-  status: 'active' | 'inactive';
+  status?: string;
+  current_users_count?: number;
+  estimated_hours?: number;
+  budget?: number;
+}
+
+export interface SystemUser {
+  id: number;
+  name?: string;
+  username?: string;
+  email: string;
+  role?: string;
+  department?: string;
+  is_available?: boolean;
+  current_projects_count?: number;
+  first_name?: string;
+  last_name?: string;
+  position?: string;
+  phone?: string;
+}
+
+export interface CreateCustomerForProjectDto {
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string;
+  project_id: number;
+  assigned_user_ids: number[];
+  create_by?: number;
+  update_by?: number;
+}
+
+export interface UpdateCustomerForProjectDto {
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  create_by?: number;
+  update_by?: number;
 }
 
 @Component({
@@ -110,20 +140,20 @@ export interface CreateCustomerProjectDto {
   styleUrls: ['./customer-for-project.component.css']
 })
 export class CustomerForProjectComponent implements OnInit, OnDestroy {
-
   private destroy$ = new Subject<void>();
 
-  // Loading and error states
+  // ============ COMPONENT STATE ============
   isLoading = false;
   isProjectsLoading = false;
   hasError = false;
   errorMessage = '';
+  isSubmitting = false;
 
-  // Search and filter properties
-  customerSearchTerm: string = '';
-  projectSearchTerm: string = '';
-  selectedStatusFilter: string = 'all';
-  selectedPriorityFilter: string = 'all';
+  // Search and filter
+  customerSearchTerm = '';
+  projectSearchTerm = '';
+  selectedStatusFilter = 'all';
+  userSearchTerm = '';
 
   // Data arrays
   customers: CustomerItem[] = [];
@@ -133,30 +163,31 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   filteredProjects: CustomerProjectItem[] = [];
   customerUsers: CustomerUserItem[] = [];
   customerStats: CustomerStats | null = null;
-
-  // Backend data
   cfpData: CFPCustomerData[] = [];
 
-  // Modal properties
-  isCreateProjectModalVisible = false;
-  isCreateUserModalVisible = false;
-  isSubmitting = false;
-  projectForm!: FormGroup;
-  userForm!: FormGroup;
+  // Modal states
+  isAssignProjectModalVisible = false;
+  isEditCustomerModalVisible = false;
 
-  // Status and priority options
+  // Assign project data
+  availableProjects: ProjectDDLItem[] = [];
+  systemUsers: SystemUser[] = [];
+  selectedProject: ProjectDDLItem | null = null;
+  selectedUsers: SystemUser[] = [];
+  filteredUsers: SystemUser[] = [];
+  isLoadingProjects = false;
+  isLoadingUsers = false;
+
+  // Forms
+  assignProjectForm!: FormGroup;
+  customerForm!: FormGroup;
+
+  // Options
   statusOptions = [
     { value: 'all', label: 'All Status' },
     { value: 'active', label: 'Active' },
     { value: 'inactive', label: 'Inactive' },
     { value: 'completed', label: 'Completed' }
-  ];
-
-  priorityOptions = [
-    { value: 'all', label: 'All Priority' },
-    { value: 'high', label: 'High' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'low', label: 'Low' }
   ];
 
   constructor(
@@ -171,16 +202,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadCFPData();
-    
-    // Check if customer is specified in query params
-    this.route.queryParams.subscribe(params => {
-      if (params['customer']) {
-        const customerId = parseInt(params['customer']);
-        setTimeout(() => {
-          this.selectCustomerById(customerId);
-        }, 500);
-      }
-    });
+    this.handleQueryParams();
   }
 
   ngOnDestroy(): void {
@@ -188,11 +210,20 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  /**
-   * Initialize forms
-   */
+  // ============ INITIALIZATION ============
   private initForms(): void {
-    // Project form
+    this.assignProjectForm = this.fb.group({
+      project_id: ['', [Validators.required]],
+      assigned_user_ids: [[], [Validators.required, Validators.minLength(1)]]
+    });
+
+    this.customerForm = this.fb.group({
+      customer_name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
+      customer_email: ['', [Validators.required, Validators.email]],
+      customer_phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]]
+    });
+
+    // Initialize project form
     this.projectForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
       description: [''],
@@ -202,7 +233,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       status: ['active', [Validators.required]]
     });
 
-    // User form
+    // Initialize user form
     this.userForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
       email: ['', [Validators.required, Validators.email]],
@@ -211,66 +242,53 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       department: [''],
       is_primary_contact: [false]
     });
-
-    console.log('Forms initialized');
   }
 
-  /**
-   * Load CFP data from backend
-   */
+  private handleQueryParams(): void {
+    this.route.queryParams.subscribe(params => {
+      if (params['customer']) {
+        const customerId = parseInt(params['customer']);
+        setTimeout(() => this.selectCustomerById(customerId), 500);
+      }
+    });
+  }
+
+  // ============ DATA LOADING ============
   loadCFPData(): void {
     this.isLoading = true;
     this.hasError = false;
 
-    console.log('Loading CFP data from backend...');
-
-    // เรียก API endpoint /customer-for-project/cfp-data
     this.apiService.get('customer-for-project/cfp-data')
       .pipe(
         takeUntil(this.destroy$),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Error loading CFP data:', error);
-          this.handleApiError(error);
-          return of({ status: 0, message: 'Error', data: [] });
-        })
+        catchError(this.handleError.bind(this))
       )
       .subscribe({
         next: (response: any) => {
           this.isLoading = false;
-          
-          if (response && response.status === 1 && response.data) {
-            this.cfpData = response.data as CFPCustomerData[];
+          if (response?.status === 1 && response.data) {
+            this.cfpData = response.data;
             this.transformCFPDataToCustomers();
           } else {
-            console.warn('Invalid response format, using mock data');
-            this.customers = this.getMockCustomers();
+            // this.customers = this.getMockCustomers();
           }
-
           this.filterCustomers();
-          console.log('CFP data loaded:', this.cfpData);
-          console.log('Transformed customers:', this.customers);
         },
-        error: (error) => {
-          console.error('Subscription error:', error);
+        error: () => {
           this.isLoading = false;
-          this.customers = this.getMockCustomers();
+          // this.customers = this.getMockCustomers();
           this.filterCustomers();
         }
       });
   }
 
-  /**
-   * Transform CFP data to customer format
-   */
   private transformCFPDataToCustomers(): void {
     this.customers = this.cfpData.map(cfpCustomer => {
-      // Calculate totals from projects
       const totalProjects = cfpCustomer.projects.length;
       const activeProjects = cfpCustomer.projects.filter(p => p.project_status).length;
       const totalUsers = cfpCustomer.projects.reduce((sum, p) => sum + p.user_count, 0);
       const totalOpenTickets = cfpCustomer.projects.reduce((sum, p) => sum + p.open_ticket_count, 0);
 
-      // Assign tier based on project count or other criteria
       let tier: 'Enterprise' | 'Premium' | 'Standard' = 'Standard';
       if (totalProjects >= 5) tier = 'Enterprise';
       else if (totalProjects >= 2) tier = 'Premium';
@@ -278,148 +296,27 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       return {
         id: cfpCustomer.customer_id,
         company: cfpCustomer.customer_name,
-        address: '', // Not provided by backend
+        address: '',
         email: cfpCustomer.customer_email,
         phone: cfpCustomer.customer_phone,
-        tier: tier,
-        status: 'active' as 'active' | 'inactive',
+        tier,
+        status: 'active' as const,
         created_date: new Date().toISOString(),
         created_by: 1,
         total_projects: totalProjects,
         total_users: totalUsers,
         total_open_tickets: totalOpenTickets
-      } as CustomerItem;
+      };
     });
   }
 
-  /**
-   * Load customers list (keeping for compatibility)
-   */
-  loadCustomers(): void {
-    this.loadCFPData();
+  // ============ CUSTOMER MANAGEMENT ============
+  selectCustomer(customer: CustomerItem): void {
+    this.selectedCustomer = customer;
+    this.updateUrl(customer.id);
+    this.loadCustomerData(customer.id);
   }
 
-  /**
-   * Get mock customers for development
-   */
-  private getMockCustomers(): CustomerItem[] {
-    return [
-      {
-        id: 1,
-        company: 'ABC Technology Co., Ltd.',
-        address: '123 Technology Drive, Bangkok 10110',
-        email: 'contact@abctech.com',
-        phone: '+66-2-123-4567',
-        tier: 'Enterprise',
-        status: 'active',
-        created_date: '2024-01-10T00:00:00Z',
-        created_by: 1,
-        total_projects: 8,
-        total_users: 12,
-        total_open_tickets: 24
-      },
-      {
-        id: 2,
-        company: 'XYZ Solutions Ltd.',
-        address: '456 Business Avenue, Chiang Mai 50000',
-        email: 'info@xyzsolutions.co.th',
-        phone: '+66-53-987-6543',
-        tier: 'Premium',
-        status: 'active',
-        created_date: '2024-01-15T00:00:00Z',
-        created_by: 1,
-        total_projects: 3,
-        total_users: 8,
-        total_open_tickets: 12
-      }
-    ];
-  }
-
-  /**
-   * Handle API errors
-   */
-  private handleApiError(error: HttpErrorResponse): void {
-    this.hasError = true;
-    this.isLoading = false;
-
-    if (error.status === 401) {
-      this.errorMessage = 'Authentication required. Please log in again.';
-      this.authService.logout();
-      this.router.navigate(['/login']);
-    } else if (error.status === 403) {
-      this.errorMessage = 'You do not have permission to view customers.';
-    } else if (error.status === 0) {
-      this.errorMessage = 'Unable to connect to server. Please check your internet connection.';
-    } else if (error.status >= 500) {
-      this.errorMessage = 'Server error occurred. Please try again later.';
-    } else {
-      this.errorMessage = error.error?.message || error.message || 'Failed to load data. Please try again.';
-    }
-  }
-
-  /**
-   * Filter customers based on search term
-   */
-  filterCustomers(): void {
-    this.filteredCustomers = this.customers.filter(customer => {
-      const searchTerm = this.customerSearchTerm.toLowerCase();
-      return searchTerm === '' || 
-        customer.company.toLowerCase().includes(searchTerm) ||
-        customer.email.toLowerCase().includes(searchTerm);
-    });
-
-    console.log('Filtered customers:', this.filteredCustomers.length);
-  }
-
-  /**
-   * Filter projects based on search and filters
-   */
-  filterProjects(): void {
-    this.filteredProjects = this.customerProjects.filter(project => {
-      const matchesSearch = this.projectSearchTerm === '' ||
-        project.name.toLowerCase().includes(this.projectSearchTerm.toLowerCase()) ||
-        (project.description && project.description.toLowerCase().includes(this.projectSearchTerm.toLowerCase()));
-
-      const matchesStatus = this.selectedStatusFilter === 'all' ||
-        project.status === this.selectedStatusFilter;
-
-      const matchesPriority = this.selectedPriorityFilter === 'all' ||
-        project.priority === this.selectedPriorityFilter;
-
-      return matchesSearch && matchesStatus && matchesPriority;
-    });
-
-    console.log('Filtered projects:', this.filteredProjects.length);
-  }
-
-  /**
-   * Handle customer search
-   */
-  onCustomerSearchChange(): void {
-    this.filterCustomers();
-  }
-
-  /**
-   * Handle project search
-   */
-  onProjectSearchChange(): void {
-    this.filterProjects();
-  }
-
-  /**
-   * Handle filter changes
-   */
-  onStatusFilterChange(): void {
-    this.filterProjects();
-  }
-
-  onPriorityFilterChange(): void {
-    this.filterProjects();
-  }
-
-  /**
-   * Select customer by ID
-   */
   selectCustomerById(customerId: number): void {
     const customer = this.customers.find(c => c.id === customerId);
     if (customer) {
@@ -427,48 +324,33 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Select customer and load related data
-   */
-  selectCustomer(customer: CustomerItem): void {
-    console.log('Selecting customer:', customer);
-    this.selectedCustomer = customer;
-    
-    // Update URL with customer parameter
+  private updateUrl(customerId: number): void {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { customer: customer.id },
+      queryParams: { customer: customerId },
       queryParamsHandling: 'merge'
     });
-
-    // Load customer data from CFP data
-    this.loadCustomerDataFromCFP(customer.id);
   }
 
-  /**
-   * Load customer data from CFP data
-   */
-  private loadCustomerDataFromCFP(customerId: number): void {
+  private loadCustomerData(customerId: number): void {
     const cfpCustomer = this.cfpData.find(c => c.customer_id === customerId);
-    
+
     if (cfpCustomer) {
-      // Transform projects
-      this.customerProjects = cfpCustomer.projects.map(cfpProject => ({
-        id: cfpProject.project_id,
+      this.customerProjects = cfpCustomer.projects.map(p => ({
+        id: p.project_id,
         customer_id: customerId,
-        name: cfpProject.project_name,
-        description: `Project with ${cfpProject.user_count} assigned users`,
-        status: cfpProject.project_status ? 'active' : 'inactive',
-        priority: 'medium', // Default priority as backend doesn't provide this
+        name: p.project_name,
+        description: `Project with ${p.user_count} assigned users`,
+        status: p.project_status ? 'active' as const : 'inactive' as const,
+        priority: 'medium' as const,
         created_date: new Date().toISOString(),
         created_by: 1,
-        open_tickets_count: cfpProject.open_ticket_count,
-        assigned_user_names: cfpProject.assigned_users,
-        user_count: cfpProject.user_count,
-        assigned_users: [] // Will be populated separately if needed
+        open_tickets_count: p.open_ticket_count,
+        assigned_user_names: p.assigned_users,
+        user_count: p.user_count,
+        assigned_users: []
       }));
 
-      // Create stats
       this.customerStats = {
         total_projects: cfpCustomer.projects.length,
         active_projects: cfpCustomer.projects.filter(p => p.project_status).length,
@@ -476,28 +358,15 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         open_tickets: cfpCustomer.projects.reduce((sum, p) => sum + p.open_ticket_count, 0)
       };
 
-      // Generate mock users based on assigned users
-      this.customerUsers = this.generateUsersFromAssignedNames(customerId, cfpCustomer.projects);
-
+      this.customerUsers = this.generateUsersFromNames(customerId, cfpCustomer.projects);
       this.filterProjects();
-    } else {
-      // Fallback to existing mock data method
-      this.loadCustomerProjects(customerId);
-      this.loadCustomerUsers(customerId);
-      this.loadCustomerStats(customerId);
     }
   }
 
-  /**
-   * Generate user items from assigned user names
-   */
-  private generateUsersFromAssignedNames(customerId: number, projects: CFPProjectData[]): CustomerUserItem[] {
+  private generateUsersFromNames(customerId: number, projects: CFPProjectData[]): CustomerUserItem[] {
     const uniqueUserNames = new Set<string>();
-    
     projects.forEach(project => {
-      project.assigned_users.forEach(userName => {
-        uniqueUserNames.add(userName);
-      });
+      project.assigned_users.forEach(userName => uniqueUserNames.add(userName));
     });
 
     return Array.from(uniqueUserNames).map((userName, index) => ({
@@ -515,17 +384,12 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }));
   }
 
-  /**
-   * Clear customer selection
-   */
   clearCustomerSelection(): void {
     this.selectedCustomer = null;
     this.customerProjects = [];
     this.filteredProjects = [];
     this.customerUsers = [];
     this.customerStats = null;
-
-    // Clear URL parameter
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { customer: null },
@@ -533,737 +397,664 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * Load customer projects (fallback method)
-   */
-  loadCustomerProjects(customerId: number): void {
-    this.isProjectsLoading = true;
+  // ============ EDIT CUSTOMER ============
+  openEditCustomerModal(): void {
+    if (!this.selectedCustomer) return;
 
-    console.log('Loading projects for customer (fallback):', customerId);
-
-    // Try API first, fallback to mock data
-    this.apiService.get(`customers/${customerId}/projects`)
-      .pipe(
-        takeUntil(this.destroy$),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Error loading customer projects:', error);
-          return of([]);
-        })
-      )
-      .subscribe({
-        next: (response: any) => {
-          this.isProjectsLoading = false;
-          
-          if (Array.isArray(response)) {
-            this.customerProjects = response as CustomerProjectItem[];
-          } else if (response && response.data && Array.isArray(response.data)) {
-            this.customerProjects = response.data as CustomerProjectItem[];
-          } else {
-            this.customerProjects = this.getMockProjects(customerId);
-          }
-
-          this.filterProjects();
-          console.log('Customer projects loaded:', this.customerProjects);
-        },
-        error: (error) => {
-          console.error('Subscription error:', error);
-          this.isProjectsLoading = false;
-          this.customerProjects = this.getMockProjects(customerId);
-          this.filterProjects();
-        }
-      });
+    this.isEditCustomerModalVisible = true;
+    this.customerForm.patchValue({
+      customer_name: this.selectedCustomer.company,
+      customer_email: this.selectedCustomer.email,
+      customer_phone: this.selectedCustomer.phone
+    });
   }
 
-  /**
-   * Load customer users (fallback method)
-   */
-  loadCustomerUsers(customerId: number): void {
-    console.log('Loading users for customer (fallback):', customerId);
-
-    this.apiService.get(`customers/${customerId}/users`)
-      .pipe(
-        takeUntil(this.destroy$),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Error loading customer users:', error);
-          return of([]);
-        })
-      )
-      .subscribe({
-        next: (response: any) => {
-          if (Array.isArray(response)) {
-            this.customerUsers = response as CustomerUserItem[];
-          } else if (response && response.data && Array.isArray(response.data)) {
-            this.customerUsers = response.data as CustomerUserItem[];
-          } else {
-            this.customerUsers = this.getMockUsers(customerId);
-          }
-
-          console.log('Customer users loaded:', this.customerUsers);
-        },
-        error: (error) => {
-          console.error('Subscription error:', error);
-          this.customerUsers = this.getMockUsers(customerId);
-        }
-      });
+  closeEditCustomerModal(): void {
+    if (!this.isSubmitting) {
+      this.customerForm.reset();
+      this.isEditCustomerModalVisible = false;
+    }
   }
 
-  /**
-   * Load customer stats (fallback method)
-   */
-  loadCustomerStats(customerId: number): void {
-    console.log('Loading stats for customer (fallback):', customerId);
+  onSubmitCustomer(): void {
+    if (!this.selectedCustomer || !this.customerForm.valid || this.isSubmitting) return;
 
-    this.apiService.get(`customers/${customerId}/stats`)
-      .pipe(
-        takeUntil(this.destroy$),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Error loading customer stats:', error);
-          return of(null);
-        })
-      )
-      .subscribe({
-        next: (response: any) => {
-          if (response && response.data) {
-            this.customerStats = response.data as CustomerStats;
-          } else {
-            this.customerStats = this.getMockStats(customerId);
-          }
-
-          console.log('Customer stats loaded:', this.customerStats);
-        },
-        error: (error) => {
-          console.error('Subscription error:', error);
-          this.customerStats = this.getMockStats(customerId);
-        }
-      });
-  }
-
-  /**
-   * Get mock projects for development
-   */
-  private getMockProjects(customerId: number): CustomerProjectItem[] {
-    const mockProjects: { [key: number]: CustomerProjectItem[] } = {
-      1: [
-        {
-          id: 1,
-          customer_id: 1,
-          name: 'ERP System Implementation',
-          description: 'Complete ERP system setup and integration',
-          status: 'active',
-          priority: 'high',
-          start_date: '2024-01-15',
-          end_date: '2024-12-31',
-          created_date: '2024-01-10T00:00:00Z',
-          created_by: 1,
-          open_tickets_count: 8
-        }
-      ],
-      2: [
-        {
-          id: 4,
-          customer_id: 2,
-          name: 'CRM Integration',
-          description: 'Customer relationship management system',
-          status: 'active',
-          priority: 'high',
-          start_date: '2024-02-01',
-          end_date: '2024-10-30',
-          created_date: '2024-01-20T00:00:00Z',
-          created_by: 1,
-          open_tickets_count: 5
-        }
-      ]
+    this.isSubmitting = true;
+    const formData: UpdateCustomerForProjectDto = {
+      customer_name: this.customerForm.get('customer_name')?.value?.trim(),
+      customer_email: this.customerForm.get('customer_email')?.value?.trim(),
+      customer_phone: this.customerForm.get('customer_phone')?.value?.trim() || undefined
     };
 
-    return mockProjects[customerId] || [];
-  }
-
-  /**
-   * Get mock users for development
-   */
-  private getMockUsers(customerId: number): CustomerUserItem[] {
-    const mockUsers: { [key: number]: CustomerUserItem[] } = {
-      1: [
-        {
-          id: 1,
-          customer_id: 1,
-          name: 'John Smith',
-          email: 'john.smith@abctech.com',
-          phone: '+66-2-123-4567',
-          role: 'Project Manager',
-          department: 'IT',
-          is_primary_contact: true,
-          status: 'active',
-          created_date: '2024-01-10T00:00:00Z',
-          created_by: 1
+    this.apiService.patch(`customer-for-project/cfp/update/${this.selectedCustomer.id}`, formData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(this.handleError.bind(this))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false;
+          if (response?.status === 1) {
+            this.updateCustomerData(formData);
+            this.closeEditCustomerModal();
+            this.showSuccess('Customer updated successfully!');
+            this.loadCFPData();
+          } else {
+            this.showError('Failed to update customer');
+          }
+        },
+        error: () => {
+          this.isSubmitting = false;
+          this.showError('Failed to update customer');
         }
-      ]
-    };
-
-    return mockUsers[customerId] || [];
+      });
   }
 
-  /**
-   * Get mock stats for development
-   */
-  private getMockStats(customerId: number): CustomerStats {
-    const mockStats: { [key: number]: CustomerStats } = {
-      1: {
-        total_projects: 8,
-        active_projects: 5,
-        total_users: 12,
-        open_tickets: 24
-      },
-      2: {
-        total_projects: 3,
-        active_projects: 2,
-        total_users: 8,
-        open_tickets: 12
+  private updateCustomerData(data: UpdateCustomerForProjectDto): void {
+    if (this.selectedCustomer && data) {
+      this.selectedCustomer.company = data.customer_name || this.selectedCustomer.company;
+      this.selectedCustomer.email = data.customer_email || this.selectedCustomer.email;
+      this.selectedCustomer.phone = data.customer_phone || this.selectedCustomer.phone;
+
+      const customerIndex = this.customers.findIndex(c => c.id === this.selectedCustomer?.id);
+      if (customerIndex >= 0) {
+        Object.assign(this.customers[customerIndex], this.selectedCustomer);
       }
-    };
-
-    return mockStats[customerId] || {
-      total_projects: 0,
-      active_projects: 0,
-      total_users: 0,
-      open_tickets: 0
-    };
+      this.filterCustomers();
+    }
   }
 
-  // ============ MODAL METHODS ============
+  deleteCustomer(): void {
+    if (!this.selectedCustomer) return;
 
-  /**
-   * Open create project modal
-   */
+    const confirmMessage = `Are you sure you want to delete customer "${this.selectedCustomer.company}"?`;
+    if (confirm(confirmMessage)) {
+      this.performDeleteCustomer();
+    }
+  }
+
+  private performDeleteCustomer(): void {
+    if (!this.selectedCustomer) return;
+
+    this.isLoading = true;
+    const customerId = this.selectedCustomer.id;
+    const customerName = this.selectedCustomer.company;
+
+    this.apiService.delete(`customer-for-project/cfp/delete/${customerId}`)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(this.handleError.bind(this))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isLoading = false;
+          if (response?.status === 1) {
+            this.customers = this.customers.filter(c => c.id !== customerId);
+            this.cfpData = this.cfpData.filter(c => c.customer_id !== customerId);
+            this.filterCustomers();
+            this.clearCustomerSelection();
+            this.showSuccess(`Customer "${customerName}" deleted successfully`);
+          } else {
+            this.showError('Failed to delete customer');
+          }
+        },
+        error: () => {
+          this.isLoading = false;
+          this.showError('Failed to delete customer');
+        }
+      });
+  }
+
+  // ============ CREATE PROJECT & USER MODALS ============
+  isCreateProjectModalVisible = false;
+  isCreateUserModalVisible = false;
+  projectForm!: FormGroup;
+  userForm!: FormGroup;
+
   openCreateProjectModal(): void {
     if (!this.selectedCustomer) return;
-    
-    console.log('Opening create project modal');
+
     this.isCreateProjectModalVisible = true;
     this.resetProjectForm();
   }
 
-  /**
-   * Close create project modal
-   */
   closeCreateProjectModal(): void {
-    console.log('Closing create project modal');
     if (!this.isSubmitting) {
       this.resetProjectForm();
       this.isCreateProjectModalVisible = false;
     }
   }
 
-  /**
-   * Open create user modal
-   */
   openCreateUserModal(): void {
     if (!this.selectedCustomer) return;
-    
-    console.log('Opening create user modal');
+
     this.isCreateUserModalVisible = true;
     this.resetUserForm();
   }
 
-  /**
-   * Close create user modal
-   */
   closeCreateUserModal(): void {
-    console.log('Closing create user modal');
     if (!this.isSubmitting) {
       this.resetUserForm();
       this.isCreateUserModalVisible = false;
     }
   }
 
-  /**
-   * Reset project form
-   */
   private resetProjectForm(): void {
+    if (!this.projectForm) {
+      this.projectForm = this.fb.group({
+        name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
+        description: [''],
+        priority: ['medium', [Validators.required]],
+        start_date: [''],
+        end_date: [''],
+        status: ['active', [Validators.required]]
+      });
+    }
     this.projectForm.reset({
       priority: 'medium',
       status: 'active'
     });
-    this.isSubmitting = false;
   }
 
-  /**
-   * Reset user form
-   */
   private resetUserForm(): void {
+    if (!this.userForm) {
+      this.userForm = this.fb.group({
+        name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
+        email: ['', [Validators.required, Validators.email]],
+        phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]],
+        role: ['End User', [Validators.required]],
+        department: [''],
+        is_primary_contact: [false]
+      });
+    }
     this.userForm.reset({
       role: 'End User',
       is_primary_contact: false
     });
-    this.isSubmitting = false;
   }
 
-  /**
-   * Submit project form
-   */
   onSubmitProject(): void {
-    if (!this.selectedCustomer) return;
+    if (!this.selectedCustomer || !this.projectForm.valid || this.isSubmitting) return;
 
-    console.log('Project form submitted');
-    console.log('Form valid:', this.projectForm.valid);
-    console.log('Form value:', this.projectForm.value);
+    this.isSubmitting = true;
+    const formData = {
+      customer_id: this.selectedCustomer.id,
+      name: this.projectForm.get('name')?.value?.trim(),
+      description: this.projectForm.get('description')?.value?.trim() || undefined,
+      priority: this.projectForm.get('priority')?.value,
+      start_date: this.projectForm.get('start_date')?.value || undefined,
+      end_date: this.projectForm.get('end_date')?.value || undefined,
+      status: this.projectForm.get('status')?.value
+    };
 
-    if (this.projectForm.valid && !this.isSubmitting) {
-      this.isSubmitting = true;
-
-      const formData: CreateCustomerProjectDto = {
-        customer_id: this.selectedCustomer.id,
-        name: this.projectForm.get('name')?.value.trim(),
-        description: this.projectForm.get('description')?.value?.trim() || undefined,
-        priority: this.projectForm.get('priority')?.value,
-        start_date: this.projectForm.get('start_date')?.value || undefined,
-        end_date: this.projectForm.get('end_date')?.value || undefined,
-        status: this.projectForm.get('status')?.value
-      };
-
-      // เรียก API endpoint /api/customer-projects
-      this.apiService.post('customer-projects', formData)
-        .pipe(
-          takeUntil(this.destroy$),
-          catchError((error: HttpErrorResponse) => {
-            console.error('Error creating project:', error);
-            this.handleCreateProjectError(error);
-            return of(null);
-          })
-        )
-        .subscribe({
-          next: (response: any) => {
-            this.isSubmitting = false;
-            
-            if (response === null) {
-              return;
-            }
-
-            let createdProject: CustomerProjectItem | null = null;
-
-            if (response && response.data && typeof response.data === 'object' && response.data.id) {
-              createdProject = response.data as CustomerProjectItem;
-            } else if (response && typeof response === 'object' && response.id) {
-              createdProject = response as CustomerProjectItem;
-            }
-
-            if (createdProject) {
-              this.onProjectCreated(createdProject);
-            } else {
-              this.showErrorMessage('Failed to create project. Please try again.');
-            }
-          },
-          error: (error) => {
-            console.error('Subscription error:', error);
-            this.isSubmitting = false;
-            this.handleCreateProjectError(error);
+    this.apiService.post('customer-projects', formData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(this.handleError.bind(this))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false;
+          if (response && (response.data?.id || response.id)) {
+            const createdProject = response.data || response;
+            this.onProjectCreated(createdProject);
+            this.closeCreateProjectModal();
+            this.showSuccess('Project created successfully!');
+            this.loadCFPData();
+          } else {
+            this.showError('Failed to create project');
           }
-        });
-    } else {
-      console.log('Form invalid, marking all fields as touched');
-      Object.keys(this.projectForm.controls).forEach(key => {
-        const control = this.projectForm.get(key);
-        control?.markAsTouched();
+        },
+        error: () => {
+          this.isSubmitting = false;
+          this.showError('Failed to create project');
+        }
       });
-    }
   }
 
-  /**
-   * Submit user form
-   */
   onSubmitUser(): void {
-    if (!this.selectedCustomer) return;
+    if (!this.selectedCustomer || !this.userForm.valid || this.isSubmitting) return;
 
-    console.log('User form submitted');
-    console.log('Form valid:', this.userForm.valid);
-    console.log('Form value:', this.userForm.value);
+    this.isSubmitting = true;
+    const formData = {
+      customer_id: this.selectedCustomer.id,
+      name: this.userForm.get('name')?.value?.trim(),
+      email: this.userForm.get('email')?.value?.trim(),
+      phone: this.userForm.get('phone')?.value?.trim() || undefined,
+      role: this.userForm.get('role')?.value,
+      department: this.userForm.get('department')?.value?.trim() || undefined,
+      is_primary_contact: this.userForm.get('is_primary_contact')?.value || false
+    };
 
-    if (this.userForm.valid && !this.isSubmitting) {
-      this.isSubmitting = true;
-
-      const formData = {
-        customer_id: this.selectedCustomer.id,
-        name: this.userForm.get('name')?.value.trim(),
-        email: this.userForm.get('email')?.value.trim(),
-        phone: this.userForm.get('phone')?.value?.trim() || undefined,
-        role: this.userForm.get('role')?.value,
-        department: this.userForm.get('department')?.value?.trim() || undefined,
-        is_primary_contact: this.userForm.get('is_primary_contact')?.value || false
-      };
-
-      // เรียก API endpoint /api/customer-users
-      this.apiService.post('customer-users', formData)
-        .pipe(
-          takeUntil(this.destroy$),
-          catchError((error: HttpErrorResponse) => {
-            console.error('Error creating user:', error);
-            this.handleCreateUserError(error);
-            return of(null);
-          })
-        )
-        .subscribe({
-          next: (response: any) => {
-            this.isSubmitting = false;
-            
-            if (response === null) {
-              return;
-            }
-
-            let createdUser: CustomerUserItem | null = null;
-
-            if (response && response.data && typeof response.data === 'object' && response.data.id) {
-              createdUser = response.data as CustomerUserItem;
-            } else if (response && typeof response === 'object' && response.id) {
-              createdUser = response as CustomerUserItem;
-            }
-
-            if (createdUser) {
-              this.onUserCreated(createdUser);
-            } else {
-              this.showErrorMessage('Failed to create user. Please try again.');
-            }
-          },
-          error: (error) => {
-            console.error('Subscription error:', error);
-            this.isSubmitting = false;
-            this.handleCreateUserError(error);
+    this.apiService.post('customer-users', formData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(this.handleError.bind(this))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false;
+          if (response && (response.data?.id || response.id)) {
+            const createdUser = response.data || response;
+            this.onUserCreated(createdUser);
+            this.closeCreateUserModal();
+            this.showSuccess('User created successfully!');
+            this.loadCFPData();
+          } else {
+            this.showError('Failed to create user');
           }
-        });
-    } else {
-      console.log('Form invalid, marking all fields as touched');
-      Object.keys(this.userForm.controls).forEach(key => {
-        const control = this.userForm.get(key);
-        control?.markAsTouched();
+        },
+        error: () => {
+          this.isSubmitting = false;
+          this.showError('Failed to create user');
+        }
       });
-    }
   }
 
-  /**
-   * Handle project creation success
-   */
-  onProjectCreated(newProject: CustomerProjectItem): void {
-    console.log('New project created:', newProject);
-    
-    // เพิ่มเข้า projects array
+  private onProjectCreated(newProject: CustomerProjectItem): void {
     this.customerProjects.unshift(newProject);
     this.filterProjects();
-
-    // อัพเดท stats
     if (this.customerStats) {
       this.customerStats.total_projects++;
       if (newProject.status === 'active') {
         this.customerStats.active_projects++;
       }
     }
-
-    // ปิด modal
-    this.isCreateProjectModalVisible = false;
-
-    // แสดงข้อความสำเร็จ
-    this.showSuccessMessage(`Project "${newProject.name}" has been created successfully!`);
-    
-    // Refresh CFP data to get updated information
-    this.loadCFPData();
   }
 
-  /**
-   * Handle user creation success
-   */
-  onUserCreated(newUser: CustomerUserItem): void {
-    console.log('New user created:', newUser);
-    
-    // เพิ่มเข้า users array
+  private onUserCreated(newUser: CustomerUserItem): void {
     this.customerUsers.unshift(newUser);
-
-    // อัพเดท stats
     if (this.customerStats) {
       this.customerStats.total_users++;
     }
+  }
 
-    // ปิด modal
-    this.isCreateUserModalVisible = false;
+  getProjectDescriptionLength(): number {
+    return this.projectForm?.get('description')?.value?.length || 0;
+  }
 
-    // แสดงข้อความสำเร็จ
-    this.showSuccessMessage(`User "${newUser.name}" has been created successfully!`);
-    
-    // Refresh CFP data to get updated information
+  // Add loadCustomers method for template compatibility
+  loadCustomers(): void {
     this.loadCFPData();
   }
 
-  /**
-   * Handle project creation error
-   */
-  private handleCreateProjectError(error: HttpErrorResponse): void {
-    this.isSubmitting = false;
-    
-    let errorMessage = 'Failed to create project. Please try again.';
-    
-    if (error.status === 401) {
-      errorMessage = 'Authentication required. Please log in again.';
-      this.authService.logout();
-      this.router.navigate(['/login']);
-    } else if (error.status === 403) {
-      errorMessage = 'You do not have permission to create projects.';
-    } else if (error.status === 400) {
-      if (error.error?.message) {
-        errorMessage = error.error.message;
-      } else if (error.error?.errors) {
-        const errors = error.error.errors;
-        errorMessage = Array.isArray(errors) ? errors.join(', ') : errors;
-      }
-    } else if (error.status >= 500) {
-      errorMessage = 'Server error occurred. Please try again later.';
-    } else if (error.error?.message) {
-      errorMessage = error.error.message;
-    }
+  // ============ ASSIGN PROJECT ============
+  openAssignProjectModal(): void {
+    if (!this.selectedCustomer) return;
 
-    this.showErrorMessage(errorMessage);
+    this.isAssignProjectModalVisible = true;
+    this.resetAssignProjectForm();
+    this.loadProjectDDL();
+    this.loadAllUsers();
   }
 
-  /**
-   * Handle user creation error
-   */
-  private handleCreateUserError(error: HttpErrorResponse): void {
-    this.isSubmitting = false;
-    
-    let errorMessage = 'Failed to create user. Please try again.';
-    
-    if (error.status === 401) {
-      errorMessage = 'Authentication required. Please log in again.';
-      this.authService.logout();
-      this.router.navigate(['/login']);
-    } else if (error.status === 403) {
-      errorMessage = 'You do not have permission to create users.';
-    } else if (error.status === 400) {
-      if (error.error?.message) {
-        errorMessage = error.error.message;
-      } else if (error.error?.errors) {
-        const errors = error.error.errors;
-        errorMessage = Array.isArray(errors) ? errors.join(', ') : errors;
-      }
-    } else if (error.status >= 500) {
-      errorMessage = 'Server error occurred. Please try again later.';
-    } else if (error.error?.message) {
-      errorMessage = error.error.message;
-    }
-
-    this.showErrorMessage(errorMessage);
-  }
-
-  /**
-   * Edit project
-   */
-  editProject(projectId: number): void {
-    console.log('Navigating to edit project:', projectId);
-    this.router.navigate(['/settings/project-edit', projectId]);
-  }
-
-  /**
-   * Delete project with confirmation
-   */
-  deleteProject(projectId: number): void {
-    const project = this.customerProjects.find(p => p.id === projectId);
-    if (!project) {
-      console.error('Project not found:', projectId);
-      return;
-    }
-
-    const confirmMessage = `Are you sure you want to delete project "${project.name}"?\n\nThis action cannot be undone.`;
-
-    if (confirm(confirmMessage)) {
-      this.performDeleteProject(projectId, project.name);
+  closeAssignProjectModal(): void {
+    if (!this.isSubmitting) {
+      this.resetAssignProjectForm();
+      this.isAssignProjectModalVisible = false;
     }
   }
 
-  /**
-   * Perform project deletion
-   */
-  private performDeleteProject(projectId: number, projectName: string): void {
-    console.log('Deleting project via API:', { projectId, projectName });
+  private resetAssignProjectForm(): void {
+    this.assignProjectForm.reset();
+    this.selectedProject = null;
+    this.selectedUsers = [];
+    this.filteredUsers = [];
+    this.userSearchTerm = '';
+  }
 
-    this.isProjectsLoading = true;
+  private loadProjectDDL(): void {
+    this.isLoadingProjects = true;
 
-    // เรียก API endpoint DELETE /api/customer-projects/{id}
-    this.apiService.delete(`customer-projects/${projectId}`)
+    this.apiService.get('projects/all')
       .pipe(
         takeUntil(this.destroy$),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Error deleting project:', error);
-          this.showErrorMessage(`Failed to delete project "${projectName}". Please try again.`);
-          this.isProjectsLoading = false;
-          return of(null);
-        })
+        catchError(() => of({ code: 0, data: null }))
       )
       .subscribe({
         next: (response: any) => {
-          // ลบออกจาก local array
-          this.customerProjects = this.customerProjects.filter(p => p.id !== projectId);
-          this.filterProjects();
-
-          // อัพเดท stats
-          if (this.customerStats) {
-            this.customerStats.total_projects--;
-            const deletedProject = this.customerProjects.find(p => p.id === projectId);
-            if (deletedProject && deletedProject.status === 'active') {
-              this.customerStats.active_projects--;
-            }
+          this.isLoadingProjects = false;
+          if (response?.code === 1 && response.data) {
+            this.availableProjects = response.data;
+          } else {
+            // this.availableProjects = this.getMockProjects();
           }
-
-          // แสดงข้อความสำเร็จ
-          this.showSuccessMessage(`Project "${projectName}" has been deleted successfully.`);
-          this.isProjectsLoading = false;
-          
-          // Refresh CFP data to get updated information
-          this.loadCFPData();
         },
-        error: (error) => {
-          console.error('Subscription error:', error);
-          this.showErrorMessage(`Failed to delete project "${projectName}". Please try again.`);
-          this.isProjectsLoading = false;
+        error: () => {
+          this.isLoadingProjects = false;
+          // this.availableProjects = this.getMockProjects();
         }
       });
   }
 
-  /**
-   * View project details
-   */
-  viewProject(projectId: number): void {
-    console.log('Navigating to view project:', projectId);
-    this.router.navigate(['/projects', projectId]);
+  private loadAllUsers(): void {
+    this.isLoadingUsers = true;
+
+    this.apiService.get('users/Allusers')
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => of([]))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isLoadingUsers = false;
+          const userData = Array.isArray(response) ? response :
+            response?.data ? response.data :
+              response?.status === 1 && response.data ? response.data : [];
+
+          this.systemUsers = this.transformUsersResponse(userData);
+          this.filteredUsers = [...this.systemUsers];
+        },
+        error: () => {
+          this.isLoadingUsers = false;
+          // this.systemUsers = this.getMockUsers();
+          this.filteredUsers = [...this.systemUsers];
+        }
+      });
   }
 
-  /**
-   * Export customer data
-   */
-  exportCustomerData(): void {
-    if (!this.selectedCustomer) return;
+  private transformUsersResponse(users: any[]): SystemUser[] {
+    if (!Array.isArray(users)) return [];
 
-    console.log('Exporting customer data');
-    // TODO: Implement export functionality
-    this.showSuccessMessage('Export feature will be implemented soon.');
+    return users.map(user => ({
+      id: user.id,
+      name: user.name || user.username || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+      username: user.username,
+      email: user.email,
+      role: user.role || user.position || 'User',
+      department: user.department,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      position: user.position,
+      phone: user.phone,
+      is_available: true,
+      current_projects_count: 0
+    }));
   }
 
-  /**
-   * Refresh customer data
-   */
-  refreshCustomerData(): void {
-    if (!this.selectedCustomer) {
-      this.loadCFPData();
+  onProjectSelect(): void {
+    const projectId = this.assignProjectForm.get('project_id')?.value;
+    this.selectedProject = this.availableProjects.find(p => p.id === parseInt(projectId)) || null;
+  }
+
+  toggleUserSelection(user: SystemUser): void {
+    // ✅ เพิ่ม user เท่านั้น ถ้ายังไม่ได้เลือก
+    if (!this.selectedUsers.some(u => u.id === user.id)) {
+      this.selectedUsers.push(user);
+
+      this.assignProjectForm.patchValue({
+        assigned_user_ids: this.selectedUsers.map(u => u.id)
+      });
+
+      // ✅ ซ่อน user ที่เลือกไปแล้วออกจากรายการ
+      this.filterUsers();
+    }
+  }
+
+  removeSelectedUser(user: SystemUser): void {
+    const index = this.selectedUsers.findIndex(u => u.id === user.id);
+    if (index >= 0) {
+      this.selectedUsers.splice(index, 1);
+
+      this.assignProjectForm.patchValue({
+        assigned_user_ids: this.selectedUsers.map(u => u.id)
+      });
+
+      // ✅ แสดง user กลับในรายการ
+      this.filterUsers();
+    }
+  }
+
+  onSubmitAssignProject(): void {
+    if (!this.selectedCustomer || !this.assignProjectForm.valid ||
+      this.isSubmitting || this.selectedUsers.length === 0) {
+      if (this.selectedUsers.length === 0) {
+        this.showError('Please select at least one user');
+      }
       return;
     }
 
-    console.log('Refreshing customer data');
-    const selectedCustomerId = this.selectedCustomer.id;
-    
-    // Refresh from CFP data
-    this.loadCFPData();
-    
-    // Wait a moment for data to load, then refresh customer-specific data
-    setTimeout(() => {
-      this.loadCustomerDataFromCFP(selectedCustomerId);
-    }, 100);
+    this.isSubmitting = true;
+    const formData: CreateCustomerForProjectDto = {
+      customer_name: this.selectedCustomer.company,
+      customer_email: this.selectedCustomer.email,
+      customer_phone: this.selectedCustomer.phone || '',
+      project_id: parseInt(this.assignProjectForm.get('project_id')?.value),
+      assigned_user_ids: this.selectedUsers.map(user => user.id)
+    };
+
+    this.apiService.post('customer-for-project', formData)
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(this.handleError.bind(this))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isSubmitting = false;
+          if (response && (response.status === 1 || response.code === 1)) {
+            this.onProjectAssignedSuccess();
+            this.closeAssignProjectModal();
+            this.showSuccess('Project assigned successfully!');
+            this.loadCFPData();
+          } else {
+            this.showError('Failed to assign project');
+          }
+        },
+        error: () => {
+          this.isSubmitting = false;
+          this.showError('Failed to assign project');
+        }
+      });
+  }
+
+  private onProjectAssignedSuccess(): void {
+    if (this.selectedProject && this.selectedCustomer) {
+      const newProject: CustomerProjectItem = {
+        id: Math.floor(Math.random() * 1000),
+        customer_id: this.selectedCustomer.id,
+        name: this.selectedProject.name,
+        description: `Project assigned with ${this.selectedUsers.length} users`,
+        status: 'active',
+        priority: 'medium',
+        created_date: new Date().toISOString(),
+        created_by: 1,
+        open_tickets_count: 0,
+        assigned_user_names: this.selectedUsers.map(u => this.getUserDisplayName(u)),
+        user_count: this.selectedUsers.length,
+        assigned_users: []
+      };
+
+      this.customerProjects.unshift(newProject);
+      this.filterProjects();
+
+      if (this.customerStats) {
+        this.customerStats.total_projects++;
+        this.customerStats.active_projects++;
+        this.customerStats.total_users += this.selectedUsers.length;
+      }
+    }
+  }
+
+  // ============ FILTERING ============
+  filterCustomers(): void {
+    const searchTerm = this.customerSearchTerm.toLowerCase();
+    this.filteredCustomers = this.customers.filter(customer =>
+      !searchTerm ||
+      customer.company.toLowerCase().includes(searchTerm) ||
+      customer.email.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  filterProjects(): void {
+    const searchTerm = this.projectSearchTerm.toLowerCase();
+    this.filteredProjects = this.customerProjects.filter(project => {
+      const matchesSearch = !searchTerm ||
+        project.name.toLowerCase().includes(searchTerm) ||
+        (project.description && project.description.toLowerCase().includes(searchTerm));
+
+      const matchesStatus = this.selectedStatusFilter === 'all' ||
+        project.status === this.selectedStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }
+
+  onUserSearchChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.userSearchTerm = input.value;
+    this.filterUsers();
+  }
+
+  filterUsers(): void {
+    const searchTerm = this.userSearchTerm.toLowerCase();
+
+    this.filteredUsers = this.systemUsers.filter(user => {
+      const displayName = this.getUserDisplayName(user);
+
+      const matchSearch =
+        !searchTerm ||
+        displayName.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm));
+
+      const notSelected = !this.selectedUsers.some(u => u.id === user.id);
+
+      return matchSearch && notSelected;
+    });
+  }
+
+
+  // Event handlers
+  onCustomerSearchChange(): void { this.filterCustomers(); }
+  onProjectSearchChange(): void { this.filterProjects(); }
+  onStatusFilterChange(): void { this.filterProjects(); }
+
+  // ============ PROJECT ACTIONS ============
+  editProject(projectId: number): void {
+    this.router.navigate(['/settings/project-edit', projectId]);
+  }
+
+  viewProject(projectId: number): void {
+    this.router.navigate(['/projects', projectId]);
+  }
+
+  deleteProject(projectId: number): void {
+    const project = this.customerProjects.find(p => p.id === projectId);
+    if (!project) return;
+
+    if (confirm(`Delete project "${project.name}"?`)) {
+      this.isProjectsLoading = true;
+      this.apiService.delete(`customer-projects/${projectId}`)
+        .subscribe({
+          next: () => {
+            this.customerProjects = this.customerProjects.filter(p => p.id !== projectId);
+            this.filterProjects();
+            if (this.customerStats) this.customerStats.total_projects--;
+            this.showSuccess('Project deleted successfully');
+            this.isProjectsLoading = false;
+            this.loadCFPData();
+          },
+          error: () => {
+            this.isProjectsLoading = false;
+            this.showError('Failed to delete project');
+          }
+        });
+    }
+  }
+
+  exportCustomerData(): void {
+    this.showSuccess('Export feature will be implemented soon');
+  }
+
+  refreshCustomerData(): void {
+    if (this.selectedCustomer) {
+      const selectedId = this.selectedCustomer.id;
+      this.loadCFPData();
+      setTimeout(() => this.loadCustomerData(selectedId), 100);
+    } else {
+      this.loadCFPData();
+    }
   }
 
   // ============ UTILITY METHODS ============
+  isFieldInvalid(formName: 'customer' | 'assign' | 'project' | 'user', fieldName: string): boolean {
+    let form: FormGroup;
 
-  /**
-   * Check if field is invalid
-   */
-  isFieldInvalid(formName: 'project' | 'user', fieldName: string): boolean {
-    const form = formName === 'project' ? this.projectForm : this.userForm;
-    const field = form.get(fieldName);
+    switch (formName) {
+      case 'customer':
+        form = this.customerForm;
+        break;
+      case 'assign':
+        form = this.assignProjectForm;
+        break;
+      case 'project':
+        form = this.projectForm;
+        break;
+      case 'user':
+        form = this.userForm;
+        break;
+      default:
+        return false;
+    }
+
+    const field = form?.get(fieldName);
     return !!(field && field.invalid && (field.dirty || field.touched));
   }
 
-  /**
-   * Get description length for project form
-   */
-  getProjectDescriptionLength(): number {
-    const descValue = this.projectForm.get('description')?.value;
-    return descValue ? descValue.length : 0;
-  }
-
-  /**
-   * Get customer avatar letter
-   */
   getCustomerAvatarLetter(companyName: string): string {
     return companyName ? companyName.charAt(0).toUpperCase() : '?';
   }
 
-  /**
-   * Get project avatar letter
-   */
   getProjectAvatarLetter(projectName: string): string {
     return projectName ? projectName.charAt(0).toUpperCase() : '?';
   }
 
-  /**
-   * Get user avatar letter
-   */
-  getUserAvatarLetter(userName: string): string {
-    return userName ? userName.charAt(0).toUpperCase() : '?';
+  getUserAvatarLetter(user: string | SystemUser | undefined): string {
+    if (!user) return '?';
+    if (typeof user === 'string') {
+      return user ? user.charAt(0).toUpperCase() : '?';
+    }
+    const displayName = this.getUserDisplayName(user);
+    return displayName ? displayName.charAt(0).toUpperCase() : '?';
   }
 
-  /**
-   * Get tier badge class
-   */
+  getUserDisplayName(user: SystemUser): string {
+    return user.name || user.username || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+  }
+
   getTierBadgeClass(tier: string): string {
-    switch (tier.toLowerCase()) {
-      case 'enterprise':
-        return 'tier-enterprise';
-      case 'premium':
-        return 'tier-premium';
-      case 'standard':
-        return 'tier-standard';
-      default:
-        return 'tier-default';
-    }
+    const tierMap: { [key: string]: string } = {
+      enterprise: 'tier-enterprise',
+      premium: 'tier-premium',
+      standard: 'tier-standard'
+    };
+    return tierMap[tier.toLowerCase()] || 'tier-default';
   }
 
-  /**
-   * Get status badge class
-   */
   getStatusBadgeClass(status: string): string {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return 'status-active';
-      case 'inactive':
-        return 'status-inactive';
-      case 'completed':
-        return 'status-completed';
-      default:
-        return 'status-default';
-    }
+    const statusMap: { [key: string]: string } = {
+      active: 'status-active',
+      inactive: 'status-inactive',
+      completed: 'status-completed'
+    };
+    return statusMap[status.toLowerCase()] || 'status-default';
   }
 
-  /**
-   * Get priority badge class
-   */
   getPriorityBadgeClass(priority: string): string {
-    switch (priority.toLowerCase()) {
-      case 'high':
-        return 'priority-high';
-      case 'medium':
-        return 'priority-medium';
-      case 'low':
-        return 'priority-low';
-      default:
-        return 'priority-default';
-    }
+    const priorityMap: { [key: string]: string } = {
+      high: 'priority-high',
+      medium: 'priority-medium',
+      low: 'priority-low'
+    };
+    return priorityMap[priority.toLowerCase()] || 'priority-default';
   }
 
-  /**
-   * Get tickets count class
-   */
   getTicketsCountClass(count: number): string {
     if (count === 0) return 'tickets-zero';
     if (count > 5) return 'tickets-high';
     return 'tickets-medium';
   }
 
-  /**
-   * Format date for display
-   */
   formatDate(dateString: string | undefined): string {
     if (!dateString) return 'N/A';
 
@@ -1282,75 +1073,36 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Show success message
-   */
-  private showSuccessMessage(message: string): void {
-    // คุณสามารถแทนที่ด้วย toast notification service
-    alert(message);
-    console.log('Success:', message);
-  }
-
-  /**
-   * Show error message
-   */
-  private showErrorMessage(message: string): void {
-    // คุณสามารถแทนที่ด้วย toast notification service
-    alert(message);
-    console.error('Error:', message);
-  }
-
   // ============ PERMISSION METHODS ============
-
-  /**
-   * Check if user can manage customer projects
-   */
   canManageCustomerProjects(): boolean {
-    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
-      this.authService.isAdmin();
+    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  /**
-   * Check if user can create projects
-   */
   canCreateProjects(): boolean {
-    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
-      this.authService.isAdmin();
+    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  /**
-   * Check if user can edit project
-   */
+  canEditCustomers(): boolean {
+    return this.authService.hasPermission(permissionEnum.MANAGE_CUSTOMER) || this.authService.isAdmin();
+  }
+
+  canDeleteCustomers(): boolean {
+    return this.authService.hasPermission(permissionEnum.MANAGE_CUSTOMER) || this.authService.isAdmin();
+  }
+
   canEditProject(project: CustomerProjectItem): boolean {
-    if (this.authService.isAdmin()) {
-      return true;
-    }
-
-    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT);
+    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  /**
-   * Check if user can delete project
-   */
   canDeleteProject(project: CustomerProjectItem): boolean {
-    if (this.authService.isAdmin()) {
-      return true;
-    }
-
-    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT);
+    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  /**
-   * Check if user can create users
-   */
   canCreateUsers(): boolean {
-    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) ||
-      this.authService.isAdmin();
+    return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  /**
-   * Track by function for ngFor optimization
-   */
+  // ============ TRACK BY FUNCTIONS ============
   trackByCustomerId(index: number, customer: CustomerItem): number {
     return customer.id;
   }
@@ -1362,4 +1114,135 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   trackByUserId(index: number, user: CustomerUserItem): number {
     return user.id;
   }
+
+  // ============ ERROR HANDLING ============
+  private handleError(error: HttpErrorResponse) {
+    console.error('API Error:', error);
+
+    if (error.status === 401) {
+      this.authService.logout();
+      this.router.navigate(['/login']);
+    }
+
+    return of(null);
+  }
+
+  private showSuccess(message: string): void {
+    // Replace with your toast notification service
+    alert(message);
+    console.log('Success:', message);
+  }
+
+  private showError(message: string): void {
+    // Replace with your toast notification service
+    alert(message);
+    console.error('Error:', message);
+  }
+
+  // ============ MOCK DATA (for development) ============
+  // private getMockCustomers(): CustomerItem[] {
+  //   return [
+  //     {
+  //       id: 1,
+  //       company: 'ABC Technology Co., Ltd.',
+  //       address: '123 Technology Drive, Bangkok 10110',
+  //       email: 'contact@abctech.com',
+  //       phone: '+66-2-123-4567',
+  //       tier: 'Enterprise',
+  //       status: 'active',
+  //       created_date: '2024-01-10T00:00:00Z',
+  //       created_by: 1,
+  //       total_projects: 8,
+  //       total_users: 12,
+  //       total_open_tickets: 24
+  //     },
+  //     {
+  //       id: 2,
+  //       company: 'XYZ Solutions Ltd.',
+  //       address: '456 Business Avenue, Chiang Mai 50000',
+  //       email: 'info@xyzsolutions.co.th',
+  //       phone: '+66-53-987-6543',
+  //       tier: 'Premium',
+  //       status: 'active',
+  //       created_date: '2024-01-15T00:00:00Z',
+  //       created_by: 1,
+  //       total_projects: 3,
+  //       total_users: 8,
+  //       total_open_tickets: 12
+  //     }
+  //   ];
+  // }
+
+  // private getMockProjects(): ProjectDDLItem[] {
+  //   return [
+  //     { 
+  //       id: 101, 
+  //       name: 'Mobile App Development',
+  //       description: 'Cross-platform mobile application for e-commerce',
+  //       status: 'active',
+  //       current_users_count: 3,
+  //       estimated_hours: 800,
+  //       budget: 150000
+  //     },
+  //     { 
+  //       id: 102, 
+  //       name: 'Data Analytics Dashboard',
+  //       description: 'Business intelligence dashboard for sales analytics',
+  //       status: 'active',
+  //       current_users_count: 2,
+  //       estimated_hours: 400,
+  //       budget: 80000
+  //     },
+  //     { 
+  //       id: 103, 
+  //       name: 'Cloud Migration Project',
+  //       description: 'Migration of legacy systems to cloud infrastructure',
+  //       status: 'active',
+  //       current_users_count: 4,
+  //       estimated_hours: 1200,
+  //       budget: 200000
+  //     },
+  //     { 
+  //       id: 104, 
+  //       name: 'Security Audit System',
+  //       description: 'Comprehensive security audit and compliance system',
+  //       status: 'active',
+  //       current_users_count: 2,
+  //       estimated_hours: 600,
+  //       budget: 120000
+  //     }
+  //   ];
+  // }
+
+  // private getMockUsers(): SystemUser[] {
+  //   return [
+  //     {
+  //       id: 201,
+  //       name: 'Alice Johnson',
+  //       email: 'alice.johnson@company.com',
+  //       role: 'Project Manager',
+  //       department: 'IT',
+  //       is_available: true,
+  //       current_projects_count: 2
+  //     },
+  //     {
+  //       id: 202,
+  //       name: 'Bob Smith',
+  //       email: 'bob.smith@company.com',
+  //       role: 'Senior Developer',
+  //       department: 'Development',
+  //       is_available: true,
+  //       current_projects_count: 1
+  //     },
+  //     {
+  //       id: 203,
+  //       name: 'Carol Davis',
+  //       email: 'carol.davis@company.com',
+  //       role: 'Business Analyst',
+  //       department: 'Business',
+  //       is_available: true,
+  //       current_projects_count: 3
+  //     }
+  //   ];
+  // }
 }
