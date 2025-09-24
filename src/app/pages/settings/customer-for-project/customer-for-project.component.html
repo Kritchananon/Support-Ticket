@@ -177,7 +177,7 @@
   </div>
 </div>
 
-<!-- Create Project Modal (เก็บไว้สำหรับอนาคต) -->
+<!-- Create Project Modal -->
 <div class="modal-backdrop" *ngIf="isCreateProjectModalVisible" (click)="closeCreateProjectModal()">
   <div class="modal-container" (click)="$event.stopPropagation()">
     <div class="modal-header">
@@ -272,7 +272,9 @@
       </div>
     </form>
   </div>
-</div><!-- Breadcrumb -->
+</div>
+
+<!-- Breadcrumb -->
 <div class="breadcrumb">
   <span class="breadcrumb-item inactive">Settings</span>
   <svg class="breadcrumb-separator" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -350,15 +352,15 @@
       <div class="card-contact">{{ customer.email }}</div>
       <div class="card-stats">
         <div class="stat-item">
-          <div class="stat-number">{{ customer.total_projects || (customer.id === 1 ? '8' : customer.id === 2 ? '3' : customer.id === 3 ? '2' : customer.id === 4 ? '5' : customer.id === 5 ? '6' : '1') }}</div>
+          <div class="stat-number">{{ customer.total_projects }}</div>
           <div class="stat-label">Projects</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number">{{ customer.total_users || (customer.id === 1 ? '12' : customer.id === 2 ? '8' : customer.id === 3 ? '5' : customer.id === 4 ? '15' : customer.id === 5 ? '10' : '3') }}</div>
+          <div class="stat-number">{{ customer.total_users }}</div>
           <div class="stat-label">Users</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number">{{ customer.total_open_tickets || (customer.id === 1 ? '24' : customer.id === 2 ? '12' : customer.id === 3 ? '7' : customer.id === 4 ? '18' : customer.id === 5 ? '16' : '2') }}</div>
+          <div class="stat-number">{{ customer.total_open_tickets }}</div>
           <div class="stat-label">Open Tickets</div>
         </div>
       </div>
@@ -379,7 +381,7 @@
 
 <!-- Selected Customer Section -->
 <div class="selected-customer-section" *ngIf="selectedCustomer && customerStats">
-  <!-- Customer Header with Edit/Delete Actions -->
+  <!-- Customer Header -->
   <div class="customer-header">
     <div class="customer-info">
       <div class="customer-avatar-large">
@@ -393,26 +395,6 @@
           <span class="customer-tier-large">⭐ {{ selectedCustomer.tier }}</span>
         </div>
       </div>
-    </div>
-    
-    <!-- Customer Action Buttons -->
-    <div class="customer-actions" *ngIf="canEditCustomers() || canDeleteCustomers()">
-      <button class="btn btn-secondary" 
-              (click)="openEditCustomerModal()" 
-              *ngIf="canEditCustomers()">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
-        </svg>
-        Edit Customer
-      </button>
-      <button class="btn btn-danger" 
-              (click)="deleteCustomer()" 
-              *ngIf="canDeleteCustomers()">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M5.5 1a.5.5 0 0 0-.5.5v.5h4v-.5a.5.5 0 0 0-.5-.5h-3zM3 3v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3H3z" />
-        </svg>
-        Delete Customer
-      </button>
     </div>
   </div>
 
@@ -546,13 +528,14 @@
           </td>
           <td class="table-cell">
             <div class="action-buttons">
+              <!-- Updated Edit button to call editCustomer with customer ID -->
               <button class="action-btn edit" 
-                      (click)="editProject(project.id)" 
-                      *ngIf="canEditProject(project)">
+                      (click)="editCustomer(project.customer_id)" 
+                      *ngIf="canEditCustomers()">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                   <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
                 </svg>
-                Edit
+                Edit Customer
               </button>
               <button class="action-btn view" (click)="viewProject(project.id)">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -560,13 +543,14 @@
                 </svg>
                 View
               </button>
+              <!-- Updated Delete button to call deleteCustomer with customer ID -->
               <button class="action-btn delete" 
-                      (click)="deleteProject(project.id)" 
-                      *ngIf="canDeleteProject(project)">
+                      (click)="deleteCustomer(project.customer_id)" 
+                      *ngIf="canDeleteCustomers()">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                   <path d="M5.5 1a.5.5 0 0 0-.5.5v.5h4v-.5a.5.5 0 0 0-.5-.5h-3zM3 3v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3H3z" />
                 </svg>
-                Delete
+                Delete Customer
               </button>
             </div>
           </td>

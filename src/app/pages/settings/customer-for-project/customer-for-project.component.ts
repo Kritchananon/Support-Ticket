@@ -115,11 +115,12 @@ export interface SystemUser {
 }
 
 export interface CreateCustomerForProjectDto {
-  customer_name: string;
-  customer_email: string;
-  customer_phone?: string;
+  customer_id: number;
   project_id: number;
-  assigned_user_ids: number[];
+  assigned_users: { user_id: number }[];
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
   create_by?: number;
   update_by?: number;
 }
@@ -168,6 +169,8 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   // Modal states
   isAssignProjectModalVisible = false;
   isEditCustomerModalVisible = false;
+  isCreateProjectModalVisible = false;
+  isCreateUserModalVisible = false;
 
   // Assign project data
   availableProjects: ProjectDDLItem[] = [];
@@ -181,6 +184,11 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   // Forms
   assignProjectForm!: FormGroup;
   customerForm!: FormGroup;
+  projectForm!: FormGroup;
+  userForm!: FormGroup;
+
+  // Edit states
+  editingCustomerId: number | null = null;
 
   // Options
   statusOptions = [
@@ -214,7 +222,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   private initForms(): void {
     this.assignProjectForm = this.fb.group({
       project_id: ['', [Validators.required]],
-      assigned_user_ids: [[], [Validators.required, Validators.minLength(1)]]
+      assigned_users: [[], [Validators.required, Validators.minLength(1)]]
     });
 
     this.customerForm = this.fb.group({
@@ -223,7 +231,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       customer_phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]]
     });
 
-    // Initialize project form
     this.projectForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
       description: [''],
@@ -233,7 +240,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       status: ['active', [Validators.required]]
     });
 
-    // Initialize user form
     this.userForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
       email: ['', [Validators.required, Validators.email]],
@@ -248,7 +254,15 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     this.route.queryParams.subscribe(params => {
       if (params['customer']) {
         const customerId = parseInt(params['customer']);
-        setTimeout(() => this.selectCustomerById(customerId), 500);
+        setTimeout(() => {
+          if (!this.selectedCustomer || this.selectedCustomer.id !== customerId) {
+            this.selectCustomerById(customerId);
+          }
+        }, 100);
+      } else {
+        if (this.selectedCustomer) {
+          this.clearCustomerSelection();
+        }
       }
     });
   }
@@ -269,14 +283,11 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
           if (response?.status === 1 && response.data) {
             this.cfpData = response.data;
             this.transformCFPDataToCustomers();
-          } else {
-            // this.customers = this.getMockCustomers();
           }
           this.filterCustomers();
         },
         error: () => {
           this.isLoading = false;
-          // this.customers = this.getMockCustomers();
           this.filterCustomers();
         }
       });
@@ -312,30 +323,57 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   // ============ CUSTOMER MANAGEMENT ============
   selectCustomer(customer: CustomerItem): void {
+    if (this.selectedCustomer?.id === customer.id) {
+      return;
+    }
+
+    this.clearCustomerState();
     this.selectedCustomer = customer;
     this.updateUrl(customer.id);
-    this.loadCustomerData(customer.id);
+
+    setTimeout(() => {
+      if (this.selectedCustomer?.id === customer.id) {
+        this.loadCustomerData(customer.id);
+      }
+    }, 50);
   }
 
   selectCustomerById(customerId: number): void {
     const customer = this.customers.find(c => c.id === customerId);
-    if (customer) {
+    if (customer && this.selectedCustomer?.id !== customerId) {
       this.selectCustomer(customer);
     }
   }
 
+  private clearCustomerState(): void {
+    this.customerProjects = [];
+    this.filteredProjects = [];
+    this.customerUsers = [];
+    this.customerStats = null;
+    this.isProjectsLoading = false;
+  }
+
   private updateUrl(customerId: number): void {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { customer: customerId },
-      queryParamsHandling: 'merge'
-    });
+    const currentCustomerId = this.route.snapshot.queryParams['customer'];
+    if (parseInt(currentCustomerId) !== customerId) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { customer: customerId },
+        queryParamsHandling: 'merge'
+      });
+    }
   }
 
   private loadCustomerData(customerId: number): void {
+    if (!this.selectedCustomer || this.selectedCustomer.id !== customerId) {
+      return;
+    }
+
+    this.isProjectsLoading = true;
+
     const cfpCustomer = this.cfpData.find(c => c.customer_id === customerId);
 
-    if (cfpCustomer) {
+    if (cfpCustomer && this.selectedCustomer?.id === customerId) {
       this.customerProjects = cfpCustomer.projects.map(p => ({
         id: p.project_id,
         customer_id: customerId,
@@ -361,6 +399,8 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       this.customerUsers = this.generateUsersFromNames(customerId, cfpCustomer.projects);
       this.filterProjects();
     }
+
+    this.isProjectsLoading = false;
   }
 
   private generateUsersFromNames(customerId: number, projects: CFPProjectData[]): CustomerUserItem[] {
@@ -386,10 +426,8 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   clearCustomerSelection(): void {
     this.selectedCustomer = null;
-    this.customerProjects = [];
-    this.filteredProjects = [];
-    this.customerUsers = [];
-    this.customerStats = null;
+    this.clearCustomerState();
+
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { customer: null },
@@ -397,15 +435,18 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ============ EDIT CUSTOMER ============
-  openEditCustomerModal(): void {
-    if (!this.selectedCustomer) return;
+  // ============ CUSTOMER CRUD OPERATIONS ============
+  // Edit Customer (triggered from project table action)
+  editCustomer(customerId: number): void {
+    const customer = this.customers.find(c => c.id === customerId);
+    if (!customer) return;
 
+    this.editingCustomerId = customerId;
     this.isEditCustomerModalVisible = true;
     this.customerForm.patchValue({
-      customer_name: this.selectedCustomer.company,
-      customer_email: this.selectedCustomer.email,
-      customer_phone: this.selectedCustomer.phone
+      customer_name: customer.company,
+      customer_email: customer.email,
+      customer_phone: customer.phone
     });
   }
 
@@ -413,11 +454,12 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     if (!this.isSubmitting) {
       this.customerForm.reset();
       this.isEditCustomerModalVisible = false;
+      this.editingCustomerId = null;
     }
   }
 
   onSubmitCustomer(): void {
-    if (!this.selectedCustomer || !this.customerForm.valid || this.isSubmitting) return;
+    if (!this.editingCustomerId || !this.customerForm.valid || this.isSubmitting) return;
 
     this.isSubmitting = true;
     const formData: UpdateCustomerForProjectDto = {
@@ -426,7 +468,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       customer_phone: this.customerForm.get('customer_phone')?.value?.trim() || undefined
     };
 
-    this.apiService.patch(`customer-for-project/cfp/update/${this.selectedCustomer.id}`, formData)
+    this.apiService.patch(`customer-for-project/cfp/update/${this.editingCustomerId}`, formData)
       .pipe(
         takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
@@ -435,7 +477,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           this.isSubmitting = false;
           if (response?.status === 1) {
-            this.updateCustomerData(formData);
+            this.updateCustomerData(this.editingCustomerId!, formData);
             this.closeEditCustomerModal();
             this.showSuccess('Customer updated successfully!');
             this.loadCFPData();
@@ -450,35 +492,42 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       });
   }
 
-  private updateCustomerData(data: UpdateCustomerForProjectDto): void {
-    if (this.selectedCustomer && data) {
+  private updateCustomerData(customerId: number, data: UpdateCustomerForProjectDto): void {
+    // Update in customers array
+    const customerIndex = this.customers.findIndex(c => c.id === customerId);
+    if (customerIndex >= 0) {
+      this.customers[customerIndex].company = data.customer_name || this.customers[customerIndex].company;
+      this.customers[customerIndex].email = data.customer_email || this.customers[customerIndex].email;
+      this.customers[customerIndex].phone = data.customer_phone || this.customers[customerIndex].phone;
+    }
+
+    // Update selected customer if it's the same
+    if (this.selectedCustomer?.id === customerId) {
       this.selectedCustomer.company = data.customer_name || this.selectedCustomer.company;
       this.selectedCustomer.email = data.customer_email || this.selectedCustomer.email;
       this.selectedCustomer.phone = data.customer_phone || this.selectedCustomer.phone;
-
-      const customerIndex = this.customers.findIndex(c => c.id === this.selectedCustomer?.id);
-      if (customerIndex >= 0) {
-        Object.assign(this.customers[customerIndex], this.selectedCustomer);
-      }
-      this.filterCustomers();
     }
+
+    this.filterCustomers();
   }
 
-  deleteCustomer(): void {
-    if (!this.selectedCustomer) return;
+  // Delete Customer (triggered from project table action)
+  deleteCustomer(customerId: number): void {
+    const customer = this.customers.find(c => c.id === customerId);
+    if (!customer) return;
 
-    const confirmMessage = `Are you sure you want to delete customer "${this.selectedCustomer.company}"?`;
+    const confirmMessage = `Are you sure you want to delete customer "${customer.company}"? This will also delete all associated projects and users.`;
     if (confirm(confirmMessage)) {
-      this.performDeleteCustomer();
+      this.performDeleteCustomer(customerId);
     }
   }
 
-  private performDeleteCustomer(): void {
-    if (!this.selectedCustomer) return;
+  private performDeleteCustomer(customerId: number): void {
+    const customer = this.customers.find(c => c.id === customerId);
+    if (!customer) return;
 
     this.isLoading = true;
-    const customerId = this.selectedCustomer.id;
-    const customerName = this.selectedCustomer.company;
+    const customerName = customer.company;
 
     this.apiService.delete(`customer-for-project/cfp/delete/${customerId}`)
       .pipe(
@@ -489,10 +538,16 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           this.isLoading = false;
           if (response?.status === 1) {
+            // Remove from data arrays
             this.customers = this.customers.filter(c => c.id !== customerId);
             this.cfpData = this.cfpData.filter(c => c.customer_id !== customerId);
             this.filterCustomers();
-            this.clearCustomerSelection();
+            
+            // Clear selection if deleted customer was selected
+            if (this.selectedCustomer?.id === customerId) {
+              this.clearCustomerSelection();
+            }
+            
             this.showSuccess(`Customer "${customerName}" deleted successfully`);
           } else {
             this.showError('Failed to delete customer');
@@ -505,15 +560,42 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       });
   }
 
-  // ============ CREATE PROJECT & USER MODALS ============
-  isCreateProjectModalVisible = false;
-  isCreateUserModalVisible = false;
-  projectForm!: FormGroup;
-  userForm!: FormGroup;
+  // ============ PROJECT ACTIONS ============
+  editProject(projectId: number): void {
+    this.router.navigate(['/settings/project-edit', projectId]);
+  }
 
+  viewProject(projectId: number): void {
+    this.router.navigate(['/projects', projectId]);
+  }
+
+  deleteProject(projectId: number): void {
+    const project = this.customerProjects.find(p => p.id === projectId);
+    if (!project) return;
+
+    if (confirm(`Delete project "${project.name}"?`)) {
+      this.isProjectsLoading = true;
+      this.apiService.delete(`customer-projects/${projectId}`)
+        .subscribe({
+          next: () => {
+            this.customerProjects = this.customerProjects.filter(p => p.id !== projectId);
+            this.filterProjects();
+            if (this.customerStats) this.customerStats.total_projects--;
+            this.showSuccess('Project deleted successfully');
+            this.isProjectsLoading = false;
+            this.loadCFPData();
+          },
+          error: () => {
+            this.isProjectsLoading = false;
+            this.showError('Failed to delete project');
+          }
+        });
+    }
+  }
+
+  // ============ CREATE PROJECT & USER MODALS ============
   openCreateProjectModal(): void {
     if (!this.selectedCustomer) return;
-
     this.isCreateProjectModalVisible = true;
     this.resetProjectForm();
   }
@@ -527,7 +609,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   openCreateUserModal(): void {
     if (!this.selectedCustomer) return;
-
     this.isCreateUserModalVisible = true;
     this.resetUserForm();
   }
@@ -540,16 +621,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   private resetProjectForm(): void {
-    if (!this.projectForm) {
-      this.projectForm = this.fb.group({
-        name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
-        description: [''],
-        priority: ['medium', [Validators.required]],
-        start_date: [''],
-        end_date: [''],
-        status: ['active', [Validators.required]]
-      });
-    }
     this.projectForm.reset({
       priority: 'medium',
       status: 'active'
@@ -557,16 +628,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   private resetUserForm(): void {
-    if (!this.userForm) {
-      this.userForm = this.fb.group({
-        name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
-        email: ['', [Validators.required, Validators.email]],
-        phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]],
-        role: ['End User', [Validators.required]],
-        department: [''],
-        is_primary_contact: [false]
-      });
-    }
     this.userForm.reset({
       role: 'End User',
       is_primary_contact: false
@@ -673,7 +734,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     return this.projectForm?.get('description')?.value?.length || 0;
   }
 
-  // Add loadCustomers method for template compatibility
   loadCustomers(): void {
     this.loadCFPData();
   }
@@ -716,13 +776,10 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
           this.isLoadingProjects = false;
           if (response?.code === 1 && response.data) {
             this.availableProjects = response.data;
-          } else {
-            // this.availableProjects = this.getMockProjects();
           }
         },
         error: () => {
           this.isLoadingProjects = false;
-          // this.availableProjects = this.getMockProjects();
         }
       });
   }
@@ -747,7 +804,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.isLoadingUsers = false;
-          // this.systemUsers = this.getMockUsers();
           this.filteredUsers = [...this.systemUsers];
         }
       });
@@ -778,15 +834,13 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   toggleUserSelection(user: SystemUser): void {
-    // ✅ เพิ่ม user เท่านั้น ถ้ายังไม่ได้เลือก
     if (!this.selectedUsers.some(u => u.id === user.id)) {
       this.selectedUsers.push(user);
 
       this.assignProjectForm.patchValue({
-        assigned_user_ids: this.selectedUsers.map(u => u.id)
+        assigned_users: this.selectedUsers.map(u => ({ user_id: u.id }))
       });
 
-      // ✅ ซ่อน user ที่เลือกไปแล้วออกจากรายการ
       this.filterUsers();
     }
   }
@@ -797,10 +851,9 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       this.selectedUsers.splice(index, 1);
 
       this.assignProjectForm.patchValue({
-        assigned_user_ids: this.selectedUsers.map(u => u.id)
+        assigned_users: this.selectedUsers.map(u => ({ user_id: u.id }))
       });
 
-      // ✅ แสดง user กลับในรายการ
       this.filterUsers();
     }
   }
@@ -815,13 +868,16 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
 
     this.isSubmitting = true;
+
     const formData: CreateCustomerForProjectDto = {
-      customer_name: this.selectedCustomer.company,
-      customer_email: this.selectedCustomer.email,
-      customer_phone: this.selectedCustomer.phone || '',
+      customer_id: this.selectedCustomer.id,
       project_id: parseInt(this.assignProjectForm.get('project_id')?.value),
-      assigned_user_ids: this.selectedUsers.map(user => user.id)
+      assigned_users: this.selectedUsers.map(user => ({
+        user_id: user.id
+      }))
     };
+
+    console.log('Sending payload:', formData);
 
     this.apiService.post('customer-for-project', formData)
       .pipe(
@@ -840,8 +896,9 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
             this.showError('Failed to assign project');
           }
         },
-        error: () => {
+        error: (error) => {
           this.isSubmitting = false;
+          console.error('Assignment error:', error);
           this.showError('Failed to assign project');
         }
       });
@@ -923,44 +980,10 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-
   // Event handlers
   onCustomerSearchChange(): void { this.filterCustomers(); }
   onProjectSearchChange(): void { this.filterProjects(); }
   onStatusFilterChange(): void { this.filterProjects(); }
-
-  // ============ PROJECT ACTIONS ============
-  editProject(projectId: number): void {
-    this.router.navigate(['/settings/project-edit', projectId]);
-  }
-
-  viewProject(projectId: number): void {
-    this.router.navigate(['/projects', projectId]);
-  }
-
-  deleteProject(projectId: number): void {
-    const project = this.customerProjects.find(p => p.id === projectId);
-    if (!project) return;
-
-    if (confirm(`Delete project "${project.name}"?`)) {
-      this.isProjectsLoading = true;
-      this.apiService.delete(`customer-projects/${projectId}`)
-        .subscribe({
-          next: () => {
-            this.customerProjects = this.customerProjects.filter(p => p.id !== projectId);
-            this.filterProjects();
-            if (this.customerStats) this.customerStats.total_projects--;
-            this.showSuccess('Project deleted successfully');
-            this.isProjectsLoading = false;
-            this.loadCFPData();
-          },
-          error: () => {
-            this.isProjectsLoading = false;
-            this.showError('Failed to delete project');
-          }
-        });
-    }
-  }
 
   exportCustomerData(): void {
     this.showSuccess('Export feature will be implemented soon');
@@ -969,8 +992,16 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   refreshCustomerData(): void {
     if (this.selectedCustomer) {
       const selectedId = this.selectedCustomer.id;
+
+      this.isLoading = true;
       this.loadCFPData();
-      setTimeout(() => this.loadCustomerData(selectedId), 100);
+
+      setTimeout(() => {
+        if (this.selectedCustomer?.id === selectedId) {
+          this.loadCustomerData(selectedId);
+        }
+        this.isLoading = false;
+      }, 500);
     } else {
       this.loadCFPData();
     }
@@ -1128,121 +1159,12 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   private showSuccess(message: string): void {
-    // Replace with your toast notification service
     alert(message);
     console.log('Success:', message);
   }
 
   private showError(message: string): void {
-    // Replace with your toast notification service
     alert(message);
     console.error('Error:', message);
   }
-
-  // ============ MOCK DATA (for development) ============
-  // private getMockCustomers(): CustomerItem[] {
-  //   return [
-  //     {
-  //       id: 1,
-  //       company: 'ABC Technology Co., Ltd.',
-  //       address: '123 Technology Drive, Bangkok 10110',
-  //       email: 'contact@abctech.com',
-  //       phone: '+66-2-123-4567',
-  //       tier: 'Enterprise',
-  //       status: 'active',
-  //       created_date: '2024-01-10T00:00:00Z',
-  //       created_by: 1,
-  //       total_projects: 8,
-  //       total_users: 12,
-  //       total_open_tickets: 24
-  //     },
-  //     {
-  //       id: 2,
-  //       company: 'XYZ Solutions Ltd.',
-  //       address: '456 Business Avenue, Chiang Mai 50000',
-  //       email: 'info@xyzsolutions.co.th',
-  //       phone: '+66-53-987-6543',
-  //       tier: 'Premium',
-  //       status: 'active',
-  //       created_date: '2024-01-15T00:00:00Z',
-  //       created_by: 1,
-  //       total_projects: 3,
-  //       total_users: 8,
-  //       total_open_tickets: 12
-  //     }
-  //   ];
-  // }
-
-  // private getMockProjects(): ProjectDDLItem[] {
-  //   return [
-  //     { 
-  //       id: 101, 
-  //       name: 'Mobile App Development',
-  //       description: 'Cross-platform mobile application for e-commerce',
-  //       status: 'active',
-  //       current_users_count: 3,
-  //       estimated_hours: 800,
-  //       budget: 150000
-  //     },
-  //     { 
-  //       id: 102, 
-  //       name: 'Data Analytics Dashboard',
-  //       description: 'Business intelligence dashboard for sales analytics',
-  //       status: 'active',
-  //       current_users_count: 2,
-  //       estimated_hours: 400,
-  //       budget: 80000
-  //     },
-  //     { 
-  //       id: 103, 
-  //       name: 'Cloud Migration Project',
-  //       description: 'Migration of legacy systems to cloud infrastructure',
-  //       status: 'active',
-  //       current_users_count: 4,
-  //       estimated_hours: 1200,
-  //       budget: 200000
-  //     },
-  //     { 
-  //       id: 104, 
-  //       name: 'Security Audit System',
-  //       description: 'Comprehensive security audit and compliance system',
-  //       status: 'active',
-  //       current_users_count: 2,
-  //       estimated_hours: 600,
-  //       budget: 120000
-  //     }
-  //   ];
-  // }
-
-  // private getMockUsers(): SystemUser[] {
-  //   return [
-  //     {
-  //       id: 201,
-  //       name: 'Alice Johnson',
-  //       email: 'alice.johnson@company.com',
-  //       role: 'Project Manager',
-  //       department: 'IT',
-  //       is_available: true,
-  //       current_projects_count: 2
-  //     },
-  //     {
-  //       id: 202,
-  //       name: 'Bob Smith',
-  //       email: 'bob.smith@company.com',
-  //       role: 'Senior Developer',
-  //       department: 'Development',
-  //       is_available: true,
-  //       current_projects_count: 1
-  //     },
-  //     {
-  //       id: 203,
-  //       name: 'Carol Davis',
-  //       email: 'carol.davis@company.com',
-  //       role: 'Business Analyst',
-  //       department: 'Business',
-  //       is_available: true,
-  //       current_projects_count: 3
-  //     }
-  //   ];
-  // }
 }
