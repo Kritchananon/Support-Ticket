@@ -36,7 +36,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   
   // ✅ UI State
   currentLanguage = 'th';
-  pageTitle = 'Dashboard';
   isLoading = false;
 
   // ✅ Token Warning Properties
@@ -48,135 +47,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   readonly permissionEnum = permissionEnum;
   readonly ROLES = ROLES;
 
-  // ✅ Menu Configuration based on roles
-  menuItems = {
-    admin: [
-      {
-        label: 'Dashboard',
-        labelTh: 'แดชบอร์ด',
-        route: '/dashboard',
-        icon: 'bi-speedometer2',
-        permissions: []
-      },
-      {
-        label: 'All Tickets',
-        labelTh: 'ตั๋วทั้งหมด',
-        route: '/tickets',
-        icon: 'bi-ticket-perforated',
-        permissions: [13] // VIEW_ALL_TICKETS
-      },
-      {
-        label: 'Admin Panel',
-        labelTh: 'แผงผู้ดูแล',
-        route: '/admin',
-        icon: 'bi-gear-fill',
-        permissions: [15, 16] // ADD_USER, DEL_USER
-      },
-      {
-        label: 'Reports',
-        labelTh: 'รายงาน',
-        route: '/reports',
-        icon: 'bi-graph-up',
-        permissions: [13] // VIEW_ALL_TICKETS
-      },
-      {
-        label: 'Settings',
-        labelTh: 'การตั้งค่า',
-        route: '/settings',
-        icon: 'bi-sliders',
-        permissions: []
-      }
-    ],
-    supporter: [
-      {
-        label: 'Dashboard',
-        labelTh: 'แดชบอร์ด',
-        route: '/dashboard',
-        icon: 'bi-speedometer2',
-        permissions: []
-      },
-      {
-        label: 'All Tickets',
-        labelTh: 'ตั๋วทั้งหมด',
-        route: '/tickets',
-        icon: 'bi-ticket-perforated',
-        permissions: [13] // VIEW_ALL_TICKETS
-      },
-      {
-        label: 'Support Queue',
-        labelTh: 'คิวสนับสนุน',
-        route: '/support/queue',
-        icon: 'bi-list-task',
-        permissions: [9] // ASSIGNEE
-      },
-      {
-        label: 'My Assigned',
-        labelTh: 'งานที่รับผิดชอบ',
-        route: '/support/assigned',
-        icon: 'bi-person-check',
-        permissions: [8] // SOLVE_PROBLEM
-      },
-      {
-        label: 'Reports',
-        labelTh: 'รายงาน',
-        route: '/reports',
-        icon: 'bi-graph-up',
-        permissions: [13] // VIEW_ALL_TICKETS
-      }
-    ],
-    user: [
-      {
-        label: 'Dashboard',
-        labelTh: 'แดชบอร์ด',
-        route: '/dashboard',
-        icon: 'bi-speedometer2',
-        permissions: []
-      },
-      {
-        label: 'My Tickets',
-        labelTh: 'ตั๋วของฉัน',
-        route: '/tickets/my-tickets',
-        icon: 'bi-ticket-perforated',
-        permissions: [12] // VIEW_OWN_TICKETS
-      },
-      {
-        label: 'Create Ticket',
-        labelTh: 'สร้างตั๋ว',
-        route: '/tickets/new',
-        icon: 'bi-plus-circle',
-        permissions: [1] // CREATE_TICKET
-      }
-    ]
-  };
-
-  // ✅ Quick Actions based on permissions
-  quickActions = [
-    {
-      label: 'New Ticket',
-      labelTh: 'ตั๋วใหม่',
-      route: '/tickets/new',
-      icon: 'bi-plus-lg',
-      permission: 1, // CREATE_TICKET
-      class: 'btn-primary'
-    },
-    {
-      label: 'Assign Tickets',
-      labelTh: 'มอบหมายตั๋ว',
-      route: '/support/queue',
-      icon: 'bi-person-plus',
-      permission: 9, // ASSIGNEE
-      class: 'btn-success'
-    },
-    {
-      label: 'User Management',
-      labelTh: 'จัดการผู้ใช้',
-      route: '/admin/users',
-      icon: 'bi-people',
-      permission: 15, // ADD_USER
-      class: 'btn-warning'
-    }
-  ];
-
   // ✅ Subscription Management
   private subscriptions: Subscription[] = [];
 
@@ -184,7 +54,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     console.log('🔧 Header component initialized');
     this.initializeComponent();
     this.setupSubscriptions();
-    this.updatePageTitle();
   }
 
   ngOnDestroy(): void {
@@ -237,15 +106,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       }
     });
 
-    // ✅ Subscribe to route changes
-    const routeSub = this.router.events
-      .pipe(filter(event => event instanceof NavigationEnd))
-      .subscribe((event: NavigationEnd) => {
-        console.log('🛣️ Route changed:', event.url);
-        this.updatePageTitle();
-      });
-
-    this.subscriptions.push(userSub, authSub, warningSub, routeSub);
+    this.subscriptions.push(userSub, authSub, warningSub);
   }
 
   // ===== DATA LOADING ===== ✅
@@ -376,40 +237,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===== MENU METHODS ===== ✅
-
-  getMenuItems(): typeof this.menuItems.admin {
-    const primaryRole = this.getPrimaryRole();
-    
-    switch (primaryRole) {
-      case ROLES.ADMIN:
-        return this.menuItems.admin;
-      case ROLES.SUPPORTER:
-        return this.menuItems.supporter;
-      case ROLES.USER:
-      default:
-        return this.menuItems.user;
-    }
-  }
-
-  getVisibleQuickActions(): typeof this.quickActions {
-    return this.quickActions.filter(action => 
-      this.hasPermission(action.permission)
-    );
-  }
-
-  shouldShowMenuItem(item: any): boolean {
-    if (!item.permissions || item.permissions.length === 0) {
-      return true; // No specific permissions required
-    }
-    
-    return this.authService.hasAnyPermission(item.permissions);
-  }
-
-  getMenuItemLabel(item: any): string {
-    return this.currentLanguage === 'th' ? item.labelTh : item.label;
-  }
-
   // ===== GREETING METHODS ===== ✅
 
   getGreeting(): string {
@@ -442,7 +269,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
       
       this.currentLanguage = lang;
       localStorage.setItem('language', lang);
-      this.updatePageTitle();
       
       this.broadcastLanguageChange(lang);
     }
@@ -453,40 +279,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
       detail: { language }
     });
     window.dispatchEvent(event);
-  }
-
-  // ===== PAGE TITLE MANAGEMENT ===== ✅
-
-  private updatePageTitle(): void {
-    const path = this.router.url;
-    
-    console.log('📄 Updating page title for path:', path);
-    
-    if (path.includes('/dashboard')) {
-      this.pageTitle = this.getText('Dashboard', 'แดชบอร์ด');
-    } else if (path.includes('/tickets/new') || path.includes('/tickets/create')) {
-      this.pageTitle = this.getText('Create New Ticket', 'สร้างตั๋วใหม่');
-    } else if (path.includes('/tickets/') && path.includes('/edit')) {
-      this.pageTitle = this.getText('Edit Ticket', 'แก้ไขตั๋ว');
-    } else if (path.includes('/tickets/my-tickets')) {
-      this.pageTitle = this.getText('My Tickets', 'ตั๋วของฉัน');
-    } else if (path.includes('/tickets/') && !path.includes('/edit')) {
-      this.pageTitle = this.getText('Ticket Details', 'รายละเอียดตั๋ว');
-    } else if (path.includes('/tickets')) {
-      this.pageTitle = this.getText('All Tickets', 'ตั๋วทั้งหมด');
-    } else if (path.includes('/admin')) {
-      this.pageTitle = this.getText('Admin Panel', 'แผงผู้ดูแล');
-    } else if (path.includes('/support')) {
-      this.pageTitle = this.getText('Support Panel', 'แผงสนับสนุน');
-    } else if (path.includes('/settings')) {
-      this.pageTitle = this.getText('Settings', 'การตั้งค่า');
-    } else if (path.includes('/reports')) {
-      this.pageTitle = this.getText('Reports', 'รายงาน');
-    } else if (path.includes('/profile')) {
-      this.pageTitle = this.getText('My Profile', 'โปรไฟล์ของฉัน');
-    } else {
-      this.pageTitle = this.getText('Support Ticket System', 'ระบบตั๋วสนับสนุน');
-    }
   }
 
   // ===== NAVIGATION METHODS ===== ✅
@@ -506,11 +298,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   goToDashboard(): void {
     console.log('🏠 Navigating to dashboard');
     this.router.navigate(['/dashboard']);
-  }
-
-  navigateToQuickAction(action: any): void {
-    console.log('⚡ Quick action:', action.label, '→', action.route);
-    this.router.navigate([action.route]);
   }
 
   // ===== LOGOUT FUNCTIONALITY ===== ✅
@@ -635,33 +422,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== UTILITY METHODS ===== ✅
 
-  isMobile(): boolean {
-    return window.innerWidth < 768;
-  }
-
   isOnline(): boolean {
     return navigator.onLine;
   }
 
   getBrowserInfo(): string {
     return navigator.userAgent;
-  }
-
-  // ===== ACCESSIBILITY METHODS ===== ✅
-
-  getAriaLabel(item: any): string {
-    const label = this.getMenuItemLabel(item);
-    const hasNotification = item.route === '/notifications' && this.hasUnreadNotifications();
-    
-    if (hasNotification) {
-      return `${label} (${this.getNotificationCount()} unread)`;
-    }
-    
-    return label;
-  }
-
-  isCurrentRoute(route: string): boolean {
-    return this.router.url.startsWith(route);
   }
 
   // ===== DEBUG METHODS ===== ✅
@@ -692,16 +458,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
     
     console.log('🎛️ Component State:', {
       currentLanguage: this.currentLanguage,
-      pageTitle: this.pageTitle,
       showTokenWarning: this.showTokenWarning,
       isRefreshing: this.isRefreshing,
       isLoading: this.isLoading
-    });
-    
-    console.log('🍔 Menu Info:', {
-      menuItemCount: this.getMenuItems().length,
-      visibleQuickActions: this.getVisibleQuickActions().length,
-      quickActions: this.getVisibleQuickActions()
     });
     
     if (this.tokenInfo) {
@@ -715,7 +474,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     console.log('🔄 Force refreshing header component');
     this.loadUserData();
     this.updateTokenInfo();
-    this.updatePageTitle();
   }
 
   testAuthStatus(): void {
@@ -735,9 +493,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       currentUser: this.currentUser,
       userPermissions: this.userPermissions,
       userRoles: this.userRoles,
-      primaryRole: this.getPrimaryRole(),
-      menuItems: this.getMenuItems(),
-      visibleQuickActions: this.getVisibleQuickActions()
+      primaryRole: this.getPrimaryRole()
     });
     
     console.log('Auth Service Checks:', {

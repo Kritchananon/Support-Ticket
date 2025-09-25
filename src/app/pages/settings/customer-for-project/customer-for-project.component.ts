@@ -125,14 +125,6 @@ export interface CreateCustomerForProjectDto {
   update_by?: number;
 }
 
-export interface UpdateCustomerForProjectDto {
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
-  create_by?: number;
-  update_by?: number;
-}
-
 @Component({
   selector: 'app-customer-for-projects',
   standalone: true,
@@ -168,9 +160,18 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   // Modal states
   isAssignProjectModalVisible = false;
-  isEditCustomerModalVisible = false;
   isCreateProjectModalVisible = false;
   isCreateUserModalVisible = false;
+
+  // Edit Project Users Modal
+  isEditProjectUsersModalVisible = false;
+  editingProject: CustomerProjectItem | null = null;
+  editingProjectUsers: SystemUser[] = [];
+  filteredEditingProjectUsers: SystemUser[] = [];
+  filteredAvailableUsers: SystemUser[] = [];
+  editUserSearchTerm = '';
+  usersToAdd: SystemUser[] = [];
+  usersToRemove: SystemUser[] = [];
 
   // Assign project data
   availableProjects: ProjectDDLItem[] = [];
@@ -183,12 +184,11 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   // Forms
   assignProjectForm!: FormGroup;
-  customerForm!: FormGroup;
   projectForm!: FormGroup;
   userForm!: FormGroup;
+  editProjectUsersForm!: FormGroup;
 
-  // Edit states
-  editingCustomerId: number | null = null;
+  // Edit states - removed editingCustomerId since we don't need it anymore
 
   // Options
   statusOptions = [
@@ -225,12 +225,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       assigned_users: [[], [Validators.required, Validators.minLength(1)]]
     });
 
-    this.customerForm = this.fb.group({
-      customer_name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
-      customer_email: ['', [Validators.required, Validators.email]],
-      customer_phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]]
-    });
-
     this.projectForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
       description: [''],
@@ -247,6 +241,10 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       role: ['End User', [Validators.required]],
       department: [''],
       is_primary_contact: [false]
+    });
+
+    this.editProjectUsersForm = this.fb.group({
+      project_id: ['', [Validators.required]]
     });
   }
 
@@ -435,129 +433,233 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ============ CUSTOMER CRUD OPERATIONS ============
-  // Edit Customer (triggered from project table action)
-  editCustomer(customerId: number): void {
-    const customer = this.customers.find(c => c.id === customerId);
-    if (!customer) return;
+  // ============ EDIT PROJECT USERS MODAL ============
+  openEditProjectUsersModal(project: CustomerProjectItem): void {
+    this.editingProject = project;
+    this.isEditProjectUsersModalVisible = true;
+    this.resetEditProjectUsersForm();
+    this.loadProjectUsers(project.id);
+    this.loadAllUsersForEdit();
+  }
 
-    this.editingCustomerId = customerId;
-    this.isEditCustomerModalVisible = true;
-    this.customerForm.patchValue({
-      customer_name: customer.company,
-      customer_email: customer.email,
-      customer_phone: customer.phone
+  closeEditProjectUsersModal(): void {
+    if (!this.isSubmitting) {
+      this.resetEditProjectUsersForm();
+      this.isEditProjectUsersModalVisible = false;
+    }
+  }
+
+  private resetEditProjectUsersForm(): void {
+    this.editProjectUsersForm.reset();
+    this.editingProject = null;
+    this.editingProjectUsers = [];
+    this.filteredEditingProjectUsers = [];
+    this.filteredAvailableUsers = [];
+    this.usersToAdd = [];
+    this.usersToRemove = [];
+    this.editUserSearchTerm = '';
+  }
+
+  private loadProjectUsers(projectId: number): void {
+    // In a real application, this would be an API call
+    // For now, we'll simulate based on assigned_user_names
+    const project = this.customerProjects.find(p => p.id === projectId);
+    if (project && project.assigned_user_names) {
+      this.editingProjectUsers = project.assigned_user_names.map((userName, index) => ({
+        id: Math.floor(Math.random() * 1000) + index,
+        name: userName,
+        email: `${userName.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+        role: index === 0 ? 'Project Manager' : 'Team Member',
+        department: 'Development',
+        is_available: true,
+        current_projects_count: Math.floor(Math.random() * 5) + 1
+      }));
+    } else {
+      this.editingProjectUsers = [];
+    }
+    this.filteredEditingProjectUsers = [...this.editingProjectUsers];
+  }
+
+  private loadAllUsersForEdit(): void {
+    this.isLoadingUsers = true;
+
+    this.apiService.get('users/Allusers')
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => of([]))
+      )
+      .subscribe({
+        next: (response: any) => {
+          this.isLoadingUsers = false;
+          const userData = Array.isArray(response) ? response :
+            response?.data ? response.data :
+              response?.status === 1 && response.data ? response.data : [];
+
+          const allUsers = this.transformUsersResponse(userData);
+          this.filterAvailableUsers(allUsers);
+        },
+        error: () => {
+          this.isLoadingUsers = false;
+          this.filteredAvailableUsers = [];
+        }
+      });
+  }
+
+  private filterAvailableUsers(allUsers: SystemUser[]): void {
+    // Filter out users who are already in the project
+    this.filteredAvailableUsers = allUsers.filter(user => {
+      const isAlreadyInProject = this.editingProjectUsers.some(projectUser => 
+        projectUser.id === user.id || projectUser.email === user.email
+      );
+      const isNotInAddList = !this.usersToAdd.some(addUser => addUser.id === user.id);
+      
+      // Apply search filter
+      const searchTerm = this.editUserSearchTerm.toLowerCase();
+      const matchesSearch = !searchTerm ||
+        this.getUserDisplayName(user).toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm));
+
+      return !isAlreadyInProject && isNotInAddList && matchesSearch;
     });
   }
 
-  closeEditCustomerModal(): void {
-    if (!this.isSubmitting) {
-      this.customerForm.reset();
-      this.isEditCustomerModalVisible = false;
-      this.editingCustomerId = null;
+  addUserToProject(user: SystemUser): void {
+    // Add to pending additions
+    this.usersToAdd.push(user);
+    
+    // Remove from available users list
+    this.filteredAvailableUsers = this.filteredAvailableUsers.filter(u => u.id !== user.id);
+    
+    // Add to current project users display temporarily
+    this.editingProjectUsers.push(user);
+    this.filterEditingProjectUsers();
+  }
+
+  removeUserFromProject(user: SystemUser): void {
+    // Check if this user was in the original project users or was just added
+    const wasOriginalUser = !this.usersToAdd.some(addUser => addUser.id === user.id);
+    
+    if (wasOriginalUser) {
+      // Add to pending removals
+      this.usersToRemove.push(user);
+    } else {
+      // Remove from pending additions
+      this.usersToAdd = this.usersToAdd.filter(addUser => addUser.id !== user.id);
+    }
+    
+    // Remove from current project users display
+    this.editingProjectUsers = this.editingProjectUsers.filter(u => u.id !== user.id);
+    this.filterEditingProjectUsers();
+    
+    // Add back to available users if it was just added
+    if (!wasOriginalUser) {
+      this.filteredAvailableUsers.push(user);
+      this.sortAvailableUsers();
     }
   }
 
-  onSubmitCustomer(): void {
-    if (!this.editingCustomerId || !this.customerForm.valid || this.isSubmitting) return;
+  private sortAvailableUsers(): void {
+    this.filteredAvailableUsers.sort((a, b) => 
+      this.getUserDisplayName(a).localeCompare(this.getUserDisplayName(b))
+    );
+  }
+
+  onEditUserSearchChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.editUserSearchTerm = input.value;
+    this.filterEditingProjectUsers();
+    
+    // Re-filter available users based on search
+    if (this.systemUsers.length > 0) {
+      this.filterAvailableUsers(this.systemUsers);
+    } else {
+      this.loadAllUsersForEdit();
+    }
+  }
+
+  private filterEditingProjectUsers(): void {
+    const searchTerm = this.editUserSearchTerm.toLowerCase();
+    
+    this.filteredEditingProjectUsers = this.editingProjectUsers.filter(user => {
+      return !searchTerm ||
+        this.getUserDisplayName(user).toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm));
+    });
+  }
+
+  hasUserChanges(): boolean {
+    return this.usersToAdd.length > 0 || this.usersToRemove.length > 0;
+  }
+
+  onSubmitEditProjectUsers(): void {
+    console.log('✅ Submit clicked');
+    if (!this.editingProject || !this.hasUserChanges() || this.isSubmitting) {
+      return;
+    }
 
     this.isSubmitting = true;
-    const formData: UpdateCustomerForProjectDto = {
-      customer_name: this.customerForm.get('customer_name')?.value?.trim(),
-      customer_email: this.customerForm.get('customer_email')?.value?.trim(),
-      customer_phone: this.customerForm.get('customer_phone')?.value?.trim() || undefined
+
+    // Prepare the update payload
+    const updatePayload = {
+      project_id: this.editingProject.id,
+      users_to_add: this.usersToAdd.map(user => ({ user_id: user.id })),
+      users_to_remove: this.usersToRemove.map(user => ({ user_id: user.id }))
     };
 
-    this.apiService.patch(`customer-for-project/cfp/update/${this.editingCustomerId}`, formData)
+    console.log('Updating project users:', updatePayload);
+
+    // API call to update project users
+    this.apiService.patch(`customer-for-project/cfp/update/${this.editingProject.id}`, updatePayload)
       .pipe(
-        takeUntil(this.destroy$),
+        // takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
       )
       .subscribe({
         next: (response: any) => {
           this.isSubmitting = false;
-          if (response?.status === 1) {
-            this.updateCustomerData(this.editingCustomerId!, formData);
-            this.closeEditCustomerModal();
-            this.showSuccess('Customer updated successfully!');
-            this.loadCFPData();
+          if (response && (response.status === 1 || response.code === 1)) {
+            this.onProjectUsersUpdatedSuccess();
+            this.closeEditProjectUsersModal();
+            this.showSuccess('Project users updated successfully!');
+            this.loadCFPData(); // Reload data to reflect changes
           } else {
-            this.showError('Failed to update customer');
+            this.showError('Failed to update project users');
           }
         },
-        error: () => {
+        error: (error) => {
           this.isSubmitting = false;
-          this.showError('Failed to update customer');
+          console.error('Update project users error:', error);
+          this.showError('Failed to update project users');
         }
       });
   }
 
-  private updateCustomerData(customerId: number, data: UpdateCustomerForProjectDto): void {
-    // Update in customers array
-    const customerIndex = this.customers.findIndex(c => c.id === customerId);
-    if (customerIndex >= 0) {
-      this.customers[customerIndex].company = data.customer_name || this.customers[customerIndex].company;
-      this.customers[customerIndex].email = data.customer_email || this.customers[customerIndex].email;
-      this.customers[customerIndex].phone = data.customer_phone || this.customers[customerIndex].phone;
-    }
-
-    // Update selected customer if it's the same
-    if (this.selectedCustomer?.id === customerId) {
-      this.selectedCustomer.company = data.customer_name || this.selectedCustomer.company;
-      this.selectedCustomer.email = data.customer_email || this.selectedCustomer.email;
-      this.selectedCustomer.phone = data.customer_phone || this.selectedCustomer.phone;
-    }
-
-    this.filterCustomers();
-  }
-
-  // Delete Customer (triggered from project table action)
-  deleteCustomer(customerId: number): void {
-    const customer = this.customers.find(c => c.id === customerId);
-    if (!customer) return;
-
-    const confirmMessage = `Are you sure you want to delete customer "${customer.company}"? This will also delete all associated projects and users.`;
-    if (confirm(confirmMessage)) {
-      this.performDeleteCustomer(customerId);
-    }
-  }
-
-  private performDeleteCustomer(customerId: number): void {
-    const customer = this.customers.find(c => c.id === customerId);
-    if (!customer) return;
-
-    this.isLoading = true;
-    const customerName = customer.company;
-
-    this.apiService.delete(`customer-for-project/cfp/delete/${customerId}`)
-      .pipe(
-        takeUntil(this.destroy$),
-        catchError(this.handleError.bind(this))
-      )
-      .subscribe({
-        next: (response: any) => {
-          this.isLoading = false;
-          if (response?.status === 1) {
-            // Remove from data arrays
-            this.customers = this.customers.filter(c => c.id !== customerId);
-            this.cfpData = this.cfpData.filter(c => c.customer_id !== customerId);
-            this.filterCustomers();
-            
-            // Clear selection if deleted customer was selected
-            if (this.selectedCustomer?.id === customerId) {
-              this.clearCustomerSelection();
-            }
-            
-            this.showSuccess(`Customer "${customerName}" deleted successfully`);
-          } else {
-            this.showError('Failed to delete customer');
-          }
-        },
-        error: () => {
-          this.isLoading = false;
-          this.showError('Failed to delete customer');
+  private onProjectUsersUpdatedSuccess(): void {
+    if (this.editingProject) {
+      // Update the project in the local data
+      const projectIndex = this.customerProjects.findIndex(p => p.id === this.editingProject!.id);
+      if (projectIndex >= 0) {
+        // Update user count and names
+        const currentUsers = this.editingProjectUsers.filter(user => 
+          !this.usersToRemove.some(removeUser => removeUser.id === user.id)
+        );
+        
+        this.customerProjects[projectIndex].user_count = currentUsers.length;
+        this.customerProjects[projectIndex].assigned_user_names = currentUsers.map(user => 
+          this.getUserDisplayName(user)
+        );
+        
+        // Update customer stats if available
+        if (this.customerStats) {
+          const userCountDifference = this.usersToAdd.length - this.usersToRemove.length;
+          this.customerStats.total_users += userCountDifference;
         }
-      });
+      }
+      
+      this.filterProjects(); // Refresh the filtered projects display
+    }
   }
 
   // ============ PROJECT ACTIONS ============
@@ -1008,13 +1110,10 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   // ============ UTILITY METHODS ============
-  isFieldInvalid(formName: 'customer' | 'assign' | 'project' | 'user', fieldName: string): boolean {
+  isFieldInvalid(formName: 'assign' | 'project' | 'user' | 'editUsers', fieldName: string): boolean {
     let form: FormGroup;
 
     switch (formName) {
-      case 'customer':
-        form = this.customerForm;
-        break;
       case 'assign':
         form = this.assignProjectForm;
         break;
@@ -1023,6 +1122,9 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         break;
       case 'user':
         form = this.userForm;
+        break;
+      case 'editUsers':
+        form = this.editProjectUsersForm;
         break;
       default:
         return false;
@@ -1111,14 +1213,6 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   canCreateProjects(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
-  }
-
-  canEditCustomers(): boolean {
-    return this.authService.hasPermission(permissionEnum.MANAGE_CUSTOMER) || this.authService.isAdmin();
-  }
-
-  canDeleteCustomers(): boolean {
-    return this.authService.hasPermission(permissionEnum.MANAGE_CUSTOMER) || this.authService.isAdmin();
   }
 
   canEditProject(project: CustomerProjectItem): boolean {

@@ -177,6 +177,166 @@
   </div>
 </div>
 
+<!-- Edit Project Users Modal -->
+<div class="modal-backdrop" *ngIf="isEditProjectUsersModalVisible" (click)="closeEditProjectUsersModal()">
+  <div class="modal-container edit-project-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Edit Project Users</h2>
+      <button class="close-button" (click)="closeEditProjectUsersModal()" type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
+        </svg>
+      </button>
+    </div>
+
+    <form [formGroup]="editProjectUsersForm" (ngSubmit)="onSubmitEditProjectUsers()">
+      <div class="modal-body">
+        <!-- Project Info Display -->
+        <div class="project-info-display" *ngIf="editingProject">
+          <div class="project-icon">
+            {{ getProjectAvatarLetter(editingProject.name) }}
+          </div>
+          <div class="project-details">
+            <div class="info-label">Editing users for project:</div>
+            <div class="info-value">{{ editingProject.name }}</div>
+            <div class="project-customer">Customer: {{ selectedCustomer?.company }}</div>
+          </div>
+        </div>
+
+        <!-- User Search -->
+        <div class="user-search-section">
+          <div class="search-input">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M7.333 12.667A5.333 5.333 0 1 0 7.333 2a5.333 5.333 0 0 0 0 10.667ZM14 14l-2.9-2.9" 
+                    stroke="#9CA3AF" stroke-width="1.333" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input type="text" 
+                   placeholder="Search users..." 
+                   (input)="onEditUserSearchChange($event)">
+          </div>
+        </div>
+
+        <!-- Current Project Users -->
+        <div class="current-users-section" *ngIf="editingProjectUsers.length > 0">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#6366F1">
+              <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2.5 1h-5A2.5 2.5 0 0 0 3 11.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1.5A2.5 2.5 0 0 0 10.5 9z"/>
+            </svg>
+            <span>Current Project Users ({{ editingProjectUsers.length }})</span>
+          </div>
+          <div class="current-users-list">
+            <div class="current-user-item" *ngFor="let user of filteredEditingProjectUsers">
+              <div class="user-avatar-medium">{{ getUserAvatarLetter(user.name) }}</div>
+              <div class="user-info-detail">
+                <div class="user-name-role">
+                  <span class="name">{{ getUserDisplayName(user) }}</span>
+                  <span class="role-badge">{{ user.role }}</span>
+                </div>
+                <div class="user-contact">
+                  <span class="email">{{ user.email }}</span>
+                  <span class="department" *ngIf="user.department"> • {{ user.department }}</span>
+                </div>
+                <div class="user-status">
+                  <span class="projects-count" *ngIf="user.current_projects_count">
+                    {{ user.current_projects_count }} current projects
+                  </span>
+                </div>
+              </div>
+              <button type="button" 
+                      class="remove-user-btn" 
+                      (click)="removeUserFromProject(user)"
+                      title="Remove user from project">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Users to Add -->
+        <div class="available-users-section">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#10B981">
+              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+            <span>Add Users to Project</span>
+          </div>
+          
+          <div class="loading-message" *ngIf="isLoadingUsers">
+            Loading available users...
+          </div>
+          
+          <div class="users-selection-list">
+            <div class="user-selection-item" 
+                 *ngFor="let user of filteredAvailableUsers" 
+                 (click)="addUserToProject(user)">
+              <div class="user-avatar-medium">{{ getUserAvatarLetter(user.name) }}</div>
+              <div class="user-info-detail">
+                <div class="user-name-role">
+                  <span class="name">{{ getUserDisplayName(user) }}</span>
+                  <span class="role-badge">{{ user.role }}</span>
+                </div>
+                <div class="user-contact">
+                  <span class="email">{{ user.email }}</span>
+                  <span class="department" *ngIf="user.department"> • {{ user.department }}</span>
+                </div>
+                <div class="user-status">
+                  <span class="projects-count" *ngIf="user.current_projects_count">
+                    {{ user.current_projects_count }} current projects
+                  </span>
+                  <span class="availability-status">Available to add</span>
+                </div>
+              </div>
+              <div class="add-user-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State for Available Users -->
+          <div class="empty-users-state" *ngIf="!isLoadingUsers && filteredAvailableUsers.length === 0">
+            <p>No additional users available to add to this project.</p>
+          </div>
+        </div>
+
+        <!-- Changes Summary -->
+        <div class="changes-summary" *ngIf="hasUserChanges()">
+          <div class="summary-header">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="#F59E0B">
+              <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+            </svg>
+            <span>Pending Changes</span>
+          </div>
+          <div class="summary-content">
+            <p *ngIf="usersToAdd.length > 0">
+              <strong>{{ usersToAdd.length }}</strong> user(s) will be added to the project.
+            </p>
+            <p *ngIf="usersToRemove.length > 0">
+              <strong>{{ usersToRemove.length }}</strong> user(s) will be removed from the project.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeEditProjectUsersModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button type="submit" 
+                class="btn btn-primary" 
+                [disabled]="!hasUserChanges() || isSubmitting">
+          <span *ngIf="isSubmitting" class="loading-spinner"></span>
+          {{ isSubmitting ? 'Updating...' : 'Update Project Users' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Create Project Modal -->
 <div class="modal-backdrop" *ngIf="isCreateProjectModalVisible" (click)="closeCreateProjectModal()">
   <div class="modal-container" (click)="$event.stopPropagation()">
@@ -528,14 +688,14 @@
           </td>
           <td class="table-cell">
             <div class="action-buttons">
-              <!-- Updated Edit button to call editCustomer with customer ID -->
+              <!-- Updated Edit button to call openEditProjectUsersModal with project object -->
               <button class="action-btn edit" 
-                      (click)="editCustomer(project.customer_id)" 
-                      *ngIf="canEditCustomers()">
+                      (click)="openEditProjectUsersModal(project)" 
+                      *ngIf="canEditProject(project)">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-                  <path d="M11.5 2.5a1.5 1.5 0 0 0-2.12 0L3 8.88V12h3.12l6.38-6.38a1.5 1.5 0 0 0 0-2.12l-1-1z" />
+                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2.5 1h-5A2.5 2.5 0 0 0 3 11.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1.5A2.5 2.5 0 0 0 10.5 9z"/>
                 </svg>
-                Edit Customer
+                Edit Users
               </button>
               <button class="action-btn view" (click)="viewProject(project.id)">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -543,14 +703,14 @@
                 </svg>
                 View
               </button>
-              <!-- Updated Delete button to call deleteCustomer with customer ID -->
+              <!-- Updated Delete button to call deleteProject instead of deleteCustomer -->
               <button class="action-btn delete" 
-                      (click)="deleteCustomer(project.customer_id)" 
-                      *ngIf="canDeleteCustomers()">
+                      (click)="deleteProject(project.id)" 
+                      *ngIf="canDeleteProject(project)">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                   <path d="M5.5 1a.5.5 0 0 0-.5.5v.5h4v-.5a.5.5 0 0 0-.5-.5h-3zM3 3v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3H3z" />
                 </svg>
-                Delete Customer
+                Delete Project
               </button>
             </div>
           </td>
@@ -613,89 +773,7 @@
   </div>
 </div>
 
-<!-- Edit Customer Modal -->
-<div class="modal-backdrop" *ngIf="isEditCustomerModalVisible" (click)="closeEditCustomerModal()">
-  <div class="modal-container" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h2 class="modal-title">Edit Customer</h2>
-      <button class="close-button" (click)="closeEditCustomerModal()" type="button">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z"/>
-        </svg>
-      </button>
-    </div>
 
-    <form [formGroup]="customerForm" (ngSubmit)="onSubmitCustomer()">
-      <div class="modal-body">
-        <!-- Customer Name -->
-        <div class="form-group">
-          <label class="form-label" for="customerName">
-            Company Name <span class="required">*</span>
-          </label>
-          <input
-            id="customerName"
-            type="text"
-            class="form-input"
-            formControlName="customer_name"
-            placeholder="Enter company name"
-            [class.error]="isFieldInvalid('customer', 'customer_name')"
-          />
-          <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_name')">
-            <span *ngIf="customerForm.get('customer_name')?.errors?.['required']">Company name is required</span>
-            <span *ngIf="customerForm.get('customer_name')?.errors?.['minlength']">Company name must be at least 2 characters</span>
-            <span *ngIf="customerForm.get('customer_name')?.errors?.['maxlength']">Company name cannot exceed 100 characters</span>
-          </div>
-        </div>
-
-        <!-- Email and Phone Row -->
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="customerEmail">
-              Email <span class="required">*</span>
-            </label>
-            <input
-              id="customerEmail"
-              type="email"
-              class="form-input"
-              formControlName="customer_email"
-              placeholder="Enter email address"
-              [class.error]="isFieldInvalid('customer', 'customer_email')"
-            />
-            <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_email')">
-              <span *ngIf="customerForm.get('customer_email')?.errors?.['required']">Email is required</span>
-              <span *ngIf="customerForm.get('customer_email')?.errors?.['email']">Please enter a valid email address</span>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="customerPhone">Phone Number</label>
-            <input
-              id="customerPhone"
-              type="tel"
-              class="form-input"
-              formControlName="customer_phone"
-              placeholder="Enter phone number"
-              [class.error]="isFieldInvalid('customer', 'customer_phone')"
-            />
-            <div class="error-message" *ngIf="isFieldInvalid('customer', 'customer_phone')">
-              <span *ngIf="customerForm.get('customer_phone')?.errors?.['pattern']">Please enter a valid phone number</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="closeEditCustomerModal()" [disabled]="isSubmitting">
-          Cancel
-        </button>
-        <button type="submit" class="btn btn-primary" [disabled]="customerForm.invalid || isSubmitting">
-          <span *ngIf="isSubmitting" class="loading-spinner"></span>
-          {{ isSubmitting ? 'Updating...' : 'Update Customer' }}
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <!-- Create User Modal -->
 <div class="modal-backdrop" *ngIf="isCreateUserModalVisible" (click)="closeCreateUserModal()">
