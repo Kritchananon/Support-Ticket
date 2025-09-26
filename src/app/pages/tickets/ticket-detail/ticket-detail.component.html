@@ -103,6 +103,45 @@
           <!-- Action Buttons -->
           <div class="ticket-header-right">
             <div class="action-buttons">
+              <!-- ✅ Export PDF Dropdown Button -->
+              <div class="dropdown me-2" *ngIf="hasPermission(1)">
+                <button [class]="getExportButtonClass()" type="button" id="exportDropdown" data-bs-toggle="dropdown"
+                  aria-expanded="false" [disabled]="!canExportPdf()" title="ส่งออกเป็น PDF">
+
+                  <span *ngIf="isExportingPdf" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                  <i class="bi bi-file-earmark-pdf me-1" *ngIf="!isExportingPdf"></i>
+                  <span>{{ getExportButtonText() }}</span>
+                  <i class="bi bi-chevron-down ms-1" *ngIf="!isExportingPdf"></i>
+                </button>
+
+                <ul class="dropdown-menu" aria-labelledby="exportDropdown" *ngIf="canExportPdf()">
+                  <li>
+                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportSummaryPdf()">
+                      <i class="bi bi-file-earmark-text me-2"></i>
+                      Export Summary PDF
+                      <small class="text-muted d-block">ข้อมูลพื้นฐานเท่านั้น</small>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportDetailedPdf()">
+                      <i class="bi bi-file-earmark-richtext me-2"></i>
+                      Export Detailed PDF
+                      <small class="text-muted d-block">รวมไฟล์แนบและรายละเอียดครบถ้วน</small>
+                    </a>
+                  </li>
+                  <li>
+                    <hr class="dropdown-divider">
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportCustomPdf()">
+                      <i class="bi bi-gear me-2"></i>
+                      Custom Export
+                      <small class="text-muted d-block">กำหนดเองตาม exportOptions</small>
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
               <!-- Delete Button -->
               <button [class]="getDeleteButtonClass()" (click)="onDeleteTicket()"
                 [disabled]="!canDelete() || isDeleting"
@@ -138,6 +177,13 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- ✅ Export Status Alert -->
+        <div *ngIf="exportError" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Export Error:</strong> {{ exportError }}
+          <button type="button" class="btn-close" (click)="exportError = ''" aria-label="Close"></button>
         </div>
 
         <!-- Progress Bar -->
@@ -388,21 +434,43 @@
 
             <!-- ✅ User Actions - ทุกคนใช้ได้ -->
             <button class="btn btn-sm btn-outline-primary w-100 mb-1" (click)="loadTicketDetail()"
-              title="Refresh ticket details">
+              title="Refresh ticket details" [disabled]="isLoading">
               <i class="bi bi-arrow-clockwise me-1"></i>
-              Refresh
+              <span *ngIf="!isLoading">Refresh</span>
+              <span *ngIf="isLoading">Refreshing...</span>
             </button>
+
+            <!-- ✅ Export Actions - permission 1 (VIEW_TICKETS) -->
+            <div *ngIf="hasPermission(1)" class="export-actions">
+              <div class="btn-group w-100 mb-1" role="group">
+                <button class="btn btn-sm btn-outline-info" (click)="exportSummaryPdf()" [disabled]="!canExportPdf()"
+                  title="ส่งออก PDF แบบย่อ">
+                  <i class="bi bi-file-earmark-text me-1"></i>
+                  <span *ngIf="!isExportingPdf">Summary PDF</span>
+                  <span *ngIf="isExportingPdf">Exporting...</span>
+                </button>
+
+                <button class="btn btn-sm btn-outline-info" (click)="exportDetailedPdf()" [disabled]="!canExportPdf()"
+                  title="ส่งออก PDF แบบละเอียด">
+                  <i class="bi bi-file-earmark-richtext me-1"></i>
+                  <span *ngIf="!isExportingPdf">Detailed PDF</span>
+                  <span *ngIf="isExportingPdf">Exporting...</span>
+                </button>
+              </div>
+            </div>
 
             <!-- ✅ Evaluation Button - permission 14 -->
             <div *ngIf="hasSpecificPermission(14) && canEvaluate">
-              <button class="btn btn-sm btn-outline-info w-100 mb-1" title="ประเมินความพึงพอใจ">
+              <button class="btn btn-sm btn-outline-warning w-100 mb-1" title="ประเมินความพึงพอใจ"
+                [disabled]="!canEvaluate || hasExistingSatisfaction">
                 <i class="bi bi-star me-1"></i>
-                Evaluate
+                <span *ngIf="!hasExistingSatisfaction">Evaluate</span>
+                <span *ngIf="hasExistingSatisfaction">Evaluated</span>
               </button>
             </div>
 
             <!-- ✅ Admin Actions -->
-            <div *ngIf="authService.isAdmin()">
+            <div *ngIf="authService.isAdmin()" class="admin-actions">
               <button class="btn btn-sm btn-outline-warning w-100 mb-1" (click)="escalateTicket()">
                 <i class="bi bi-arrow-up-circle me-1"></i>
                 Escalate
@@ -413,9 +481,73 @@
                 Force Close
               </button>
             </div>
+
+            <!-- ✅ Export Status in Quick Actions -->
+            <div *ngIf="isExportingPdf" class="export-status mt-2">
+              <div class="d-flex align-items-center text-info">
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <small>Generating PDF...</small>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
+
+      <!-- ✅ Export Options Panel (Optional - สำหรับ Advanced Users) -->
+      <div class="export-options mt-3" *ngIf="hasPermission(1) && authService.hasAnyRole(['admin', 'supporter'])">
+        <div class="card">
+          <div class="card-header">
+            <small><i class="bi bi-gear me-1"></i> Export Options</small>
+          </div>
+          <div class="card-body p-2">
+
+            <!-- Export Format -->
+            <div class="mb-2">
+              <label class="form-label small">Format:</label>
+              <select class="form-select form-select-sm" [(ngModel)]="exportOptions.format">
+                <option value="summary">Summary Report</option>
+                <option value="detailed">Detailed Report</option>
+              </select>
+            </div>
+
+            <!-- Include Options -->
+            <div class="form-check form-check-sm mb-1">
+              <input class="form-check-input" type="checkbox" id="includeAttachments"
+                [(ngModel)]="exportOptions.includeAttachments">
+              <label class="form-check-label small" for="includeAttachments">
+                Include Attachments
+              </label>
+            </div>
+
+            <div class="form-check form-check-sm mb-1">
+              <input class="form-check-input" type="checkbox" id="includeSolutionDetails"
+                [(ngModel)]="exportOptions.includeSolutionDetails">
+              <label class="form-check-label small" for="includeSolutionDetails">
+                Include Solution Details
+              </label>
+            </div>
+
+            <div class="form-check form-check-sm mb-2" *ngIf="hasSpecificPermission(14)">
+              <input class="form-check-input" type="checkbox" id="includeSatisfactionRating"
+                [(ngModel)]="exportOptions.includeSatisfactionRating">
+              <label class="form-check-label small" for="includeSatisfactionRating">
+                Include Satisfaction Rating
+              </label>
+            </div>
+
+            <!-- Custom Export Button -->
+            <button class="btn btn-sm btn-primary w-100" (click)="exportCustomPdf()" [disabled]="!canExportPdf()"
+              title="ส่งออกตามการตั้งค่าที่กำหนด">
+              <i class="bi bi-download me-1"></i>
+              <span *ngIf="!isExportingPdf">Custom Export</span>
+              <span *ngIf="isExportingPdf">Exporting...</span>
+            </button>
+
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>

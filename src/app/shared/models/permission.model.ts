@@ -22,7 +22,14 @@ export enum permissionEnum {
   MANAGE_CUSTOMER = 20        // จัดการ customer
 }
 
-// ===== Role Constants =====
+// ===== UPDATED: Role System with ID-based approach ===== ✅
+export const ROLE_IDS = {
+  USER: 1,
+  SUPPORTER: 8, 
+  ADMIN: 15,
+} as const;
+
+// Keep backward compatibility with string roles
 export const ROLES = {
   ADMIN: 'admin',
   SUPPORTER: 'supporter', 
@@ -30,10 +37,24 @@ export const ROLES = {
 } as const;
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
+export type RoleId = typeof ROLE_IDS[keyof typeof ROLE_IDS];
 
-// ===== UPDATED: Role-Based Permissions Mapping (20 permissions) =====
-export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
-  [ROLES.ADMIN]: [
+// ===== UPDATED: Role ID to Role Name Mapping ===== ✅
+export const ROLE_ID_TO_NAME: Record<RoleId, UserRole> = {
+  [ROLE_IDS.USER]: ROLES.USER,
+  [ROLE_IDS.SUPPORTER]: ROLES.SUPPORTER,
+  [ROLE_IDS.ADMIN]: ROLES.ADMIN,
+};
+
+export const ROLE_NAME_TO_ID: Record<UserRole, RoleId> = {
+  [ROLES.USER]: ROLE_IDS.USER,
+  [ROLES.SUPPORTER]: ROLE_IDS.SUPPORTER,
+  [ROLES.ADMIN]: ROLE_IDS.ADMIN,
+};
+
+// ===== UPDATED: Role-Based Permissions Mapping (by Role ID) ===== ✅
+export const ROLE_ID_PERMISSIONS: Record<RoleId, number[]> = {
+  [ROLE_IDS.ADMIN]: [
     1,  // CREATE_TICKET
     2,  // TRACK_TICKET
     3,  // EDIT_TICKET
@@ -55,7 +76,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
     19, // VIEW_DASHBOARD
     20  // MANAGE_CUSTOMER
   ],
-  [ROLES.SUPPORTER]: [
+  [ROLE_IDS.SUPPORTER]: [
     2,  // TRACK_TICKET
     3,  // EDIT_TICKET
     5,  // CHANGE_STATUS
@@ -69,7 +90,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
     19, // VIEW_DASHBOARD
     20  // MANAGE_CUSTOMER
   ],
-  [ROLES.USER]: [
+  [ROLE_IDS.USER]: [
     1,  // CREATE_TICKET
     2,  // TRACK_TICKET
     3,  // EDIT_TICKET (เฉพาะตั๋วของตัวเอง)
@@ -79,10 +100,81 @@ export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
   ]
 };
 
-// ===== NEW: Safe Validation Functions =====
+// Keep backward compatibility
+export const ROLE_PERMISSIONS: Record<UserRole, number[]> = {
+  [ROLES.ADMIN]: ROLE_ID_PERMISSIONS[ROLE_IDS.ADMIN],
+  [ROLES.SUPPORTER]: ROLE_ID_PERMISSIONS[ROLE_IDS.SUPPORTER],
+  [ROLES.USER]: ROLE_ID_PERMISSIONS[ROLE_IDS.USER]
+};
+
+// ===== UPDATED: Validation Functions with Role ID Support ===== ✅
 
 /**
- * Safe permission validation function
+ * ✅ Convert role IDs to role names
+ */
+export function convertRoleIdsToNames(roleIds: number[]): UserRole[] {
+  return roleIds
+    .filter(id => Object.values(ROLE_IDS).includes(id as RoleId))
+    .map(id => ROLE_ID_TO_NAME[id as RoleId])
+    .filter(Boolean);
+}
+
+/**
+ * ✅ Convert role names to role IDs  
+ */
+export function convertRoleNamesToIds(roleNames: UserRole[]): RoleId[] {
+  return roleNames
+    .filter(name => Object.values(ROLES).includes(name))
+    .map(name => ROLE_NAME_TO_ID[name])
+    .filter(Boolean);
+}
+
+/**
+ * ✅ Safe validation for mixed role input (IDs or names)
+ */
+export function validateAndNormalizeRoles(roles: any): UserRole[] {
+  if (!roles) {
+    console.warn('No roles provided');
+    return [];
+  }
+
+  if (!Array.isArray(roles)) {
+    console.warn('Roles is not an array:', typeof roles);
+    return [];
+  }
+
+  const validRoles: UserRole[] = [];
+  
+  for (const role of roles) {
+    // Handle role ID (number)
+    if (typeof role === 'number' && Object.values(ROLE_IDS).includes(role as RoleId)) {
+      const roleName = ROLE_ID_TO_NAME[role as RoleId];
+      if (roleName) {
+        validRoles.push(roleName);
+      }
+    }
+    // Handle role name (string)  
+    else if (typeof role === 'string' && Object.values(ROLES).includes(role as UserRole)) {
+      validRoles.push(role as UserRole);
+    }
+    // Handle role object with id property
+    else if (typeof role === 'object' && role.id && typeof role.id === 'number') {
+      const roleName = ROLE_ID_TO_NAME[role.id as RoleId];
+      if (roleName) {
+        validRoles.push(roleName);
+      }
+    }
+    else {
+      console.warn(`Invalid role: ${role}`, typeof role);
+    }
+  }
+
+  console.log(`Validated ${validRoles.length}/${roles.length} roles`);
+  return validRoles;
+}
+
+/**
+ * ✅ Safe permission validation function (no changes needed)
  */
 export function validateAndNormalizePermissions(permissions: any): number[] {
   if (!permissions) {
@@ -120,36 +212,68 @@ export function validateAndNormalizePermissions(permissions: any): number[] {
   return validPermissions;
 }
 
+// ===== UPDATED: Helper Functions with Role ID Support ===== ✅
+
 /**
- * Safe role validation function
+ * ✅ Get permissions from role ID
  */
-export function validateAndNormalizeRoles(roles: any): UserRole[] {
-  if (!roles) {
-    console.warn('No roles provided');
-    return [];
-  }
-
-  if (!Array.isArray(roles)) {
-    console.warn('Roles is not an array:', typeof roles);
-    return [];
-  }
-
-  const validRoles: UserRole[] = [];
-  
-  for (const role of roles) {
-    if (typeof role === 'string' && Object.values(ROLES).includes(role as UserRole)) {
-      validRoles.push(role as UserRole);
-    } else {
-      console.warn(`Invalid role: ${role}`);
-    }
-  }
-
-  console.log(`Validated ${validRoles.length}/${roles.length} roles`);
-  return validRoles;
+export function getRoleIdPermissions(roleId: RoleId): number[] {
+  return ROLE_ID_PERMISSIONS[roleId] || [];
 }
 
 /**
- * Get safe fallback permissions for user
+ * ✅ Get permissions from role name (backward compatibility)
+ */
+export function getRolePermissions(role: UserRole): number[] {
+  return ROLE_PERMISSIONS[role] || [];
+}
+
+/**
+ * ✅ Get permissions from mixed role input (IDs or names)
+ */
+export function getPermissionsFromRoles(roles: UserRole[]): number[] {
+  const allPermissions = roles.flatMap(role => getRolePermissions(role));
+  return [...new Set(allPermissions)]; // Remove duplicates
+}
+
+/**
+ * ✅ Get permissions from role IDs
+ */
+export function getPermissionsFromRoleIds(roleIds: RoleId[]): number[] {
+  const allPermissions = roleIds.flatMap(roleId => getRoleIdPermissions(roleId));
+  return [...new Set(allPermissions)]; // Remove duplicates
+}
+
+/**
+ * ✅ Check if user has role by ID
+ */
+export function userHasRoleId(userRoleIds: RoleId[], requiredRoleId: RoleId): boolean {
+  return userRoleIds.includes(requiredRoleId);
+}
+
+/**
+ * ✅ Check if user is admin by role ID
+ */
+export function isAdminByRoleId(userRoleIds: RoleId[]): boolean {
+  return userRoleIds.includes(ROLE_IDS.ADMIN);
+}
+
+/**
+ * ✅ Check if user is supporter by role ID  
+ */
+export function isSupporterByRoleId(userRoleIds: RoleId[]): boolean {
+  return userRoleIds.includes(ROLE_IDS.SUPPORTER);
+}
+
+/**
+ * ✅ Check if user is regular user by role ID
+ */
+export function isUserByRoleId(userRoleIds: RoleId[]): boolean {
+  return userRoleIds.includes(ROLE_IDS.USER);
+}
+
+/**
+ * ✅ Get safe fallback permissions for user
  */
 export function getSafeFallbackPermissions(): number[] {
   return [
@@ -161,13 +285,13 @@ export function getSafeFallbackPermissions(): number[] {
 }
 
 /**
- * Get safe fallback roles for user
+ * ✅ Get safe fallback roles for user
  */
 export function getSafeFallbackRoles(): UserRole[] {
   return [ROLES.USER];
 }
 
-// ===== Utility Functions =====
+// ===== Utility Functions (no changes needed) =====
 
 /**
  * แปลง permissionEnum เป็น number
@@ -184,52 +308,16 @@ export function numberToEnum(num: number): permissionEnum | null {
 }
 
 /**
- * แปลง number[] เป็น permissionEnum[]
- */
-export function numbersToEnums(numbers: number[]): permissionEnum[] {
-  return numbers
-    .filter(n => Object.values(permissionEnum).includes(n))
-    .map(n => n as permissionEnum);
-}
-
-/**
- * แปลง permissionEnum[] เป็น number[]
- */
-export function enumsToNumbers(enums: permissionEnum[]): number[] {
-  return enums.map(e => e as number);
-}
-
-/**
  * ตรวจสอบว่า number เป็น valid permission หรือไม่
  */
 export function isValidPermissionNumber(num: number): boolean {
   return Object.values(permissionEnum).includes(num);
 }
 
-// ===== Permission Interfaces =====
-export interface PermissionCheck {
-  hasPermission: boolean;
-  missingPermissions: number[];
-  userPermissions: number[];
-}
-
-export interface RoleCheck {
-  hasRole: boolean;
-  missingRoles: UserRole[];
-  userRoles: UserRole[];
-}
-
-export interface AccessControl {
-  canAccess: boolean;
-  reason?: string;
-  requiredPermissions?: number[];
-  requiredRoles?: UserRole[];
-}
-
-// ===== Permission Helper Functions =====
+// ===== Permission Name Functions (no changes needed) =====
 
 /**
- * UPDATED: แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
+ * แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
  */
 export function getPermissionName(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -261,7 +349,7 @@ export function getPermissionName(permission: number | permissionEnum): string {
 }
 
 /**
- * UPDATED: แปลง permission number เป็นชื่อภาษาไทย (20 permissions)
+ * แปลง permission number เป็นชื่อภาษาไทย (20 permissions)
  */
 export function getPermissionNameTh(permission: number | permissionEnum): string {
   const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
@@ -292,32 +380,28 @@ export function getPermissionNameTh(permission: number | permissionEnum): string
   return permissionNamesTh[permissionNumber] || `สิทธิ์ ${permissionNumber}`;
 }
 
-/**
- * UPDATED: ดึง permissions ทั้งหมดของ role (return number[])
- */
-export function getRolePermissions(role: UserRole): number[] {
-  return ROLE_PERMISSIONS[role] || [];
+// ===== Permission Check Functions (no changes needed) =====
+export interface PermissionCheck {
+  hasPermission: boolean;
+  missingPermissions: number[];
+  userPermissions: number[];
+}
+
+export interface RoleCheck {
+  hasRole: boolean;
+  missingRoles: UserRole[];
+  userRoles: UserRole[];
+}
+
+export interface AccessControl {
+  canAccess: boolean;
+  reason?: string;
+  requiredPermissions?: number[];
+  requiredRoles?: UserRole[];
 }
 
 /**
- * UPDATED: ตรวจสอบว่า role มี permission หรือไม่
- */
-export function roleHasPermission(role: UserRole, permission: number | permissionEnum): boolean {
-  const permissionNumber = typeof permission === 'number' ? permission : enumToNumber(permission);
-  const rolePermissions = getRolePermissions(role);
-  return rolePermissions.includes(permissionNumber);
-}
-
-/**
- * UPDATED: ดึง permissions ทั้งหมดจาก roles หลายตัว (return number[])
- */
-export function getPermissionsFromRoles(roles: UserRole[]): number[] {
-  const allPermissions = roles.flatMap(role => getRolePermissions(role));
-  return [...new Set(allPermissions)]; // Remove duplicates
-}
-
-/**
- * UPDATED: ตรวจสอบว่า user มี permission หรือไม่
+ * ตรวจสอบว่า user มี permission หรือไม่
  */
 export function checkUserPermission(
   userPermissions: number[], 
@@ -353,7 +437,7 @@ export function checkUserRole(
 }
 
 /**
- * UPDATED: ตรวจสอบ access control แบบรวม (permissions + roles)
+ * ตรวจสอบ access control แบบรวม (permissions + roles)
  */
 export function checkAccess(
   userPermissions: number[],
@@ -404,7 +488,7 @@ export function checkAccess(
   };
 }
 
-// ===== UPDATED: Common Permission Groups (ใช้ number[] - 20 permissions) =====
+// ===== Common Permission Groups (no changes needed) =====
 export const PERMISSION_GROUPS = {
   TICKET_MANAGEMENT: [
     1,  // CREATE_TICKET
@@ -451,22 +535,21 @@ export function isValidRole(value: any): value is UserRole {
   return Object.values(ROLES).includes(value);
 }
 
-export function isPermissionArray(value: any): value is permissionEnum[] {
-  return Array.isArray(value) && value.every(isValidPermission);
+export function isValidRoleId(value: any): value is RoleId {
+  return Object.values(ROLE_IDS).includes(value);
 }
 
-export function isPermissionNumberArray(value: any): value is number[] {
-  return Array.isArray(value) && value.every(isValidPermissionNumber);
-}
-
-// ===== Debug Helper Functions =====
+// ===== Debug Functions =====
 
 /**
- * แสดงข้อมูล role และ permissions สำหรับ debug
+ * ✅ Debug role permissions with ID support
  */
 export function debugRolePermissions(role: UserRole): void {
   console.group(`🔍 Role Debug: ${role}`);
   const permissions = getRolePermissions(role);
+  const roleId = ROLE_NAME_TO_ID[role];
+  
+  console.log('Role ID:', roleId);
   console.log('Permission numbers:', permissions);
   console.log('Permission names:', permissions.map(p => getPermissionName(p)));
   console.log('Permission names (TH):', permissions.map(p => getPermissionNameTh(p)));
@@ -474,40 +557,50 @@ export function debugRolePermissions(role: UserRole): void {
 }
 
 /**
- * แสดงข้อมูล permissions ทั้งหมดสำหรับ debug
+ * ✅ Debug role ID permissions
  */
-export function debugAllRolePermissions(): void {
-  console.group('🔍 All Role Permissions Debug');
-  Object.values(ROLES).forEach(role => {
-    debugRolePermissions(role as UserRole);
-  });
+export function debugRoleIdPermissions(roleId: RoleId): void {
+  console.group(`🔍 Role ID Debug: ${roleId}`);
+  const permissions = getRoleIdPermissions(roleId);
+  const roleName = ROLE_ID_TO_NAME[roleId];
+  
+  console.log('Role Name:', roleName);
+  console.log('Permission numbers:', permissions);
+  console.log('Permission names:', permissions.map(p => getPermissionName(p)));
+  console.log('Permission names (TH):', permissions.map(p => getPermissionNameTh(p)));
   console.groupEnd();
 }
 
 /**
- * ตรวจสอบความถูกต้องของ permission mapping
+ * ✅ Validate permission mapping with role ID support
  */
 export function validatePermissionMapping(): boolean {
-  console.group('✅ Permission Mapping Validation');
+  console.group('✅ Permission Mapping Validation (with Role IDs)');
   
   let isValid = true;
   
-  // ตรวจสอบว่าทุก permission ใน ROLE_PERMISSIONS เป็น valid enum หรือไม่
-  Object.entries(ROLE_PERMISSIONS).forEach(([role, permissions]) => {
+  // ตรวจสอบ ROLE_ID_PERMISSIONS
+  Object.entries(ROLE_ID_PERMISSIONS).forEach(([roleIdStr, permissions]) => {
+    const roleId = parseInt(roleIdStr) as RoleId;
     const invalidPermissions = permissions.filter(p => !isValidPermissionNumber(p));
     
     if (invalidPermissions.length > 0) {
-      console.error(`❌ Invalid permissions for role ${role}:`, invalidPermissions);
+      console.error(`❌ Invalid permissions for role ID ${roleId}:`, invalidPermissions);
       isValid = false;
     } else {
-      console.log(`✅ Role ${role} permissions valid:`, permissions.length, 'permissions');
+      console.log(`✅ Role ID ${roleId} permissions valid:`, permissions.length, 'permissions');
     }
   });
   
-  // ตรวจสอบว่าแต่ละ role มี permission อย่างน้อย 1 ตัว
-  Object.entries(ROLE_PERMISSIONS).forEach(([role, permissions]) => {
-    if (permissions.length === 0) {
-      console.warn(`⚠️ Role ${role} has no permissions assigned`);
+  // ตรวจสอบ mapping consistency
+  Object.entries(ROLE_ID_TO_NAME).forEach(([roleIdStr, roleName]) => {
+    const roleId = parseInt(roleIdStr) as RoleId;
+    const permissionsById = getRoleIdPermissions(roleId);
+    const permissionsByName = getRolePermissions(roleName);
+    
+    if (JSON.stringify(permissionsById) !== JSON.stringify(permissionsByName)) {
+      console.error(`❌ Inconsistent permissions between role ID ${roleId} and name ${roleName}`);
+      isValid = false;
     }
   });
   
@@ -517,145 +610,12 @@ export function validatePermissionMapping(): boolean {
   return isValid;
 }
 
-// ===== NEW: Specific Permission Checkers =====
-
-/**
- * ตรวจสอบว่าสามารถจัดการ ticket ได้หรือไม่
- */
-export function canManageTickets(userPermissions: number[]): boolean {
-  return PERMISSION_GROUPS.TICKET_ADMINISTRATION.some(permission => 
-    userPermissions.includes(permission)
-  );
-}
-
-/**
- * ตรวจสอบว่าสามารถจัดการ user ได้หรือไม่
- */
-export function canManageUsers(userPermissions: number[]): boolean {
-  return PERMISSION_GROUPS.USER_MANAGEMENT.some(permission => 
-    userPermissions.includes(permission)
-  );
-}
-
-/**
- * ตรวจสอบว่าสามารถจัดการระบบได้หรือไม่
- */
-export function canManageSystem(userPermissions: number[]): boolean {
-  return PERMISSION_GROUPS.SYSTEM_ADMINISTRATION.some(permission => 
-    userPermissions.includes(permission)
-  );
-}
-
-/**
- * ตรวจสอบว่าสามารถทำงาน support ได้หรือไม่
- */
-export function canDoSupport(userPermissions: number[]): boolean {
-  return PERMISSION_GROUPS.SUPPORT_OPERATIONS.some(permission => 
-    userPermissions.includes(permission)
-  );
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถจัดการ customer ได้หรือไม่
- */
-export function canManageCustomer(userPermissions: number[]): boolean {
-  return userPermissions.includes(20); // MANAGE_CUSTOMER
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถจัดการ project ได้หรือไม่
- */
-export function canManageProject(userPermissions: number[]): boolean {
-  return userPermissions.includes(10); // MANAGE_PROJECT
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถจัดการ category ได้หรือไม่
- */
-export function canManageCategory(userPermissions: number[]): boolean {
-  return userPermissions.includes(17); // MANAGE_CATEGORY
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถจัดการ status ได้หรือไม่
- */
-export function canManageStatus(userPermissions: number[]): boolean {
-  return userPermissions.includes(18); // MANAGE_STATUS
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถดู dashboard ได้หรือไม่
- */
-export function canViewDashboard(userPermissions: number[]): boolean {
-  return userPermissions.includes(19); // VIEW_DASHBOARD
-}
-
-/**
- * NEW: ตรวจสอบว่าสามารถให้คะแนนความพึงพอใจได้หรือไม่
- */
-export function canRateSatisfaction(userPermissions: number[]): boolean {
-  return userPermissions.includes(14); // SATISFACTION
-}
-
-// ===== NEW: Permission Summary Functions =====
-
-/**
- * สรุป permissions ที่ user มีทั้งหมด
- */
-export function summarizeUserPermissions(userPermissions: number[]): {
-  total: number;
-  byGroup: Record<string, { permissions: number[]; names: string[] }>;
-  missing: Record<string, { permissions: number[]; names: string[] }>;
-} {
-  const summary = {
-    total: userPermissions.length,
-    byGroup: {} as Record<string, { permissions: number[]; names: string[] }>,
-    missing: {} as Record<string, { permissions: number[]; names: string[] }>
-  };
-
-  // จัดกลุ่ม permissions ที่มี
-  Object.entries(PERMISSION_GROUPS).forEach(([groupName, groupPermissions]) => {
-    const hasPermissions = groupPermissions.filter(p => userPermissions.includes(p));
-    const missingPermissions = groupPermissions.filter(p => !userPermissions.includes(p));
-    
-    summary.byGroup[groupName] = {
-      permissions: hasPermissions,
-      names: hasPermissions.map(p => getPermissionNameTh(p))
-    };
-    
-    if (missingPermissions.length > 0) {
-      summary.missing[groupName] = {
-        permissions: missingPermissions,
-        names: missingPermissions.map(p => getPermissionNameTh(p))
-      };
-    }
-  });
-
-  return summary;
-}
-
-/**
- * แสดงสรุป permissions ใน console
- */
-export function logPermissionSummary(userPermissions: number[], userRoles: UserRole[]): void {
-  console.group('📊 Permission Summary');
-  
-  console.log('👥 User Roles:', userRoles);
-  console.log('🔢 Total Permissions:', userPermissions.length, '/ 20');
-  
-  const summary = summarizeUserPermissions(userPermissions);
-  
-  Object.entries(summary.byGroup).forEach(([groupName, data]) => {
-    if (data.permissions.length > 0) {
-      console.log(`✅ ${groupName}:`, data.names);
-    }
-  });
-  
-  Object.entries(summary.missing).forEach(([groupName, data]) => {
-    if (data.permissions.length > 0) {
-      console.log(`❌ Missing ${groupName}:`, data.names);
-    }
-  });
-  
-  console.groupEnd();
-}
+// ===== Export Role Information for Easy Access =====
+export const ROLE_INFO = {
+  IDS: ROLE_IDS,
+  NAMES: ROLES,
+  ID_TO_NAME: ROLE_ID_TO_NAME,
+  NAME_TO_ID: ROLE_NAME_TO_ID,
+  ID_PERMISSIONS: ROLE_ID_PERMISSIONS,
+  NAME_PERMISSIONS: ROLE_PERMISSIONS
+} as const;

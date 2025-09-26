@@ -1,10 +1,12 @@
-// ===== การปรับแก้ ticket-detail.component.ts - ลบ Supporter Form Logic ===== ✅
+// ===== การปรับแก้ ticket-detail.component.ts - เพิ่ม Export PDF Function ===== ✅
 
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, forkJoin } from 'rxjs';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { saveAs } from 'file-saver'; // npm install file-saver @types/file-saver
 
 // Import API Services (เหลือเฉพาะที่จำเป็น)
 import {
@@ -35,8 +37,39 @@ import {
 import { SupportInformationFormComponent } from './support-information-form/support-information-form.component';
 import { SupportInformationDisplayComponent } from './support-information-display/support-information-display.component';
 
-// ===== LOCAL INTERFACES ===== ✅
+// Add this import at the top of your component file
+import { environment } from '../../../../environments/environment';
 
+// ===== PDF EXPORT INTERFACES ===== ✅
+interface HtmlToPdfDto {
+  reportNumber: string;
+  reportDate: string;
+  status: string;
+  reporter: string;
+  priority: string;
+  category: string;
+  project: string;
+  issueTitle: string;
+  issueDescription: string;
+  attachmentUrl?: string[]; // ยังคงเป็น array แต่ถ้า backend ต้องการ string ให้แก้เป็น string
+  assignee?: string;
+  estimatedCloseDate?: string;
+  deadline?: string;
+  estimateTime?: string;
+  leadTime?: string;
+  changeRequest?: string;
+  solutionDescription?: string;
+  satisfactionRating?: string; // เปลี่ยนจาก number เป็น string
+}
+
+interface ExportOptions {
+  includeAttachments?: boolean;
+  includeSolutionDetails?: boolean;
+  includeSatisfactionRating?: boolean;
+  format?: 'summary' | 'detailed';
+}
+
+// ===== LOCAL INTERFACES ===== ✅
 interface HistoryDisplayItem {
   status_id: number;
   status_name: string;
@@ -116,6 +149,7 @@ export class TicketDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private apiService = inject(ApiService);
+  private http = inject(HttpClient);
   public authService = inject(AuthService);
 
   // ===== CORE PROPERTIES ===== ✅
@@ -123,6 +157,16 @@ export class TicketDetailComponent implements OnInit {
   isLoading = false;
   error = '';
   ticket_no: string = '';
+
+  // ===== PDF EXPORT PROPERTIES ===== ✅
+  isExportingPdf = false;
+  exportError = '';
+  exportOptions: ExportOptions = {
+    includeAttachments: true,
+    includeSolutionDetails: true,
+    includeSatisfactionRating: true,
+    format: 'detailed'
+  };
 
   // ===== SATISFACTION PROPERTIES ===== ✅
   currentRating = 0;
@@ -179,6 +223,298 @@ export class TicketDetailComponent implements OnInit {
     { id: 5, name: 'Completed', icon: 'bi-check-circle' },
     { id: 6, name: 'Cancel', icon: 'bi-x-circle' }
   ];
+
+  // ===== PDF EXPORT METHODS ===== ✅
+
+  /**
+   * ✅ Export ticket เป็น PDF (Main Function)
+   */
+  async exportToPdf(options: ExportOptions = {}): Promise<void> {
+    if (!this.ticketData?.ticket) {
+      alert('ไม่สามารถส่งออกได้ เนื่องจากไม่พบข้อมูล ticket');
+      return;
+    }
+
+    // ตรวจสอบสิทธิ์ - ใครก็ได้ที่ดู ticket ได้ก็สามารถ export ได้
+    if (!this.hasPermission(permissionEnum.VIEW_OWN_TICKETS)) {
+      alert('คุณไม่มีสิทธิ์ในการส่งออก ticket นี้');
+      return;
+    }
+
+    try {
+      this.isExportingPdf = true;
+      this.exportError = '';
+
+      // รวม options
+      const finalOptions = { ...this.exportOptions, ...options };
+
+      // เตรียมข้อมูลสำหรับส่งไป backend
+      const pdfData = await this.preparePdfData(finalOptions);
+
+      // เรียก API เพื่อสร้าง PDF
+      await this.callPdfGenerateApi(pdfData);
+
+      console.log('PDF export completed successfully');
+
+    } catch (error) {
+      console.error('PDF export error:', error);
+      this.exportError = 'เกิดข้อผิดพลาดในการส่งออก PDF';
+      alert(`ไม่สามารถส่งออก PDF ได้: ${error}`);
+
+    } finally {
+      this.isExportingPdf = false;
+    }
+  }
+
+  /**
+   * ✅ เตรียมข้อมูลสำหรับส่งไป backend
+   */
+  private async preparePdfData(options: ExportOptions): Promise<HtmlToPdfDto> {
+    const ticket = this.ticketData!.ticket;
+
+    // ดึงข้อมูล assignee
+    const assigneeInfo = await this.getAssigneeInfo();
+
+    // ดึง URLs ของ attachments
+    const attachmentUrls = options.includeAttachments
+      ? this.getAttachmentUrls()
+      : [];
+
+    // เตรียมข้อมูลตาม interface ที่ backend ต้องการ - แปลงทุกอย่างเป็น string
+    const pdfData: HtmlToPdfDto = {
+      reportNumber: ticket.ticket_no || '',
+      reportDate: this.formatDateForPdf(new Date().toISOString()),
+      status: this.getCurrentStatusName() || '',
+      reporter: ticket.create_by || '',
+      priority: ticket.priority || 'Medium',
+      category: ticket.categories_name || '',
+      project: ticket.project_name || '',
+      issueTitle: `Ticket ${ticket.ticket_no}`,
+      issueDescription: ticket.issue_description || '',
+
+      // แปลง array เป็น string (JSON หรือ comma-separated)
+      attachmentUrl: attachmentUrls.length > 0 ? attachmentUrls : undefined,
+
+      // แปลงข้อมูลเป็น string ทั้งหมด
+      assignee: assigneeInfo || '',
+      estimatedCloseDate: ticket.close_estimate
+        ? this.formatDateForPdf(ticket.close_estimate)
+        : '',
+      deadline: ticket.due_date
+        ? this.formatDateForPdf(ticket.due_date)
+        : '',
+      estimateTime: ticket.estimate_time || '',
+      leadTime: ticket.lead_time || '',
+      changeRequest: options.includeSolutionDetails
+        ? (ticket.change_request || '')
+        : '',
+      solutionDescription: options.includeSolutionDetails
+        ? (ticket.fix_issue_description || '')
+        : '',
+      satisfactionRating: options.includeSatisfactionRating && this.currentRating > 0
+        ? this.currentRating.toString()
+        : ''
+    };
+
+    console.log('Prepared PDF data with string types:', pdfData);
+    return pdfData;
+  }
+
+  /**
+   * ✅ เรียก API สำหรับสร้าง PDF
+   */
+  private async callPdfGenerateApi(pdfData: HtmlToPdfDto): Promise<void> {
+    const token = this.authService.getToken();
+
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    });
+
+    // ✅ Use full API URL from environment instead of relative path
+    const apiUrl = `${environment.apiUrl}/pdf/generate`;
+
+    try {
+      // เรียก API และรับ response เป็น blob (PDF)
+      const response = await this.http.post(apiUrl, pdfData, {
+        headers: headers,
+        responseType: 'blob',
+        observe: 'response'
+      }).toPromise();
+
+      if (!response || !response.body) {
+        throw new Error('No PDF data received from server');
+      }
+
+      // สร้างชื่อไฟล์
+      const fileName = `ticket-${pdfData.reportNumber}-${this.formatDateForFilename(new Date())}.pdf`;
+
+      // ดาวน์โหลดไฟล์ PDF
+      saveAs(response.body, fileName);
+
+      // แสดง success message
+      this.showSuccessModal = true;
+      this.modalTitle = 'Export Successful';
+      this.modalMessage = `ส่งออก PDF สำเร็จแล้ว: ${fileName}`;
+      this.modalTicketNo = this.ticket_no;
+
+      console.log('PDF exported successfully from:', apiUrl);
+
+    } catch (error: any) {
+      console.error('PDF API call failed:', error);
+      console.error('API URL used:', apiUrl);
+
+      // จัดการ error messages
+      if (error.status === 401) {
+        throw new Error('ไม่มีสิทธิ์ในการเข้าถึง กรุณาเข้าสู่ระบบใหม่');
+      } else if (error.status === 403) {
+        throw new Error('ไม่มีสิทธิ์ในการส่งออก PDF');
+      } else if (error.status === 500) {
+        throw new Error('เกิดข้อผิดพลาดในเซิร์ฟเวอร์');
+      } else {
+        throw new Error(error.message || 'ไม่สามารถส่งออก PDF ได้');
+      }
+    }
+  }
+
+  /**
+   * ✅ ดึงข้อมูล assignee จาก ticket data
+   */
+  private async getAssigneeInfo(): Promise<string> {
+    try {
+      if (this.ticketData?.assign && this.ticketData.assign.length > 0) {
+        const latestAssign = this.ticketData.assign[this.ticketData.assign.length - 1];
+        return latestAssign.assignTo || 'ไม่ระบุ';
+      }
+
+      return 'ยังไม่ได้มอบหมาย';
+
+    } catch (error) {
+      console.warn('Error getting assignee info:', error);
+      return 'ไม่ระบุ';
+    }
+  }
+
+  /**
+   * ✅ ดึง URLs ของ attachments
+   */
+  private getAttachmentUrls(): string[] {
+    const urls: string[] = [];
+
+    try {
+      // Issue attachments
+      if (this.ticketData?.issue_attachment) {
+        this.ticketData.issue_attachment.forEach(attachment => {
+          if (attachment.path && !attachment.path.startsWith('data:')) {
+            urls.push(attachment.path);
+          }
+        });
+      }
+
+      // Fix attachments (ถ้าต้องการรวมด้วย)
+      if (this.ticketData?.fix_attachment) {
+        this.ticketData.fix_attachment.forEach(attachment => {
+          if (attachment.path && !attachment.path.startsWith('data:')) {
+            urls.push(attachment.path);
+          }
+        });
+      }
+
+    } catch (error) {
+      console.warn('Error collecting attachment URLs:', error);
+    }
+
+    return urls;
+  }
+
+  /**
+   * ✅ Format date สำหรับ PDF
+   */
+  private formatDateForPdf(dateString: string): string {
+    try {
+      return new Date(dateString).toLocaleDateString('th-TH', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
+  }
+
+  /**
+   * ✅ Format date สำหรับชื่อไฟล์
+   */
+  private formatDateForFilename(date: Date): string {
+    try {
+      return date.toISOString().slice(0, 10); // YYYY-MM-DD
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * ✅ Export with specific options - สำหรับใช้ใน template
+   */
+  exportSummaryPdf(): void {
+    this.exportToPdf({
+      includeAttachments: false,
+      includeSolutionDetails: false,
+      includeSatisfactionRating: false,
+      format: 'summary'
+    });
+  }
+
+  exportDetailedPdf(): void {
+    this.exportToPdf({
+      includeAttachments: true,
+      includeSolutionDetails: true,
+      includeSatisfactionRating: true,
+      format: 'detailed'
+    });
+  }
+
+  exportCustomPdf(): void {
+    // สามารถเปิด modal เพื่อให้ user เลือก options ได้
+    this.exportToPdf(this.exportOptions);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าสามารถ export ได้หรือไม่
+   */
+  canExportPdf(): boolean {
+    return !this.isLoading &&
+      !this.isExportingPdf &&
+      !!this.ticketData?.ticket &&
+      this.hasPermission(permissionEnum.VIEW_OWN_TICKETS);
+  }
+
+  /**
+   * ✅ ได้รับ export button text สำหรับ UI
+   */
+  getExportButtonText(): string {
+    if (this.isExportingPdf) {
+      return 'กำลังส่งออก...';
+    }
+    return 'Export PDF';
+  }
+
+  /**
+   * ✅ ได้รับ export button class สำหรับ UI
+   */
+  getExportButtonClass(): string {
+    if (this.isExportingPdf) {
+      return 'btn btn-export-pdf exporting disabled';
+    }
+    if (!this.canExportPdf()) {
+      return 'btn btn-export-pdf disabled';
+    }
+    return 'btn btn-export-pdf'; // ใช้ class ใหม่ที่เราสร้าง
+  }
 
   // ===== LIFECYCLE ===== ✅
 
@@ -1459,8 +1795,6 @@ export class TicketDetailComponent implements OnInit {
 
     this.checkFileTypeFromHeaders(attachment.path, attachmentId);
   }
-
-  // ... (รวม methods ที่เหลือสำหรับ file analysis)
 
   private getFileExtension(filename: string): string {
     if (!filename || filename === 'unknown') return '';

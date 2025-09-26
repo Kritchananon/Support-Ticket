@@ -3,20 +3,24 @@ import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { 
   permissionEnum, 
-  UserRole, 
+  UserRole,
+  RoleId,
+  ROLES,
+  ROLE_IDS,
   enumToNumber,
   isValidPermissionNumber,
-  ROLES 
+  ROLE_ID_TO_NAME
 } from '../models/permission.model';
 
 /**
- * ✅ ENHANCED: Directive สำหรับตรวจสอบ permissions และแสดง/ซ่อน elements
- * รองรับทั้ง number และ permissionEnum (20 permissions)
+ * ✅ ENHANCED: Directive สำหรับตรวจสอب permissions และแสดง/ซ่อน elements
+ * รองรับทั้ง number, permissionEnum และ Role ID system (20 permissions)
  * 
  * Usage:
  * <div *hasPermission="[1, 2]">Create Button</div>
  * <div *hasPermission="[permissionEnum.EDIT_TICKET, permissionEnum.DELETE_TICKET]" [requireAll]="true">Admin Actions</div>
  * <div *hasRole="['admin', 'supporter']">Support Menu</div>
+ * <div *hasRoleId="[15, 8]">Admin or Support Menu</div> <!-- NEW: Role ID support -->
  * <div *hasRole="['admin']" *hasPermission="[15]">User Management</div>
  */
 
@@ -76,12 +80,12 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
         const permissionNumber = enumToNumber(permissions as permissionEnum);
         this._permissions = [permissionNumber];
       } catch (error) {
-        console.warn('⚠ Invalid permissions provided to hasPermission directive:', permissions);
+        console.warn('⚠️ Invalid permissions provided to hasPermission directive:', permissions);
         this._permissions = [];
       }
     }
 
-    console.log('🔐 HasPermission directive updated:', {
+    console.log('🔍 HasPermission directive updated:', {
       original: permissions,
       processed: this._permissions,
       requireAll: this._requireAll
@@ -134,7 +138,7 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
       // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Element hidden by permission directive');
+      console.log('⚠️ Element hidden by permission directive');
     }
   }
 
@@ -199,7 +203,7 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       if (Object.values(ROLES).includes(roles as UserRole)) {
         this._roles = [roles as UserRole];
       } else {
-        console.warn('⚠ Invalid role provided to hasRole directive:', roles);
+        console.warn('⚠️ Invalid role provided to hasRole directive:', roles);
         this._roles = [];
       }
     } else if (Array.isArray(roles)) {
@@ -208,10 +212,10 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       
       if (this._roles.length !== roles.length) {
         const invalidRoles = roles.filter(role => !Object.values(ROLES).includes(role));
-        console.warn('⚠ Some invalid roles filtered out:', invalidRoles);
+        console.warn('⚠️ Some invalid roles filtered out:', invalidRoles);
       }
     } else {
-      console.warn('⚠ Invalid roles provided to hasRole directive:', roles);
+      console.warn('⚠️ Invalid roles provided to hasRole directive:', roles);
       this._roles = [];
     }
 
@@ -267,7 +271,7 @@ export class HasRoleDirective implements OnInit, OnDestroy {
       // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Element hidden by role directive');
+      console.log('⚠️ Element hidden by role directive');
     }
   }
 
@@ -304,6 +308,130 @@ export class HasRoleDirective implements OnInit, OnDestroy {
   }
 }
 
+// ===== ✅ NEW: Role ID Directive =====
+@Directive({
+  selector: '[hasRoleId]',
+  standalone: true
+})
+export class HasRoleIdDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _roleIds: RoleId[] = [];
+  private _requireAll = false;
+  private _isVisible = false;
+
+  /**
+   * ✅ NEW: รับ single role ID หรือ array of role IDs พร้อม validation
+   */
+  @Input() set hasRoleId(roleIds: RoleId | RoleId[]) {
+    if (typeof roleIds === 'number') {
+      // ตรวจสอบว่าเป็น valid role ID
+      if (Object.values(ROLE_IDS).includes(roleIds as RoleId)) {
+        this._roleIds = [roleIds as RoleId];
+      } else {
+        console.warn('⚠️ Invalid role ID provided to hasRoleId directive:', roleIds);
+        this._roleIds = [];
+      }
+    } else if (Array.isArray(roleIds)) {
+      // กรองเฉพาะ valid role IDs
+      this._roleIds = roleIds.filter(roleId => Object.values(ROLE_IDS).includes(roleId));
+      
+      if (this._roleIds.length !== roleIds.length) {
+        const invalidRoleIds = roleIds.filter(roleId => !Object.values(ROLE_IDS).includes(roleId));
+        console.warn('⚠️ Some invalid role IDs filtered out:', invalidRoleIds);
+      }
+    } else {
+      console.warn('⚠️ Invalid role IDs provided to hasRoleId directive:', roleIds);
+      this._roleIds = [];
+    }
+
+    console.log('🔢 HasRoleId directive updated:', {
+      original: roleIds,
+      processed: this._roleIds,
+      roleNames: this._roleIds.map(id => ROLE_ID_TO_NAME[id])
+    });
+
+    this.updateVisibility();
+  }
+
+  @Input() set requireAll(value: boolean) {
+    this._requireAll = value;
+    this.updateVisibility();
+  }
+
+  ngOnInit(): void {
+    console.log('🔧 HasRoleId directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        console.log('🔄 Auth state changed, updating role ID visibility');
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const hasRequiredRoleIds = this.checkRoleIds();
+    
+    console.log('🔍 Role ID check result:', {
+      roleIds: this._roleIds,
+      requireAll: this._requireAll,
+      hasRoleIds: hasRequiredRoleIds,
+      currentVisibility: this._isVisible
+    });
+    
+    if (hasRequiredRoleIds && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Element shown by role ID directive');
+    } else if (!hasRequiredRoleIds && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠️ Element hidden by role ID directive');
+    }
+  }
+
+  private checkRoleIds(): boolean {
+    if (!this._roleIds.length) {
+      console.log('📋 No role IDs required, allowing access');
+      return true;
+    }
+
+    if (!this.authService.isAuthenticated()) {
+      console.log('🚫 User not authenticated, denying access');
+      return false;
+    }
+
+    const userRoleIds = this.authService.getUserRoleIds();
+    
+    console.log('🔍 Checking role IDs:', {
+      required: this._roleIds,
+      user: userRoleIds,
+      requireAll: this._requireAll
+    });
+    
+    if (this._requireAll) {
+      const hasAll = this._roleIds.every(roleId => userRoleIds.includes(roleId));
+      console.log('🎯 Require ALL role IDs:', hasAll);
+      return hasAll;
+    } else {
+      const hasAny = this._roleIds.some(roleId => userRoleIds.includes(roleId));
+      console.log('🎯 Require ANY role ID:', hasAny);
+      return hasAny;
+    }
+  }
+}
+
 // ===== ✅ ENHANCED: Combined Permission & Role Directive =====
 @Directive({
   selector: '[hasAccess]',
@@ -317,16 +445,18 @@ export class HasAccessDirective implements OnInit, OnDestroy {
 
   private _permissions: number[] = [];
   private _roles: UserRole[] = [];
+  private _roleIds: RoleId[] = [];  // ✅ NEW: Add role IDs support
   private _requireAllPermissions = false;
   private _requireAllRoles = false;
   private _isVisible = false;
 
   /**
-   * ✅ ENHANCED: รับ config object พร้อม validation
+   * ✅ ENHANCED: รับ config object พร้อม validation และ Role ID support
    */
   @Input() set hasAccess(config: {
     permissions?: (number | permissionEnum)[];
     roles?: UserRole[];
+    role_ids?: RoleId[];  // ✅ NEW: Add role IDs support
     requireAllPermissions?: boolean;
     requireAllRoles?: boolean;
   }) {
@@ -346,12 +476,20 @@ export class HasAccessDirective implements OnInit, OnDestroy {
       this._roles = [];
     }
 
+    // ✅ NEW: Process role IDs
+    if (config.role_ids) {
+      this._roleIds = config.role_ids.filter(roleId => Object.values(ROLE_IDS).includes(roleId));
+    } else {
+      this._roleIds = [];
+    }
+
     this._requireAllPermissions = config.requireAllPermissions || false;
     this._requireAllRoles = config.requireAllRoles || false;
 
-    console.log('🔐👥 HasAccess directive updated:', {
+    console.log('🔍👥🔢 HasAccess directive updated:', {
       permissions: this._permissions,
       roles: this._roles,
+      roleIds: this._roleIds,
       requireAllPermissions: this._requireAllPermissions,
       requireAllRoles: this._requireAllRoles
     });
@@ -362,7 +500,6 @@ export class HasAccessDirective implements OnInit, OnDestroy {
   ngOnInit(): void {
     console.log('🔧 HasAccess directive initialized');
     
-    // ✅ Subscribe to auth state changes
     this.authService.authState$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
@@ -370,7 +507,6 @@ export class HasAccessDirective implements OnInit, OnDestroy {
         this.updateVisibility();
       });
 
-    // ✅ Initial visibility check
     this.updateVisibility();
   }
 
@@ -385,20 +521,19 @@ export class HasAccessDirective implements OnInit, OnDestroy {
     console.log('🔍 Access check result:', {
       permissions: this._permissions,
       roles: this._roles,
+      roleIds: this._roleIds,
       hasAccess: hasAccess,
       currentVisibility: this._isVisible
     });
     
     if (hasAccess && !this._isVisible) {
-      // แสดง element
       this.viewContainer.createEmbeddedView(this.templateRef);
       this._isVisible = true;
       console.log('✅ Element shown by access directive');
     } else if (!hasAccess && this._isVisible) {
-      // ซ่อน element
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Element hidden by access directive');
+      console.log('⚠️ Element hidden by access directive');
     }
   }
 
@@ -410,13 +545,15 @@ export class HasAccessDirective implements OnInit, OnDestroy {
 
     const hasPermissions = this.checkPermissions();
     const hasRoles = this.checkRoles();
+    const hasRoleIds = this.checkRoleIds(); // ✅ NEW: Check role IDs
     
-    // ต้องผ่านทั้ง permission และ role checks
-    const result = hasPermissions && hasRoles;
+    // ต้องผ่านทั้ง permission, role และ role ID checks
+    const result = hasPermissions && hasRoles && hasRoleIds;
     
     console.log('🎯 Combined access check:', {
       hasPermissions,
       hasRoles,
+      hasRoleIds,
       result
     });
     
@@ -425,7 +562,7 @@ export class HasAccessDirective implements OnInit, OnDestroy {
 
   private checkPermissions(): boolean {
     if (!this._permissions.length) {
-      return true; // ไม่มีเงื่อนไข permission = ผ่าน
+      return true;
     }
 
     const userPermissions = this.authService.getEffectivePermissions();
@@ -443,7 +580,7 @@ export class HasAccessDirective implements OnInit, OnDestroy {
 
   private checkRoles(): boolean {
     if (!this._roles.length) {
-      return true; // ไม่มีเงื่อนไข role = ผ่าน
+      return true;
     }
 
     const userRoles = this.authService.getUserRoles();
@@ -452,6 +589,21 @@ export class HasAccessDirective implements OnInit, OnDestroy {
       return this._roles.every(role => userRoles.includes(role));
     } else {
       return this._roles.some(role => userRoles.includes(role));
+    }
+  }
+
+  // ✅ NEW: Check role IDs
+  private checkRoleIds(): boolean {
+    if (!this._roleIds.length) {
+      return true;
+    }
+
+    const userRoleIds = this.authService.getUserRoleIds();
+    
+    if (this._requireAllRoles) {
+      return this._roleIds.every(roleId => userRoleIds.includes(roleId));
+    } else {
+      return this._roleIds.some(roleId => userRoleIds.includes(roleId));
     }
   }
 }
@@ -469,8 +621,9 @@ export class DebugPermissionsDirective implements OnInit {
   ngOnInit(): void {
     if (this.debugPermissions) {
       console.group('🔍 Permission Debug from Directive');
-      console.log('🔐 User Permissions:', this.authService.getEffectivePermissions());
+      console.log('🔍 User Permissions:', this.authService.getEffectivePermissions());
       console.log('👥 User Roles:', this.authService.getUserRoles());
+      console.log('🔢 User Role IDs:', this.authService.getUserRoleIds()); // ✅ NEW
       console.log('🎯 Is Authenticated:', this.authService.isAuthenticated());
       console.log('🔧 Auth Methods:', {
         isAdmin: this.authService.isAdmin(),
@@ -484,10 +637,10 @@ export class DebugPermissionsDirective implements OnInit {
   }
 }
 
-// ===== ✅ NEW: Specific Permission Directives =====
+// ===== ✅ UPDATED: Specific Permission Directives (รองรับ Role ID) =====
 
 /**
- * ✅ NEW: Directive สำหรับ Supporter features เฉพาะ
+ * ✅ UPDATED: Directive สำหรับ Supporter features เฉพาะ (รองรับ Role ID)
  */
 @Directive({
   selector: '[supporterOnly]',
@@ -519,13 +672,15 @@ export class SupporterOnlyDirective implements OnInit, OnDestroy {
   }
 
   private updateVisibility(): void {
-    // ✅ ใช้ method ที่มีอยู่แล้วใน AuthService
+    // ✅ UPDATED: ใช้ methods ที่รองรับ Role ID แล้ว
     const canAccess = this.authService.isSupporter() || this.authService.isAdmin();
     
     console.log('🔍 Supporter access check:', {
       canAccess,
       isSupporter: this.authService.isSupporter(),
       isAdmin: this.authService.isAdmin(),
+      supporterRoleId: this.authService.hasRoleId(ROLE_IDS.SUPPORTER),
+      adminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
       currentVisibility: this._isVisible
     });
     
@@ -536,13 +691,13 @@ export class SupporterOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Supporter element hidden');
+      console.log('⚠️ Supporter element hidden');
     }
   }
 }
 
 /**
- * ✅ NEW: Directive สำหรับ Admin features เฉพาะ
+ * ✅ UPDATED: Directive สำหรับ Admin features เฉพาะ (รองรับ Role ID)
  */
 @Directive({
   selector: '[adminOnly]',
@@ -574,11 +729,13 @@ export class AdminOnlyDirective implements OnInit, OnDestroy {
   }
 
   private updateVisibility(): void {
+    // ✅ UPDATED: ใช้ method ที่รองรับ Role ID แล้ว
     const canAccess = this.authService.isAdmin();
     
     console.log('🔍 Admin access check:', {
       canAccess,
       isAdmin: this.authService.isAdmin(),
+      adminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
       currentVisibility: this._isVisible
     });
     
@@ -589,13 +746,13 @@ export class AdminOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Admin element hidden');
+      console.log('⚠️ Admin element hidden');
     }
   }
 }
 
 /**
- * ✅ NEW: Directive สำหรับ User features เฉพาะ (ไม่ใช่ admin/supporter)
+ * ✅ UPDATED: Directive สำหรับ User features เฉพาะ (ไม่ใช่ admin/supporter) - รองรับ Role ID
  */
 @Directive({
   selector: '[userOnly]',
@@ -627,16 +784,20 @@ export class UserOnlyDirective implements OnInit, OnDestroy {
   }
 
   private updateVisibility(): void {
-    // User only = มี USER role แต่ไม่มี ADMIN หรือ SUPPORTER role
-    const canAccess = this.authService.isUser() && 
-                     !this.authService.isAdmin() && 
-                     !this.authService.isSupporter();
+    // ✅ UPDATED: User only = มี USER role และไม่มี ADMIN หรือ SUPPORTER role (รองรับ Role ID)
+    const isUser = this.authService.isUser();
+    const isAdmin = this.authService.isAdmin();
+    const isSupporter = this.authService.isSupporter();
+    const canAccess = isUser && !isAdmin && !isSupporter;
     
     console.log('🔍 User only access check:', {
       canAccess,
-      isUser: this.authService.isUser(),
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter(),
+      isUser,
+      isAdmin,
+      isSupporter,
+      userRoleId: this.authService.hasRoleId(ROLE_IDS.USER),
+      adminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
+      supporterRoleId: this.authService.hasRoleId(ROLE_IDS.SUPPORTER),
       currentVisibility: this._isVisible
     });
     
@@ -647,15 +808,125 @@ export class UserOnlyDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ User-only element hidden');
+      console.log('⚠️ User-only element hidden');
     }
   }
 }
 
-// ===== ✅ NEW: Specific Feature Directives (รองรับ 20 permissions) =====
+// ===== ✅ NEW: Role ID Specific Directives =====
 
 /**
- * ✅ NEW: Directive สำหรับ Customer Management features
+ * ✅ NEW: Directive สำหรับ Admin Role ID (15) เฉพาะ
+ */
+@Directive({
+  selector: '[adminRoleIdOnly]',
+  standalone: true
+})
+export class AdminRoleIdOnlyDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 AdminRoleIdOnly directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const canAccess = this.authService.hasRoleId(ROLE_IDS.ADMIN);
+    
+    console.log('🔍 Admin Role ID access check:', {
+      canAccess,
+      hasAdminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
+      userRoleIds: this.authService.getUserRoleIds(),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Admin Role ID element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠️ Admin Role ID element hidden');
+    }
+  }
+}
+
+/**
+ * ✅ NEW: Directive สำหรับ Supporter Role ID (8) เฉพาะ
+ */
+@Directive({
+  selector: '[supporterRoleIdOnly]',
+  standalone: true
+})
+export class SupporterRoleIdOnlyDirective implements OnInit, OnDestroy {
+  private authService = inject(AuthService);
+  private templateRef = inject(TemplateRef<any>);
+  private viewContainer = inject(ViewContainerRef);
+  private destroy$ = new Subject<void>();
+
+  private _isVisible = false;
+
+  ngOnInit(): void {
+    console.log('🔧 SupporterRoleIdOnly directive initialized');
+    
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updateVisibility();
+      });
+
+    this.updateVisibility();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private updateVisibility(): void {
+    const canAccess = this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
+    
+    console.log('🔍 Supporter Role ID access check:', {
+      canAccess,
+      hasSupporterRoleId: this.authService.hasRoleId(ROLE_IDS.SUPPORTER),
+      userRoleIds: this.authService.getUserRoleIds(),
+      currentVisibility: this._isVisible
+    });
+    
+    if (canAccess && !this._isVisible) {
+      this.viewContainer.createEmbeddedView(this.templateRef);
+      this._isVisible = true;
+      console.log('✅ Supporter Role ID element shown');
+    } else if (!canAccess && this._isVisible) {
+      this.viewContainer.clear();
+      this._isVisible = false;
+      console.log('⚠️ Supporter Role ID element hidden');
+    }
+  }
+}
+
+// ===== ✅ UPDATED: Specific Feature Directives (รองรับ 20 permissions + Role ID) =====
+
+/**
+ * ✅ UPDATED: Directive สำหรับ Customer Management features
  */
 @Directive({
   selector: '[canManageCustomer]',
@@ -703,186 +974,34 @@ export class CanManageCustomerDirective implements OnInit, OnDestroy {
     } else if (!canAccess && this._isVisible) {
       this.viewContainer.clear();
       this._isVisible = false;
-      console.log('⚠ Customer management element hidden');
-    }
-  }
-}
-
-/**
- * ✅ NEW: Directive สำหรับ Project Management features
- */
-@Directive({
-  selector: '[canManageProject]',
-  standalone: true
-})
-export class CanManageProjectDirective implements OnInit, OnDestroy {
-  private authService = inject(AuthService);
-  private templateRef = inject(TemplateRef<any>);
-  private viewContainer = inject(ViewContainerRef);
-  private destroy$ = new Subject<void>();
-
-  private _isVisible = false;
-
-  ngOnInit(): void {
-    console.log('🔧 CanManageProject directive initialized');
-    
-    this.authService.authState$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.updateVisibility();
-      });
-
-    this.updateVisibility();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  private updateVisibility(): void {
-    const userPermissions = this.authService.getEffectivePermissions();
-    const canAccess = userPermissions.includes(10); // MANAGE_PROJECT
-    
-    console.log('🔍 Project management access check:', {
-      canAccess,
-      hasManageProject: userPermissions.includes(10),
-      currentVisibility: this._isVisible
-    });
-    
-    if (canAccess && !this._isVisible) {
-      this.viewContainer.createEmbeddedView(this.templateRef);
-      this._isVisible = true;
-      console.log('✅ Project management element shown');
-    } else if (!canAccess && this._isVisible) {
-      this.viewContainer.clear();
-      this._isVisible = false;
-      console.log('⚠ Project management element hidden');
-    }
-  }
-}
-
-/**
- * ✅ NEW: Directive สำหรับ Category/Status Management features
- */
-@Directive({
-  selector: '[canManageSystem]',
-  standalone: true
-})
-export class CanManageSystemDirective implements OnInit, OnDestroy {
-  private authService = inject(AuthService);
-  private templateRef = inject(TemplateRef<any>);
-  private viewContainer = inject(ViewContainerRef);
-  private destroy$ = new Subject<void>();
-
-  private _isVisible = false;
-
-  ngOnInit(): void {
-    console.log('🔧 CanManageSystem directive initialized');
-    
-    this.authService.authState$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.updateVisibility();
-      });
-
-    this.updateVisibility();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  private updateVisibility(): void {
-    const userPermissions = this.authService.getEffectivePermissions();
-    // ตรวจสอบว่ามี permission จัดการ category หรือ status
-    const canAccess = userPermissions.includes(17) || userPermissions.includes(18); // MANAGE_CATEGORY || MANAGE_STATUS
-    
-    console.log('🔍 System management access check:', {
-      canAccess,
-      hasManageCategory: userPermissions.includes(17),
-      hasManageStatus: userPermissions.includes(18),
-      currentVisibility: this._isVisible
-    });
-    
-    if (canAccess && !this._isVisible) {
-      this.viewContainer.createEmbeddedView(this.templateRef);
-      this._isVisible = true;
-      console.log('✅ System management element shown');
-    } else if (!canAccess && this._isVisible) {
-      this.viewContainer.clear();
-      this._isVisible = false;
-      console.log('⚠ System management element hidden');
-    }
-  }
-}
-
-/**
- * ✅ NEW: Directive สำหรับ Dashboard/Monitoring features
- */
-@Directive({
-  selector: '[canViewDashboard]',
-  standalone: true
-})
-export class CanViewDashboardDirective implements OnInit, OnDestroy {
-  private authService = inject(AuthService);
-  private templateRef = inject(TemplateRef<any>);
-  private viewContainer = inject(ViewContainerRef);
-  private destroy$ = new Subject<void>();
-
-  private _isVisible = false;
-
-  ngOnInit(): void {
-    console.log('🔧 CanViewDashboard directive initialized');
-    
-    this.authService.authState$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.updateVisibility();
-      });
-
-    this.updateVisibility();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  private updateVisibility(): void {
-    const userPermissions = this.authService.getEffectivePermissions();
-    const canAccess = userPermissions.includes(19); // VIEW_DASHBOARD
-    
-    console.log('🔍 Dashboard access check:', {
-      canAccess,
-      hasViewDashboard: userPermissions.includes(19),
-      currentVisibility: this._isVisible
-    });
-    
-    if (canAccess && !this._isVisible) {
-      this.viewContainer.createEmbeddedView(this.templateRef);
-      this._isVisible = true;
-      console.log('✅ Dashboard element shown');
-    } else if (!canAccess && this._isVisible) {
-      this.viewContainer.clear();
-      this._isVisible = false;
-      console.log('⚠ Dashboard element hidden');
+      console.log('⚠️ Customer management element hidden');
     }
   }
 }
 
 // ===== ✅ Export ทั้งหมดเพื่อใช้งาน =====
 export const PERMISSION_DIRECTIVES = [
+  // Core directives
   HasPermissionDirective,
   HasRoleDirective, 
+  HasRoleIdDirective,          // ✅ NEW: Role ID directive
   HasAccessDirective,
   DebugPermissionsDirective,
+  
+  // Role-specific directives
   SupporterOnlyDirective,
   AdminOnlyDirective,
   UserOnlyDirective,
-  CanManageCustomerDirective,
-  CanManageProjectDirective,
-  CanManageSystemDirective,
-  CanViewDashboardDirective
+  
+  // Role ID-specific directives
+  AdminRoleIdOnlyDirective,     // ✅ NEW
+  SupporterRoleIdOnlyDirective, // ✅ NEW
+  
+  // Feature-specific directives
+  CanManageCustomerDirective
+  
+  // TODO: Add more feature directives as needed:
+  // CanManageProjectDirective,
+  // CanManageSystemDirective,
+  // CanViewDashboardDirective
 ] as const;

@@ -1,5 +1,15 @@
-// ✅ Import permission-related types
-import { permissionEnum, UserRole, ROLES } from './permission.model';
+// ✅ Import permission-related types with Role ID support
+import {
+  permissionEnum,
+  UserRole,
+  RoleId,
+  ROLES,
+  ROLE_IDS,
+  ROLE_ID_TO_NAME,
+  ROLE_NAME_TO_ID,
+  convertRoleIdsToNames,
+  convertRoleNamesToIds
+} from './permission.model';
 
 // ===== User Interface =====
 export interface User {
@@ -19,8 +29,9 @@ export interface User {
 
   companyAddress?: string;
   project?: string;
-  // ✅ เพิ่ม role และ permission fields
+  // ✅ เพิ่ม role และ permission fields with Role ID support
   roles?: UserRole[];
+  role_ids?: RoleId[]; // ✅ NEW: Support for role IDs from backend
   permissions?: permissionEnum[];
 }
 
@@ -38,8 +49,9 @@ export interface CreateUserDto {
   isenabled?: boolean;
   // สำหรับรหัสผ่าน (ถ้า backend ต้องการ)
   password?: string;
-  // สำหรับ role assignment
+  // ✅ UPDATED: Support both role names and IDs
   roles?: UserRole[];
+  role_ids?: RoleId[];
 }
 
 // ===== NEW: Create User Response ===== ✅
@@ -61,6 +73,9 @@ export interface CreateUserResponse {
     update_date?: string;
     update_by?: number;
     isenabled?: boolean;
+    // ✅ UPDATED: Include role data in response
+    roles?: UserRole[];
+    role_ids?: RoleId[];
   };
 }
 
@@ -93,6 +108,9 @@ export interface UserAccountItem {
   avatarColor?: string; // computed field
   company?: string; // ถ้ามีข้อมูล company
   company_address?: string;
+  // ✅ UPDATED: Include role data
+  roles?: UserRole[];
+  role_ids?: RoleId[];
 }
 
 // ===== Login Request Interface =====
@@ -101,7 +119,7 @@ export interface LoginRequest {
   password: string;
 }
 
-// ===== Backend Login Response Interface (ตรงกับ Backend) =====
+// ===== ✅ UPDATED: Backend Login Response Interface (รองรับ Role IDs) =====
 export interface LoginResponse {
   code: number;                    // 1 = success, 0 = error
   status: boolean;                 // true = success, false = error
@@ -113,13 +131,15 @@ export interface LoginResponse {
     lastname?: string;
     email?: string;
     roles?: UserRole[];           // ✅ เพิ่ม roles ใน response
+    role_ids?: RoleId[];          // ✅ NEW: Support role IDs from backend
   } | null;
   access_token: string | null;     // JWT token
   expires_in?: string;             // เช่น "3h"
   expires_at?: string;             // ISO string
   token_expires_timestamp?: number; // Unix timestamp
   permission?: permissionEnum[];   // ✅ ปรับเป็น permissionEnum[] แทน string[]
-  roles?: UserRole[];              // ✅ เพิ่ม roles ใน response
+  roles?: UserRole[];              // ✅ เพิ่ม roles ใน response (top level)
+  role_ids?: RoleId[];             // ✅ NEW: Support role IDs in response (top level)
 }
 
 // ===== Token Data Interface =====
@@ -140,10 +160,11 @@ export interface UserPermission {
   module?: string;
 }
 
-// ===== Enhanced User Interface (กับ permissions และ roles) =====
+// ===== ✅ UPDATED: Enhanced User Interface (กับ permissions และ roles + Role IDs) =====
 export interface UserWithPermissions extends User {
   permissions: permissionEnum[];   // ✅ ใช้ permissionEnum แทน UserPermission[]
   roles: UserRole[];               // ✅ ใช้ UserRole แทน string[]
+  role_ids?: RoleId[];             // ✅ NEW: Include role IDs
   last_login?: string;
   login_count?: number;
   effective_permissions?: permissionEnum[]; // ✅ permissions ที่ได้จาก roles
@@ -156,7 +177,7 @@ export interface LoginFormData {
   rememberMe: boolean;
 }
 
-// ===== Enhanced Auth State Interface =====
+// ===== ✅ UPDATED: Enhanced Auth State Interface (รองรับ Role IDs) =====
 export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -164,6 +185,7 @@ export interface AuthState {
   token: string | null;
   permissions: permissionEnum[];   // ✅ ปรับเป็น permissionEnum[]
   roles: UserRole[];               // ✅ เพิ่ม roles
+  role_ids?: RoleId[];             // ✅ NEW: เพิ่ม role IDs
   expires_at: Date | null;
   last_activity: Date | null;
   // ✅ เพิ่มข้อมูลเกี่ยวกับ role และ permission
@@ -181,6 +203,7 @@ export interface SessionInfo {
   user_agent?: string;
   permissions: permissionEnum[];   // ✅ ปรับเป็น permissionEnum[]
   roles: UserRole[];               // ✅ เพิ่ม roles
+  role_ids?: RoleId[];             // ✅ NEW: เพิ่ม role IDs
 }
 
 // ===== Error Response Interface =====
@@ -195,10 +218,11 @@ export interface AuthErrorResponse {
   };
 }
 
-// ===== Role Management Interfaces ===== ✅
+// ===== ✅ UPDATED: Role Management Interfaces with Role ID support =====
 export interface RoleAssignment {
   user_id: number;
   role: UserRole;
+  role_id?: RoleId;                // ✅ NEW: Include role ID
   assigned_by: number;
   assigned_at: string;
   is_active: boolean;
@@ -206,6 +230,7 @@ export interface RoleAssignment {
 
 export interface RolePermissionMapping {
   role: UserRole;
+  role_id: RoleId;                 // ✅ NEW: Include role ID
   permissions: permissionEnum[];
   description?: string;
   is_system_role: boolean;
@@ -213,7 +238,9 @@ export interface RolePermissionMapping {
 
 export interface UserRoleInfo {
   roles: UserRole[];
+  role_ids: RoleId[];              // ✅ NEW: Include role IDs
   primary_role?: UserRole;
+  primary_role_id?: RoleId;        // ✅ NEW: Include primary role ID
   permissions: permissionEnum[];
   role_assignments: RoleAssignment[];
 }
@@ -242,6 +269,7 @@ export interface Role9User {
   firstname?: string;
   lastname?: string;
   email?: string;
+  role_id?: RoleId;                // ✅ NEW: Include role ID
 }
 
 export interface Role9UsersResponse {
@@ -258,6 +286,8 @@ export interface UserListItem {
   phone?: string;
   isenabled: boolean;
   full_name?: string; // computed field
+  roles?: UserRole[];              // ✅ NEW: Include roles
+  role_ids?: RoleId[];             // ✅ NEW: Include role IDs
 }
 
 export interface UserListResponse {
@@ -266,7 +296,8 @@ export interface UserListResponse {
   data: UserListItem[];
 }
 
-// ===== Utility Functions =====
+// ===== ✅ UPDATED: Utility Functions with Role ID Support =====
+
 export function createEmptyAuthState(): AuthState {
   return {
     isAuthenticated: false,
@@ -275,6 +306,7 @@ export function createEmptyAuthState(): AuthState {
     token: null,
     permissions: [],
     roles: [],                     // ✅ เพิ่ม roles
+    role_ids: [],                  // ✅ NEW: เพิ่ม role IDs
     expires_at: null,
     last_activity: null,
     effective_permissions: []      // ✅ เพิ่ม effective_permissions
@@ -289,10 +321,10 @@ export function createLoginFormData(): LoginFormData {
   };
 }
 
-// ===== NEW: Create User Utility Functions ===== ✅
+// ===== ✅ UPDATED: Create User Utility Functions with Role ID Support =====
 
 /**
- * สร้าง CreateUserDto ที่ว่างเปล่า
+ * ✅ UPDATED: สร้าง CreateUserDto ที่ว่างเปล่า
  */
 export function createEmptyCreateUserDto(): CreateUserDto {
   return {
@@ -305,12 +337,13 @@ export function createEmptyCreateUserDto(): CreateUserDto {
     end_date: '',
     isenabled: true,
     password: '',
-    roles: []
+    roles: [],
+    role_ids: []                   // ✅ NEW: เพิ่ม role IDs
   };
 }
 
 /**
- * สร้าง UserAccountItem จาก User data
+ * ✅ UPDATED: สร้าง UserAccountItem จาก User data
  */
 export function createUserAccountItem(user: User): UserAccountItem {
   return {
@@ -318,7 +351,9 @@ export function createUserAccountItem(user: User): UserAccountItem {
     full_name: getUserFullName(user),
     avatar: getUserInitials(user),
     avatarColor: generateAvatarColor(user.id),
-    last_login: user.update_date || user.create_date || new Date().toISOString()
+    last_login: user.update_date || user.create_date || new Date().toISOString(),
+    roles: user.roles || [],       // ✅ Include roles
+    role_ids: user.role_ids || []  // ✅ NEW: Include role IDs
   };
 }
 
@@ -327,14 +362,14 @@ export function createUserAccountItem(user: User): UserAccountItem {
  */
 export function generateAvatarColor(userId: number): string {
   const colors = [
-    '#5873F8', '#28A745', '#FFC107', '#1FBCD5', 
+    '#5873F8', '#28A745', '#FFC107', '#1FBCD5',
     '#DC3545', '#6F42C1', '#FD7E14', '#20C997'
   ];
   return colors[userId % colors.length];
 }
 
 /**
- * แปลง UserAccountItem เป็น CreateUserDto สำหรับการแก้ไข
+ * ✅ UPDATED: แปลง UserAccountItem เป็น CreateUserDto สำหรับการแก้ไข
  */
 export function userAccountItemToCreateUserDto(item: UserAccountItem): CreateUserDto {
   return {
@@ -346,12 +381,14 @@ export function userAccountItemToCreateUserDto(item: UserAccountItem): CreateUse
     start_date: item.start_date,
     end_date: item.end_date,
     isenabled: item.isenabled,
-    update_by: item.update_by
+    update_by: item.update_by,
+    roles: item.roles || [],       // ✅ Include roles
+    role_ids: item.role_ids || []  // ✅ NEW: Include role IDs
   };
 }
 
 /**
- * ตรวจสอบว่าข้อมูล CreateUserDto ถูกต้องหรือไม่
+ * ✅ UPDATED: ตรวจสอบว่าข้อมูล CreateUserDto ถูกต้องหรือไม่
  */
 export function validateCreateUserDto(dto: CreateUserDto): {
   isValid: boolean;
@@ -375,6 +412,16 @@ export function validateCreateUserDto(dto: CreateUserDto): {
     errors.push('Invalid phone number format');
   }
 
+  // ✅ NEW: Validate role consistency
+  if (dto.roles && dto.role_ids) {
+    const expectedRoleIds = convertRoleNamesToIds(dto.roles);
+    const roleIdConsistency = JSON.stringify(dto.role_ids.sort()) === JSON.stringify(expectedRoleIds.sort());
+
+    if (!roleIdConsistency) {
+      errors.push('Role names and role IDs are inconsistent');
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors
@@ -396,6 +443,8 @@ function isValidPhone(phone: string): boolean {
   const phoneRegex = /^[0-9]{9,10}$/;
   return phoneRegex.test(phone.replace(/[-\s]/g, ''));
 }
+
+// ===== Login Response Validation Functions =====
 
 export function isLoginSuccessResponse(response: LoginResponse): boolean {
   return response.code === 1 &&
@@ -422,6 +471,11 @@ export function extractUserData(response: LoginResponse): UserWithPermissions | 
     return null;
   }
 
+  // ✅ UPDATED: Extract role data with ID support
+  const roles = response.roles || response.user.roles || [];
+  const roleIds = response.role_ids || response.user.role_ids || [];
+  const permissions = response.permission || [];
+
   return {
     id: response.user.id,
     username: response.user.username,
@@ -429,41 +483,72 @@ export function extractUserData(response: LoginResponse): UserWithPermissions | 
     lastname: response.user.lastname,
     email: response.user.email,
     isenabled: true,
-    // ✅ เพิ่มข้อมูล permissions และ roles
-    permissions: response.permission || [],
-    roles: response.roles || response.user.roles || [],
-    effective_permissions: response.permission || []
+    // ✅ เพิ่มข้อมูล permissions และ roles with Role ID support
+    permissions,
+    roles,
+    role_ids: roleIds,             // ✅ NEW: Include role IDs
+    effective_permissions: permissions
   };
 }
 
-// ===== Enhanced Utility Functions ===== ✅
+// ===== ✅ UPDATED: Enhanced Utility Functions with Role ID Support =====
 
 /**
- * ✅ สร้าง UserWithPermissions จาก User และ permissions/roles
+ * ✅ UPDATED: สร้าง UserWithPermissions จาก User และ permissions/roles
  */
 export function createUserWithPermissions(
   user: User,
   permissions: permissionEnum[] = [],
-  roles: UserRole[] = []
+  roles: UserRole[] = [],
+  roleIds: RoleId[] = []           // ✅ NEW: Add role IDs parameter
 ): UserWithPermissions {
   return {
     ...user,
     permissions,
     roles,
+    role_ids: roleIds,             // ✅ NEW: Include role IDs
     effective_permissions: permissions
   };
 }
 
 /**
- * ✅ ตรวจสอบว่า user มี role หรือไม่
+ * ✅ UPDATED: ตรวจสอบว่า user มี role หรือไม่ (รองรับ role ID)
  */
 export function userHasRole(user: User | UserWithPermissions | null, role: UserRole): boolean {
   if (!user || !('roles' in user)) return false;
-  return user.roles?.includes(role) || false;
+
+  // Check by role name
+  if (user.roles?.includes(role)) return true;
+
+  // ✅ NEW: Check by role ID if available
+  if ('role_ids' in user && user.role_ids) {
+    const roleId = ROLE_NAME_TO_ID[role];
+    return user.role_ids.includes(roleId);
+  }
+
+  return false;
 }
 
 /**
- * ✅ ตรวจสอบว่า user มี permission หรือไม่
+ * ✅ NEW: ตรวจสอบว่า user มี role ID หรือไม่
+ */
+export function userHasRoleId(user: User | UserWithPermissions | null, roleId: RoleId): boolean {
+  if (!user) return false;
+
+  // Check by role ID directly
+  if ('role_ids' in user && user.role_ids?.includes(roleId)) return true;
+
+  // Check by converting role name to ID
+  if ('roles' in user && user.roles) {
+    const roleName = ROLE_ID_TO_NAME[roleId];
+    return user.roles.includes(roleName);
+  }
+
+  return false;
+}
+
+/**
+ * ✅ UPDATED: ตรวจสอบว่า user มี permission หรือไม่
  */
 export function userHasPermission(user: User | UserWithPermissions | null, permission: permissionEnum): boolean {
   if (!user || !('permissions' in user)) return false;
@@ -471,15 +556,45 @@ export function userHasPermission(user: User | UserWithPermissions | null, permi
 }
 
 /**
- * ✅ ตรวจสอบว่า user มี role ใดๆ ใน list หรือไม่
+ * ✅ UPDATED: ตรวจสอบว่า user มี role ใดๆ ใน list หรือไม่ (รองรับ role ID)
  */
 export function userHasAnyRole(user: User | UserWithPermissions | null, roles: UserRole[]): boolean {
   if (!user || !('roles' in user) || !user.roles) return false;
-  return roles.some(role => user.roles!.includes(role));
+
+  // Check by role names
+  if (roles.some(role => user.roles!.includes(role))) return true;
+
+  // ✅ NEW: Check by role IDs if available
+  if ('role_ids' in user && user.role_ids) {
+    const roleIds = convertRoleNamesToIds(roles);
+    return roleIds.some(roleId => user.role_ids!.includes(roleId));
+  }
+
+  return false;
 }
 
 /**
- * ✅ ตรวจสอบว่า user มี permission ใดๆ ใน list หรือไม่
+ * ✅ NEW: ตรวจสอบว่า user มี role ID ใดๆ ใน list หรือไม่
+ */
+export function userHasAnyRoleId(user: User | UserWithPermissions | null, roleIds: RoleId[]): boolean {
+  if (!user) return false;
+
+  // Check by role IDs directly
+  if ('role_ids' in user && user.role_ids) {
+    return roleIds.some(roleId => user.role_ids!.includes(roleId));
+  }
+
+  // Check by converting role IDs to names
+  if ('roles' in user && user.roles) {
+    const roleNames = convertRoleIdsToNames(roleIds);
+    return roleNames.some(roleName => user.roles!.includes(roleName));
+  }
+
+  return false;
+}
+
+/**
+ * ✅ UPDATED: ตรวจสอบว่า user มี permission ใดๆ ใน list หรือไม่
  */
 export function userHasAnyPermission(user: User | UserWithPermissions | null, permissions: permissionEnum[]): boolean {
   if (!user || !('permissions' in user) || !user.permissions) return false;
@@ -487,7 +602,7 @@ export function userHasAnyPermission(user: User | UserWithPermissions | null, pe
 }
 
 /**
- * ✅ ดึงชื่อเต็มของ user
+ * ✅ UPDATED: ดึงชื่อเต็มของ user (รองรับ role-based naming)
  */
 export function getUserFullName(user: User | UserListItem | Role9User | UserAccountItem | null): string {
   if (!user) return '';
@@ -514,7 +629,7 @@ export function getUserFullName(user: User | UserListItem | Role9User | UserAcco
 }
 
 /**
- * ✅ ดึงชื่อย่อของ user
+ * ✅ UPDATED: ดึงชื่อย่อของ user
  */
 export function getUserInitials(user: User | UserAccountItem | null): string {
   if (!user) return 'U';
@@ -531,7 +646,7 @@ export function getUserInitials(user: User | UserAccountItem | null): string {
 }
 
 /**
- * ✅ สร้าง auth state จาก login response
+ * ✅ UPDATED: สร้าง auth state จาก login response (รองรับ Role ID)
  */
 export function createAuthStateFromLoginResponse(
   response: LoginResponse,
@@ -545,13 +660,15 @@ export function createAuthStateFromLoginResponse(
     token: token,
     permissions: user.permissions,
     roles: user.roles,
+    role_ids: user.role_ids || [], // ✅ NEW: Include role IDs
     expires_at: response.expires_at ? new Date(response.expires_at) : null,
     last_activity: new Date(),
     effective_permissions: user.effective_permissions
   };
 }
 
-// ===== Type Guards =====
+// ===== ✅ UPDATED: Type Guards with Role ID Support =====
+
 export function isUser(obj: any): obj is User {
   return obj &&
     typeof obj.id === 'number' &&
@@ -595,6 +712,16 @@ export function isUserAccountItem(obj: any): obj is UserAccountItem {
     typeof obj.isenabled === 'boolean';
 }
 
+// ✅ NEW: Role ID Type Guards
+export function isValidRoleId(obj: any): obj is RoleId {
+  const validIds: number[] = [1, 8, 15]; // USER, SUPPORTER, ADMIN
+  return typeof obj === 'number' && validIds.includes(obj);
+}
+
+export function hasRoleIds(obj: any): obj is { role_ids: RoleId[] } {
+  return obj && Array.isArray(obj.role_ids) && obj.role_ids.every(isValidRoleId);
+}
+
 // ===== Constants =====
 export const LOGIN_SUCCESS_CODE = 1;
 export const LOGIN_ERROR_CODE = 0;
@@ -611,15 +738,16 @@ export const PERMISSION_CODES = {
 
 export type PermissionCode = typeof PERMISSION_CODES[keyof typeof PERMISSION_CODES];
 
-// ===== Default Roles and Permissions ===== ✅
+// ===== ✅ UPDATED: Default Roles and Permissions with Role ID Support =====
 export const DEFAULT_USER_ROLES: UserRole[] = [ROLES.USER];
+export const DEFAULT_USER_ROLE_IDS: RoleId[] = [ROLE_IDS.USER]; // ✅ NEW
 export const DEFAULT_USER_PERMISSIONS: permissionEnum[] = [
   permissionEnum.CREATE_TICKET,
   permissionEnum.VIEW_OWN_TICKETS,
   permissionEnum.TRACK_TICKET
 ];
 
-// ===== Auth State Helpers ===== ✅
+// ===== ✅ UPDATED: Auth State Helpers with Role ID Support =====
 export class AuthStateHelper {
   static hasRole(state: AuthState, role: UserRole): boolean {
     return state.roles.includes(role);
@@ -631,6 +759,21 @@ export class AuthStateHelper {
 
   static hasAllRoles(state: AuthState, roles: UserRole[]): boolean {
     return roles.every(role => state.roles.includes(role));
+  }
+
+  // ✅ NEW: Role ID methods
+  static hasRoleId(state: AuthState, roleId: RoleId): boolean {
+    return state.role_ids?.includes(roleId) || false;
+  }
+
+  static hasAnyRoleId(state: AuthState, roleIds: RoleId[]): boolean {
+    if (!state.role_ids) return false;
+    return roleIds.some(roleId => state.role_ids!.includes(roleId));
+  }
+
+  static hasAllRoleIds(state: AuthState, roleIds: RoleId[]): boolean {
+    if (!state.role_ids) return false;
+    return roleIds.every(roleId => state.role_ids!.includes(roleId));
   }
 
   static hasPermission(state: AuthState, permission: permissionEnum): boolean {
@@ -646,16 +789,17 @@ export class AuthStateHelper {
     return permissions.every(permission => this.hasPermission(state, permission));
   }
 
+  // ✅ UPDATED: Role checking with Role ID support
   static isAdmin(state: AuthState): boolean {
-    return this.hasRole(state, ROLES.ADMIN);
+    return this.hasRole(state, ROLES.ADMIN) || this.hasRoleId(state, ROLE_IDS.ADMIN);
   }
 
   static isSupporter(state: AuthState): boolean {
-    return this.hasRole(state, ROLES.SUPPORTER);
+    return this.hasRole(state, ROLES.SUPPORTER) || this.hasRoleId(state, ROLE_IDS.SUPPORTER);
   }
 
   static isUser(state: AuthState): boolean {
-    return this.hasRole(state, ROLES.USER);
+    return this.hasRole(state, ROLES.USER) || this.hasRoleId(state, ROLE_IDS.USER);
   }
 
   static canManageUsers(state: AuthState): boolean {
@@ -668,10 +812,297 @@ export class AuthStateHelper {
       this.hasPermission(state, permissionEnum.CHANGE_STATUS);
   }
 
-  static getPrimaryRole(state: AuthState): UserRole | null {
+  // ✅ UPDATED: Get primary role with Role ID support
+  static getPrimaryRole(state: AuthState): UserRole | undefined {  // เปลี่ยน return type
     if (this.isAdmin(state)) return ROLES.ADMIN;
     if (this.isSupporter(state)) return ROLES.SUPPORTER;
     if (this.isUser(state)) return ROLES.USER;
-    return null;
+    return undefined; // เปลี่ยนจาก null เป็น undefined
+  }
+
+  // ✅ NEW: Get primary role ID
+  static getPrimaryRoleId(state: AuthState): RoleId | undefined {  // เปลี่ยน return type
+    if (this.hasRoleId(state, ROLE_IDS.ADMIN)) return ROLE_IDS.ADMIN;
+    if (this.hasRoleId(state, ROLE_IDS.SUPPORTER)) return ROLE_IDS.SUPPORTER;
+    if (this.hasRoleId(state, ROLE_IDS.USER)) return ROLE_IDS.USER;
+    return undefined; // เปลี่ยนจาก null เป็น undefined
+  }
+
+  // ✅ NEW: Role consistency validation
+  static validateRoleConsistency(state: AuthState): {
+    isConsistent: boolean;
+    issues: string[];
+  } {
+    const issues: string[] = [];
+
+    if (state.roles.length !== (state.role_ids?.length || 0)) {
+      issues.push('Role count mismatch between names and IDs');
+    }
+
+    if (state.role_ids) {
+      const expectedRoleIds = convertRoleNamesToIds(state.roles);
+      const actualRoleIds = state.role_ids.sort();
+      const expectedSorted = expectedRoleIds.sort();
+
+      if (JSON.stringify(actualRoleIds) !== JSON.stringify(expectedSorted)) {
+        issues.push('Role IDs do not match role names');
+      }
+    }
+
+    return {
+      isConsistent: issues.length === 0,
+      issues
+    };
+  }
+
+  // ✅ NEW: Get user role information
+  static getUserRoleInfo(state: AuthState): UserRoleInfo {
+    return {
+      roles: state.roles,
+      role_ids: state.role_ids || [],
+      primary_role: this.getPrimaryRole(state),     // ไม่ต้อง || undefined เพราะเป็น optional
+      primary_role_id: this.getPrimaryRoleId(state), // ไม่ต้อง || undefined เพราะเป็น optional
+      permissions: state.permissions,
+      role_assignments: []
+    };
   }
 }
+
+// ===== ✅ NEW: Role ID Utility Functions =====
+
+/**
+ * ✅ NEW: Get user display name with role indicator
+ */
+export function getUserDisplayName(user: User | UserWithPermissions, includeRole: boolean = false): string {
+  const fullName = getUserFullName(user);
+
+  if (!includeRole || !('roles' in user) || !user.roles?.length) {
+    return fullName;
+  }
+
+  // Get primary role for display
+  const primaryRole = user.roles.includes(ROLES.ADMIN) ? 'Admin' :
+    user.roles.includes(ROLES.SUPPORTER) ? 'Support' :
+      user.roles.includes(ROLES.USER) ? 'User' : '';
+
+  return primaryRole ? `${fullName} (${primaryRole})` : fullName;
+}
+
+/**
+ * ✅ NEW: Check if user can access specific feature
+ */
+export function canUserAccessFeature(
+  user: User | UserWithPermissions | null,
+  feature: 'tickets' | 'users' | 'reports' | 'settings' | 'dashboard'
+): boolean {
+  if (!user || !('permissions' in user)) return false;
+
+  const permissions = user.permissions || [];
+
+  switch (feature) {
+    case 'tickets':
+      return permissions.some(p => [1, 12, 13].includes(p)); // CREATE_TICKET, VIEW_OWN_TICKETS, VIEW_ALL_TICKETS
+    case 'users':
+      return permissions.some(p => [15, 16].includes(p)); // ADD_USER, DEL_USER
+    case 'reports':
+      return permissions.some(p => [12, 13].includes(p)); // VIEW_OWN_TICKETS, VIEW_ALL_TICKETS
+    case 'settings':
+      return permissions.some(p => [17, 18].includes(p)); // MANAGE_CATEGORY, MANAGE_STATUS
+    case 'dashboard':
+      return permissions.includes(19); // VIEW_DASHBOARD
+    default:
+      return false;
+  }
+}
+
+/**
+ * ✅ NEW: Get user role badge info for UI
+ */
+export function getUserRoleBadge(user: User | UserWithPermissions | null): {
+  text: string;
+  color: string;
+  icon?: string;
+} | null {
+  if (!user || !('roles' in user) || !user.roles?.length) {
+    return null;
+  }
+
+  if (user.roles.includes(ROLES.ADMIN)) {
+    return {
+      text: 'Admin',
+      color: 'red',
+      icon: '👑'
+    };
+  }
+
+  if (user.roles.includes(ROLES.SUPPORTER)) {
+    return {
+      text: 'Support',
+      color: 'blue',
+      icon: '🛠️'
+    };
+  }
+
+  if (user.roles.includes(ROLES.USER)) {
+    return {
+      text: 'User',
+      color: 'green',
+      icon: '👤'
+    };
+  }
+
+  return null;
+}
+
+/**
+ * ✅ NEW: Sync role IDs with role names
+ */
+export function syncUserRoles(user: UserWithPermissions): UserWithPermissions {
+  const updatedUser = { ...user };
+
+  // If we have role names but no role IDs, convert them
+  if (user.roles?.length && (!user.role_ids || user.role_ids.length === 0)) {
+    updatedUser.role_ids = convertRoleNamesToIds(user.roles);
+  }
+
+  // If we have role IDs but no role names, convert them
+  if (user.role_ids?.length && (!user.roles || user.roles.length === 0)) {
+    updatedUser.roles = convertRoleIdsToNames(user.role_ids);
+  }
+
+  return updatedUser;
+}
+
+/**
+ * ✅ NEW: Create user summary for debug/display purposes
+ */
+export function createUserSummary(user: User | UserWithPermissions | null): {
+  id: number | null;
+  username: string;
+  fullName: string;
+  roles: string[];
+  roleIds: number[];
+  permissions: number[];
+  hasBasicAccess: boolean;
+  isAdmin: boolean;
+  isSupporter: boolean;
+  isUser: boolean;
+} {
+  if (!user) {
+    return {
+      id: null,
+      username: 'Unknown',
+      fullName: 'Unknown User',
+      roles: [],
+      roleIds: [],
+      permissions: [],
+      hasBasicAccess: false,
+      isAdmin: false,
+      isSupporter: false,
+      isUser: false
+    };
+  }
+
+  const roles = ('roles' in user) ? user.roles || [] : [];
+  const roleIds = ('role_ids' in user) ? user.role_ids || [] : [];
+  const permissions = ('permissions' in user) ? user.permissions || [] : [];
+
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: getUserFullName(user),
+    roles,
+    roleIds,
+    permissions,
+    hasBasicAccess: permissions.some(p => [1, 12, 13].includes(p)),
+    isAdmin: roles.includes(ROLES.ADMIN) || roleIds.includes(ROLE_IDS.ADMIN),
+    isSupporter: roles.includes(ROLES.SUPPORTER) || roleIds.includes(ROLE_IDS.SUPPORTER),
+    isUser: roles.includes(ROLES.USER) || roleIds.includes(ROLE_IDS.USER)
+  };
+}
+
+// ===== ✅ NEW: Debug Functions with Role ID Support =====
+
+/**
+ * ✅ NEW: Debug user role information
+ */
+export function debugUserRoles(user: User | UserWithPermissions | null): void {
+  console.group('🔍 User Role Debug');
+
+  if (!user) {
+    console.log('❌ No user provided');
+    console.groupEnd();
+    return;
+  }
+
+  const summary = createUserSummary(user);
+
+  console.log('👤 User Info:', {
+    id: summary.id,
+    username: summary.username,
+    fullName: summary.fullName
+  });
+
+  console.log('👥 Role Data:', {
+    roles: summary.roles,
+    roleIds: summary.roleIds,
+    roleCount: summary.roles.length,
+    roleIdCount: summary.roleIds.length
+  });
+
+  console.log('🔍 Permissions:', {
+    permissions: summary.permissions,
+    permissionCount: summary.permissions.length,
+    hasBasicAccess: summary.hasBasicAccess
+  });
+
+  console.log('🎯 Role Checks:', {
+    isAdmin: summary.isAdmin,
+    isSupporter: summary.isSupporter,
+    isUser: summary.isUser
+  });
+
+  // Check role consistency
+  if (summary.roles.length > 0 && summary.roleIds.length > 0) {
+    const expectedRoleIds = convertRoleNamesToIds(summary.roles as UserRole[]);
+    const isConsistent = JSON.stringify(summary.roleIds.sort()) === JSON.stringify(expectedRoleIds.sort());
+
+    console.log('✅ Role Consistency:', {
+      isConsistent,
+      expectedRoleIds,
+      actualRoleIds: summary.roleIds
+    });
+  }
+
+  console.groupEnd();
+}
+
+/**
+ * ✅ NEW: Export all role and permission utilities
+ */
+export const USER_UTILS = {
+  // Role ID functions
+  convertRoleIdsToNames,
+  convertRoleNamesToIds,
+  userHasRoleId,
+  userHasAnyRoleId,
+
+  // Enhanced user functions
+  getUserDisplayName,
+  canUserAccessFeature,
+  getUserRoleBadge,
+  syncUserRoles,
+  createUserSummary,
+  debugUserRoles,
+
+  // Validation functions
+  validateCreateUserDto,
+  isValidRoleId,
+  hasRoleIds,
+
+  // Constants
+  DEFAULT_USER_ROLE_IDS,
+  ROLE_IDS,
+  ROLE_ID_TO_NAME,
+  ROLE_NAME_TO_ID
+} as const;

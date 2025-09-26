@@ -1,10 +1,18 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { permissionEnum, UserRole, checkAccess } from '../models/permission.model';
+import { 
+  permissionEnum, 
+  UserRole, 
+  RoleId,
+  ROLES,
+  ROLE_IDS,
+  checkAccess,
+  ROLE_ID_TO_NAME
+} from '../models/permission.model';
 
 /**
- * ✅ Enhanced Auth Guard with Permission and Role Support
+ * ✅ UPDATED: Enhanced Auth Guard with Permission and Role Support + Role ID Support
  * 
  * Usage in routes:
  * {
@@ -12,8 +20,9 @@ import { permissionEnum, UserRole, checkAccess } from '../models/permission.mode
  *   component: AdminComponent,
  *   canActivate: [authGuard],
  *   data: {
- *     permissions: [permissionEnum.ADD_USER, permissionEnum.DELETE_USER],
+ *     permissions: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
  *     roles: ['admin'],
+ *     role_ids: [15], // ✅ NEW: Support role IDs
  *     requireAllPermissions: true,
  *     requireAllRoles: false
  *   }
@@ -26,7 +35,7 @@ export const authGuard: CanActivateFn = (
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  console.log('🔐 Auth Guard checking access for:', state.url);
+  console.log('🔍 Auth Guard checking access for:', state.url);
   console.log('Route data:', route.data);
 
   // ===== 1. Basic Authentication Check ===== ✅
@@ -41,36 +50,40 @@ export const authGuard: CanActivateFn = (
 
   console.log('✅ User is authenticated');
 
-  // ===== 2. Permission and Role Extraction ===== ✅
+  // ===== 2. ✅ UPDATED: Permission and Role Extraction (with Role ID support) =====
   
-  const requiredPermissions: number[] = route.data['permissions'] || []; // ✅ เปลี่ยนเป็น number[]
+  const requiredPermissions: number[] = route.data['permissions'] || [];
   const requiredRoles: UserRole[] = route.data['roles'] || [];
+  const requiredRoleIds: RoleId[] = route.data['role_ids'] || []; // ✅ NEW: Support role IDs in route data
   const requireAllPermissions: boolean = route.data['requireAllPermissions'] || false;
   const requireAllRoles: boolean = route.data['requireAllRoles'] || false;
 
-  // ถ้าไม่มีเงื่อนไข permission หรือ role = อนุญาต
-  if (requiredPermissions.length === 0 && requiredRoles.length === 0) {
-    console.log('✅ No specific permissions or roles required, allowing access');
+  // ถ้าไม่มีเงื่อนไข permission, role หรือ role ID = อนุญาต
+  if (requiredPermissions.length === 0 && requiredRoles.length === 0 && requiredRoleIds.length === 0) {
+    console.log('✅ No specific permissions, roles, or role IDs required, allowing access');
     return true;
   }
 
-  // ===== 3. User Data Validation ===== ✅
+  // ===== 3. ✅ UPDATED: User Data Validation (with Role ID support) =====
   
   const userPermissions = authService.getEffectivePermissions();
   const userRoles = authService.getUserRoles();
+  const userRoleIds = authService.getUserRoleIds(); // ✅ NEW: Get user role IDs
   const currentUser = authService.getCurrentUser();
 
   console.log('🔍 Access control check:', {
     userRoles,
+    userRoleIds,
     userPermissions,
     userPermissionCount: userPermissions.length,
     requiredPermissions,
     requiredRoles,
+    requiredRoleIds,
     requireAllPermissions,
     requireAllRoles
   });
 
-  // ===== 4. Permission Checking ===== ✅
+  // ===== 4. Permission Checking ===== (no changes needed)
   
   let hasRequiredPermissions = true;
   let permissionMessage = '';
@@ -92,25 +105,56 @@ export const authGuard: CanActivateFn = (
     }
   }
 
-  // ===== 5. Role Checking ===== ✅
+  // ===== 5. ✅ UPDATED: Role Checking (with Role ID support) =====
   
   let hasRequiredRoles = true;
   let roleMessage = '';
 
-  if (requiredRoles.length > 0) {
-    if (requireAllRoles) {
-      // ต้องมีทุก role
-      hasRequiredRoles = requiredRoles.every(role => userRoles.includes(role));
-      if (!hasRequiredRoles) {
-        const missingRoles = requiredRoles.filter(role => !userRoles.includes(role));
-        roleMessage = `Missing required roles: ${missingRoles.join(', ')}`;
+  if (requiredRoles.length > 0 || requiredRoleIds.length > 0) {
+    // ✅ NEW: Check both role names and role IDs
+    let roleNameCheck = true;
+    let roleIdCheck = true;
+    
+    // Check role names if specified
+    if (requiredRoles.length > 0) {
+      if (requireAllRoles) {
+        roleNameCheck = requiredRoles.every(role => userRoles.includes(role));
+      } else {
+        roleNameCheck = requiredRoles.some(role => userRoles.includes(role));
       }
-    } else {
-      // มีอย่างน้อย 1 role
-      hasRequiredRoles = requiredRoles.some(role => userRoles.includes(role));
-      if (!hasRequiredRoles) {
-        roleMessage = `Missing any of required roles: ${requiredRoles.join(', ')}`;
+    }
+    
+    // ✅ NEW: Check role IDs if specified
+    if (requiredRoleIds.length > 0) {
+      if (requireAllRoles) {
+        roleIdCheck = requiredRoleIds.every(roleId => userRoleIds.includes(roleId));
+      } else {
+        roleIdCheck = requiredRoleIds.some(roleId => userRoleIds.includes(roleId));
       }
+    }
+    
+    // ✅ UPDATED: Combined role check (pass if either role names OR role IDs match)
+    hasRequiredRoles = roleNameCheck && roleIdCheck;
+    
+    if (!hasRequiredRoles) {
+      const messages: string[] = [];
+      
+      if (requiredRoles.length > 0 && !roleNameCheck) {
+        const missingRoles = requireAllRoles 
+          ? requiredRoles.filter(role => !userRoles.includes(role))
+          : requiredRoles;
+        messages.push(`Missing role names: ${missingRoles.join(', ')}`);
+      }
+      
+      if (requiredRoleIds.length > 0 && !roleIdCheck) {
+        const missingRoleIds = requireAllRoles
+          ? requiredRoleIds.filter(roleId => !userRoleIds.includes(roleId))
+          : requiredRoleIds;
+        const missingRoleNames = missingRoleIds.map(id => ROLE_ID_TO_NAME[id] || `ID:${id}`);
+        messages.push(`Missing role IDs: ${missingRoleNames.join(', ')}`);
+      }
+      
+      roleMessage = messages.join('. ');
     }
   }
 
@@ -122,6 +166,7 @@ export const authGuard: CanActivateFn = (
     console.log('✅ Access granted to:', state.url);
     console.log('User has:', {
       roles: userRoles,
+      roleIds: userRoleIds,
       permissions: userPermissions.length + ' permissions'
     });
     return true;
@@ -145,6 +190,7 @@ export const authGuard: CanActivateFn = (
     console.log('User info:', {
       username: currentUser?.username,
       roles: userRoles,
+      roleIds: userRoleIds,
       permissions: userPermissions,
       permissionCount: userPermissions.length
     });
@@ -153,8 +199,10 @@ export const authGuard: CanActivateFn = (
     handleAccessDenied(router, state.url, fullErrorMessage, {
       requiredPermissions,
       requiredRoles,
+      requiredRoleIds, // ✅ NEW: Include required role IDs
       userPermissions,
-      userRoles
+      userRoles,
+      userRoleIds      // ✅ NEW: Include user role IDs
     });
 
     return false;
@@ -162,29 +210,23 @@ export const authGuard: CanActivateFn = (
 };
 
 /**
- * ✅ จัดการเมื่อถูกปฏิเสธการเข้าถึง
+ * ✅ UPDATED: จัดการเมื่อถูกปฏิเสธการเข้าถึง (with Role ID support)
  */
 function handleAccessDenied(
   router: Router, 
   attemptedUrl: string, 
   reason: string,
   context: {
-    requiredPermissions: number[]; // ✅ เปลี่ยนเป็น number[]
+    requiredPermissions: number[];
     requiredRoles: UserRole[];
-    userPermissions: number[]; // ✅ เปลี่ยนเป็น number[]
+    requiredRoleIds?: RoleId[];     // ✅ NEW: Include required role IDs
+    userPermissions: number[];
     userRoles: UserRole[];
+    userRoleIds?: RoleId[];         // ✅ NEW: Include user role IDs
   }
 ): void {
   
-  // ตัวอย่าง: ถ้ามีหน้า access-denied
-  // router.navigate(['/access-denied'], {
-  //   queryParams: {
-  //     attemptedUrl,
-  //     reason: encodeURIComponent(reason)
-  //   }
-  // });
-
-  // หรือแสดง alert และกลับไป dashboard
+  // สร้างข้อความที่เป็นมิตรกับผู้ใช้
   const userFriendlyMessage = createUserFriendlyAccessDeniedMessage(context);
   
   // แสดง notification (ถ้ามี notification service)
@@ -203,20 +245,30 @@ function handleAccessDenied(
 }
 
 /**
- * ✅ สร้างข้อความแจ้งเตือนที่เป็นมิตรกับผู้ใช้ (ปรับให้รองรับ 19 permissions)
+ * ✅ UPDATED: สร้างข้อความแจ้งเตือนที่เป็นมิตรกับผู้ใช้ (รองรับ Role IDs)
  */
 function createUserFriendlyAccessDeniedMessage(context: {
-  requiredPermissions: number[]; // ✅ เปลี่ยนเป็น number[]
+  requiredPermissions: number[];
   requiredRoles: UserRole[];
-  userPermissions: number[]; // ✅ เปลี่ยนเป็น number[]
+  requiredRoleIds?: RoleId[];
+  userPermissions: number[];
   userRoles: UserRole[];
+  userRoleIds?: RoleId[];
 }): string {
   
   const messages: string[] = [];
   
-  // ตรวจสอบ role requirements
-  if (context.requiredRoles.length > 0) {
-    const roleNames = context.requiredRoles.map(role => {
+  // ✅ UPDATED: ตรวจสอบ role requirements (both names and IDs)
+  const allRequiredRoles = [...context.requiredRoles];
+  
+  // ✅ NEW: Add role names from required role IDs
+  if (context.requiredRoleIds) {
+    const roleNamesFromIds = context.requiredRoleIds.map(id => ROLE_ID_TO_NAME[id]).filter(Boolean);
+    allRequiredRoles.push(...roleNamesFromIds);
+  }
+  
+  if (allRequiredRoles.length > 0) {
+    const roleNames = [...new Set(allRequiredRoles)].map(role => {
       switch (role) {
         case 'admin': return 'ผู้ดูแลระบบ';
         case 'supporter': return 'ผู้สนับสนุน';
@@ -231,7 +283,7 @@ function createUserFriendlyAccessDeniedMessage(context: {
   // ตรวจสอบ permission requirements
   if (context.requiredPermissions.length > 0) {
     const permissionNames = context.requiredPermissions.map(permission => {
-      // ✅ แปลง permission number เป็นชื่อที่อ่านได้ (19 permissions)
+      // แปลง permission number เป็นชื่อที่อ่านได้ (20 permissions)
       switch (permission) {
         case 1: return 'แจ้งปัญหา';
         case 2: return 'ติดตามปัญหา';
@@ -252,6 +304,7 @@ function createUserFriendlyAccessDeniedMessage(context: {
         case 17: return 'จัดการ category';
         case 18: return 'จัดการ status';
         case 19: return 'มอนเทอริ่ง';
+        case 20: return 'จัดการ customer';
         default: return `Permission ${permission}`;
       }
     });
@@ -266,10 +319,10 @@ function createUserFriendlyAccessDeniedMessage(context: {
   return `ไม่สามารถเข้าถึงได้ ${messages.join(' และ ')}`;
 }
 
-// ===== Specialized Guards ===== ✅
+// ===== ✅ UPDATED: Specialized Guards with Role ID Support =====
 
 /**
- * ✅ Guard สำหรับ Admin เท่านั้น (แก้ไขให้ทำงานถูกต้อง)
+ * ✅ UPDATED: Guard สำหรับ Admin เท่านั้น (รองรับ Role ID)
  */
 export const adminGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -282,27 +335,32 @@ export const adminGuard: CanActivateFn = (route, state) => {
     return false;
   }
 
-  // ✅ แก้ไข: ตรวจสอบทั้ง role และ permissions
+  // ✅ UPDATED: ตรวจสอบทั้ง role และ role ID และ permissions
   const isAdmin = authService.isAdmin();
+  const hasAdminRoleId = authService.hasRoleId(ROLE_IDS.ADMIN); // ✅ NEW: Check by role ID
   const hasAdminPermissions = authService.hasAnyPermission([15, 16]); // ADD_USER, DELETE_USER
   const hasManageProject = authService.hasPermission(10); // MANAGE_PROJECT
 
   console.log('👑 Admin check details:', {
     isAdmin,
+    hasAdminRoleId,
     hasAdminPermissions,
     hasManageProject,
     userRoles: authService.getUserRoles(),
+    userRoleIds: authService.getUserRoleIds(),
     userPermissions: authService.getEffectivePermissions()
   });
 
-  // ✅ อนุโลมให้ผ่านถ้ามี admin role หรือ admin permissions
-  if (!isAdmin && !hasAdminPermissions && !hasManageProject) {
+  // ✅ UPDATED: อนุโลมให้ผ่านถ้ามี admin role, role ID, หรือ admin permissions
+  if (!isAdmin && !hasAdminRoleId && !hasAdminPermissions && !hasManageProject) {
     console.log('❌ User is not admin and has no admin permissions');
     handleAccessDenied(router, state.url, 'ต้องการสิทธิ์ผู้ดูแลระบบ', {
       requiredPermissions: [15], // ADD_USER as minimum admin permission
       requiredRoles: ['admin'],
+      requiredRoleIds: [ROLE_IDS.ADMIN],
       userPermissions: authService.getEffectivePermissions(),
-      userRoles: authService.getUserRoles()
+      userRoles: authService.getUserRoles(),
+      userRoleIds: authService.getUserRoleIds()
     });
     return false;
   }
@@ -312,7 +370,7 @@ export const adminGuard: CanActivateFn = (route, state) => {
 };
 
 /**
- * ✅ Guard สำหรับ Support Team (Admin + Supporter)
+ * ✅ UPDATED: Guard สำหรับ Support Team (Admin + Supporter) with Role ID support
  */
 export const supportGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -325,24 +383,30 @@ export const supportGuard: CanActivateFn = (route, state) => {
     return false;
   }
 
-  // ✅ ตรวจสอบทั้ง role และ permissions
+  // ✅ UPDATED: ตรวจสอบทั้ง role names, role IDs และ permissions
   const hasRole = authService.hasAnyRole(['admin', 'supporter']);
+  const hasRoleId = authService.hasRoleId(ROLE_IDS.ADMIN) || authService.hasRoleId(ROLE_IDS.SUPPORTER);
   const hasSupportPermissions = authService.hasAnyPermission([13, 9, 6, 8]); // VIEW_ALL_TICKETS, ASSIGNEE, REPLY_TICKET, SOLVE_PROBLEM
 
   console.log('🛠️ Support check details:', {
     hasRole,
+    hasRoleId,
     hasSupportPermissions,
     userRoles: authService.getUserRoles(),
+    userRoleIds: authService.getUserRoleIds(),
     userPermissions: authService.getEffectivePermissions()
   });
 
-  if (!hasRole && !hasSupportPermissions) {
+  // ✅ UPDATED: Pass if has role names OR role IDs OR support permissions
+  if (!hasRole && !hasRoleId && !hasSupportPermissions) {
     console.log('❌ User is not support team member');
     handleAccessDenied(router, state.url, 'ต้องการสิทธิ์ทีมสนับสนุน', {
       requiredPermissions: [13, 9], // VIEW_ALL_TICKETS, ASSIGNEE
       requiredRoles: ['admin', 'supporter'],
+      requiredRoleIds: [ROLE_IDS.ADMIN, ROLE_IDS.SUPPORTER],
       userPermissions: authService.getEffectivePermissions(),
-      userRoles: authService.getUserRoles()
+      userRoles: authService.getUserRoles(),
+      userRoleIds: authService.getUserRoleIds()
     });
     return false;
   }
@@ -352,7 +416,7 @@ export const supportGuard: CanActivateFn = (route, state) => {
 };
 
 /**
- * ✅ Guard สำหรับ User Management (แก้ไข permissions)
+ * ✅ UPDATED: Guard สำหรับ User Management (รองรับ Role ID)
  */
 export const userManagementGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -366,14 +430,17 @@ export const userManagementGuard: CanActivateFn = (route, state) => {
   }
 
   const canManageUsers = authService.hasAnyPermission([15, 16]); // ADD_USER, DELETE_USER
+  const isAdmin = authService.isAdmin(); // This now checks both role name and role ID
 
-  if (!canManageUsers) {
+  if (!canManageUsers && !isAdmin) {
     console.log('❌ User cannot manage users');
     handleAccessDenied(router, state.url, 'ต้องการสิทธิ์จัดการผู้ใช้', {
       requiredPermissions: [15, 16], // ADD_USER, DELETE_USER
-      requiredRoles: [],
+      requiredRoles: ['admin'],
+      requiredRoleIds: [ROLE_IDS.ADMIN],
       userPermissions: authService.getEffectivePermissions(),
-      userRoles: authService.getUserRoles()
+      userRoles: authService.getUserRoles(),
+      userRoleIds: authService.getUserRoleIds()
     });
     return false;
   }
@@ -383,7 +450,7 @@ export const userManagementGuard: CanActivateFn = (route, state) => {
 };
 
 /**
- * ✅ Guard สำหรับ Ticket Management (แก้ไข permissions)
+ * ✅ UPDATED: Guard สำหรับ Ticket Management (รองรับ Role ID)
  */
 export const ticketManagementGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -403,13 +470,17 @@ export const ticketManagementGuard: CanActivateFn = (route, state) => {
     8   // SOLVE_PROBLEM
   ]);
 
-  if (!canManage) {
+  const isSupport = authService.isSupporter() || authService.isAdmin(); // This now checks role IDs too
+
+  if (!canManage && !isSupport) {
     console.log('❌ User cannot manage tickets');
     handleAccessDenied(router, state.url, 'ต้องการสิทธิ์จัดการตั๋ว', {
       requiredPermissions: [13, 5, 9, 8], // VIEW_ALL_TICKETS, CHANGE_STATUS, ASSIGNEE, SOLVE_PROBLEM
-      requiredRoles: [],
+      requiredRoles: ['admin', 'supporter'],
+      requiredRoleIds: [ROLE_IDS.ADMIN, ROLE_IDS.SUPPORTER],
       userPermissions: authService.getEffectivePermissions(),
-      userRoles: authService.getUserRoles()
+      userRoles: authService.getUserRoles(),
+      userRoleIds: authService.getUserRoleIds()
     });
     return false;
   }
@@ -419,7 +490,7 @@ export const ticketManagementGuard: CanActivateFn = (route, state) => {
 };
 
 /**
- * ✅ Guard สำหรับ Own Tickets Only (ห้าม admin/supporter เข้า)
+ * ✅ UPDATED: Guard สำหรับ Own Tickets Only (ห้าม admin/supporter เข้า)
  */
 export const ownTicketsOnlyGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -435,7 +506,8 @@ export const ownTicketsOnlyGuard: CanActivateFn = (route, state) => {
   // ตรวจสอบว่าสามารถดูแค่ tickets ของตัวเองได้เท่านั้น
   const hasViewOwn = authService.hasPermission(12); // VIEW_OWN_TICKETS
   const hasViewAll = authService.hasPermission(13); // VIEW_ALL_TICKETS
-  const canViewOwnOnly = hasViewOwn && !hasViewAll;
+  const isElevatedUser = authService.isAdmin() || authService.isSupporter(); // Checks role IDs too
+  const canViewOwnOnly = hasViewOwn && !hasViewAll && !isElevatedUser;
 
   if (!canViewOwnOnly) {
     console.log('❌ User has elevated permissions, redirecting to all tickets');
@@ -447,13 +519,13 @@ export const ownTicketsOnlyGuard: CanActivateFn = (route, state) => {
   return true;
 };
 
-// ===== Guard Utility Functions ===== ✅
+// ===== ✅ UPDATED: Guard Utility Functions with Role ID Support =====
 
 /**
- * ✅ Helper function สำหรับสร้าง custom permission guard (แก้ไข type)
+ * ✅ UPDATED: Helper function สำหรับสร้าง custom permission guard (รองรับ Role ID)
  */
 export function createPermissionGuard(
-  requiredPermissions: number[], // ✅ เปลี่ยนเป็น number[]
+  requiredPermissions: number[],
   requireAll: boolean = false
 ): CanActivateFn {
   return (route, state) => {
@@ -489,8 +561,10 @@ export function createPermissionGuard(
       handleAccessDenied(router, state.url, `ต้องการสิทธิ์ ${action}`, {
         requiredPermissions,
         requiredRoles: [],
+        requiredRoleIds: [],
         userPermissions,
-        userRoles: authService.getUserRoles()
+        userRoles: authService.getUserRoles(),
+        userRoleIds: authService.getUserRoleIds()
       });
       return false;
     }
@@ -500,10 +574,11 @@ export function createPermissionGuard(
 }
 
 /**
- * ✅ Helper function สำหรับสร้าง custom role guard
+ * ✅ UPDATED: Helper function สำหรับสร้าง custom role guard (รองรับ Role ID)
  */
 export function createRoleGuard(
-  requiredRoles: UserRole[],
+  requiredRoles: UserRole[] = [],
+  requiredRoleIds: RoleId[] = [],
   requireAll: boolean = false
 ): CanActivateFn {
   return (route, state) => {
@@ -516,18 +591,35 @@ export function createRoleGuard(
     }
 
     const userRoles = authService.getUserRoles();
+    const userRoleIds = authService.getUserRoleIds();
 
-    const hasRole = requireAll 
-      ? requiredRoles.every(role => userRoles.includes(role))
-      : requiredRoles.some(role => userRoles.includes(role));
+    // ✅ NEW: Check both role names and role IDs
+    let hasRoleNames = true;
+    let hasRoleIds = true;
+
+    if (requiredRoles.length > 0) {
+      hasRoleNames = requireAll 
+        ? requiredRoles.every(role => userRoles.includes(role))
+        : requiredRoles.some(role => userRoles.includes(role));
+    }
+
+    if (requiredRoleIds.length > 0) {
+      hasRoleIds = requireAll
+        ? requiredRoleIds.every(roleId => userRoleIds.includes(roleId))
+        : requiredRoleIds.some(roleId => userRoleIds.includes(roleId));
+    }
+
+    const hasRole = hasRoleNames && hasRoleIds;
 
     if (!hasRole) {
       const action = requireAll ? 'ทั้งหมด' : 'อย่างน้อยหนึ่งตำแหน่ง';
       handleAccessDenied(router, state.url, `ต้องการตำแหน่ง ${action}`, {
         requiredPermissions: [],
         requiredRoles,
+        requiredRoleIds,
         userPermissions: authService.getEffectivePermissions(),
-        userRoles
+        userRoles,
+        userRoleIds
       });
       return false;
     }
@@ -537,11 +629,12 @@ export function createRoleGuard(
 }
 
 /**
- * ✅ Guard สำหรับตรวจสอบหลายเงื่อนไขพร้อมกัน (แก้ไข type)
+ * ✅ UPDATED: Guard สำหรับตรวจสอบหลายเงื่อนไขพร้อมกัน (รองรับ Role ID)
  */
 export function createComplexGuard(config: {
-  permissions?: number[]; // ✅ เปลี่ยนเป็น number[]
+  permissions?: number[];
   roles?: UserRole[];
+  role_ids?: RoleId[];          // ✅ NEW: Support role IDs
   requireAllPermissions?: boolean;
   requireAllRoles?: boolean;
   customCheck?: (authService: AuthService) => boolean;
@@ -558,6 +651,7 @@ export function createComplexGuard(config: {
 
     const userPermissions = authService.getEffectivePermissions();
     const userRoles = authService.getUserRoles();
+    const userRoleIds = authService.getUserRoleIds();
 
     // ตรวจสอบ permissions
     if (config.permissions?.length) {
@@ -569,25 +663,40 @@ export function createComplexGuard(config: {
         handleAccessDenied(router, state.url, config.errorMessage || 'ไม่มีสิทธิ์ที่จำเป็น', {
           requiredPermissions: config.permissions,
           requiredRoles: config.roles || [],
+          requiredRoleIds: config.role_ids || [],
           userPermissions,
-          userRoles
+          userRoles,
+          userRoleIds
         });
         return false;
       }
     }
 
-    // ตรวจสอบ roles
-    if (config.roles?.length) {
-      const hasRoles = config.requireAllRoles
-        ? config.roles.every(role => userRoles.includes(role))
-        : config.roles.some(role => userRoles.includes(role));
+    // ✅ UPDATED: ตรวจสอบ roles (both names and IDs)
+    if (config.roles?.length || config.role_ids?.length) {
+      let hasRoleNames = true;
+      let hasRoleIds = true;
+
+      if (config.roles?.length) {
+        hasRoleNames = config.requireAllRoles
+          ? config.roles.every(role => userRoles.includes(role))
+          : config.roles.some(role => userRoles.includes(role));
+      }
+
+      if (config.role_ids?.length) {
+        hasRoleIds = config.requireAllRoles
+          ? config.role_ids.every(roleId => userRoleIds.includes(roleId))
+          : config.role_ids.some(roleId => userRoleIds.includes(roleId));
+      }
       
-      if (!hasRoles) {
+      if (!hasRoleNames || !hasRoleIds) {
         handleAccessDenied(router, state.url, config.errorMessage || 'ไม่มีตำแหน่งที่จำเป็น', {
           requiredPermissions: config.permissions || [],
-          requiredRoles: config.roles,
+          requiredRoles: config.roles || [],
+          requiredRoleIds: config.role_ids || [],
           userPermissions,
-          userRoles
+          userRoles,
+          userRoleIds
         });
         return false;
       }
@@ -598,8 +707,10 @@ export function createComplexGuard(config: {
       handleAccessDenied(router, state.url, config.errorMessage || 'ไม่ผ่านเงื่อนไขการตรวจสอบ', {
         requiredPermissions: config.permissions || [],
         requiredRoles: config.roles || [],
+        requiredRoleIds: config.role_ids || [],
         userPermissions,
-        userRoles
+        userRoles,
+        userRoleIds
       });
       return false;
     }
@@ -608,16 +719,87 @@ export function createComplexGuard(config: {
   };
 }
 
+// ===== ✅ NEW: Role ID Specific Guards =====
+
+/**
+ * ✅ NEW: Guard สำหรับตรวจสอบ role ID โดยตรง
+ */
+export function createRoleIdGuard(
+  requiredRoleId: RoleId,
+  errorMessage?: string
+): CanActivateFn {
+  return (route, state) => {
+    const authService = inject(AuthService);
+    const router = inject(Router);
+
+    if (!authService.isAuthenticated()) {
+      router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+      return false;
+    }
+
+    const hasRoleId = authService.hasRoleId(requiredRoleId);
+
+    if (!hasRoleId) {
+      const roleName = ROLE_ID_TO_NAME[requiredRoleId] || `Role ID ${requiredRoleId}`;
+      const message = errorMessage || `ต้องการตำแหน่ง ${roleName}`;
+      
+      handleAccessDenied(router, state.url, message, {
+        requiredPermissions: [],
+        requiredRoles: [],
+        requiredRoleIds: [requiredRoleId],
+        userPermissions: authService.getEffectivePermissions(),
+        userRoles: authService.getUserRoles(),
+        userRoleIds: authService.getUserRoleIds()
+      });
+      return false;
+    }
+
+    return true;
+  };
+}
+
+/**
+ * ✅ NEW: Guard สำหรับ Admin โดยใช้ role ID
+ */
+export const adminRoleIdGuard: CanActivateFn = createRoleIdGuard(
+  ROLE_IDS.ADMIN, 
+  'ต้องการสิทธิ์ผู้ดูแลระบบ'
+);
+
+/**
+ * ✅ NEW: Guard สำหรับ Supporter โดยใช้ role ID
+ */
+export const supporterRoleIdGuard: CanActivateFn = createRoleIdGuard(
+  ROLE_IDS.SUPPORTER, 
+  'ต้องการสิทธิ์ผู้สนับสนุน'
+);
+
+/**
+ * ✅ NEW: Guard สำหรับ User โดยใช้ role ID
+ */
+export const userRoleIdGuard: CanActivateFn = createRoleIdGuard(
+  ROLE_IDS.USER, 
+  'ต้องการสิทธิ์ผู้ใช้งาน'
+);
+
 // ===== Export All Guards ===== ✅
 export const PERMISSION_GUARDS = {
+  // Basic guards
   auth: authGuard,
   admin: adminGuard,
   support: supportGuard,
   ticketManagement: ticketManagementGuard,
   userManagement: userManagementGuard,
   ownTicketsOnly: ownTicketsOnlyGuard,
+  
+  // Role ID specific guards
+  adminRoleId: adminRoleIdGuard,
+  supporterRoleId: supporterRoleIdGuard,
+  userRoleId: userRoleIdGuard,
+  
   // Helper functions
   createPermissionGuard,
   createRoleGuard,
-  createComplexGuard
+  createComplexGuard,
+  createRoleIdGuard
 } as const;
