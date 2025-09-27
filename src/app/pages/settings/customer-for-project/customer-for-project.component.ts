@@ -9,66 +9,63 @@ import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { permissionEnum } from '../../../shared/models/permission.model';
 
-// ============ INTERFACES ============
-export interface CFPCustomerData {
-  customer_id: number;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  projects: CFPProjectData[];
+// ============ UPDATED INTERFACES FOR NEW STRUCTURE ============
+export interface AssignedUser {
+  name: string;
+  user_id: number;
 }
 
 export interface CFPProjectData {
   project_id: number;
   project_name: string;
   project_status: boolean;
-  assigned_users: string[];
-  project_count: number;
+  customers: CFPCustomerData[];
+}
+
+export interface CFPCustomerData {
+  customer_id: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  assigned_users: AssignedUser[]; // ← เปลี่ยนจาก string[] เป็น object[]
+  customer_count: number;
   user_count: number;
   open_ticket_count: number;
 }
 
-export interface CustomerItem {
+export interface ProjectItem {
   id: number;
-  company: string;
-  address: string;
-  email: string;
-  phone: string;
-  tier: 'Enterprise' | 'Premium' | 'Standard';
+  name: string;
+  description?: string;
   status: 'active' | 'inactive';
   created_date: string;
   created_by: number;
   updated_date?: string;
   updated_by?: number;
-  total_projects?: number;
+  total_customers?: number;
   total_users?: number;
   total_open_tickets?: number;
 }
 
-export interface CustomerProjectItem {
+export interface ProjectCustomerItem {
   id: number;
+  project_id: number;
   customer_id: number;
-  name: string;
-  description?: string;
-  status: 'active' | 'inactive' | 'completed';
-  priority: 'high' | 'medium' | 'low';
-  start_date?: string;
-  end_date?: string;
-  budget?: number;
-  estimated_hours?: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  assigned_users?: ProjectUserItem[];
+  assigned_user_names?: string[];
+  assigned_user_data?: AssignedUser[]; // ← เพิ่มนี้เพื่อเก็บข้อมูลเต็ม
+  user_count?: number;
+  open_tickets_count?: number;
   created_date: string;
   created_by: number;
-  updated_date?: string;
-  updated_by?: number;
-  project_manager_id?: number;
-  open_tickets_count?: number;
-  assigned_users?: CustomerUserItem[];
-  assigned_user_names?: string[];
-  user_count?: number;
 }
 
-export interface CustomerUserItem {
+export interface ProjectUserItem {
   id: number;
+  project_id: number;
   customer_id: number;
   name: string;
   email: string;
@@ -81,22 +78,21 @@ export interface CustomerUserItem {
   created_by: number;
 }
 
-export interface CustomerStats {
-  total_projects: number;
-  active_projects: number;
+export interface ProjectStats {
+  total_customers: number;
+  active_customers: number;
   total_users: number;
   open_tickets: number;
 }
 
 // Backend API Interfaces
-export interface ProjectDDLItem {
+export interface CustomerDDLItem {
   id: number;
-  name: string;
-  description?: string;
+  company: string;
+  email: string;
+  phone?: string;
+  tier?: string;
   status?: string;
-  current_users_count?: number;
-  estimated_hours?: number;
-  budget?: number;
 }
 
 export interface SystemUser {
@@ -115,9 +111,22 @@ export interface SystemUser {
 }
 
 export interface CreateCustomerForProjectDto {
-  customer_id: number;
   project_id: number;
+  customer_id: number;
   assigned_users: { user_id: number }[];
+  project_name?: string;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  create_by?: number;
+  update_by?: number;
+}
+
+export interface UpdateCustomerForProjectDto {
+  project_id?: number;
+  customer_id?: number;
+  assigned_users?: { user_id: number }[];
+  project_name?: string;
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
@@ -137,65 +146,63 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   // ============ COMPONENT STATE ============
   isLoading = false;
-  isProjectsLoading = false;
+  isCustomersLoading = false;
   hasError = false;
   errorMessage = '';
   isSubmitting = false;
 
   // Search and filter
-  customerSearchTerm = '';
   projectSearchTerm = '';
+  customerSearchTerm = '';
   selectedStatusFilter = 'all';
   userSearchTerm = '';
 
-  // Data arrays
-  customers: CustomerItem[] = [];
-  filteredCustomers: CustomerItem[] = [];
-  selectedCustomer: CustomerItem | null = null;
-  customerProjects: CustomerProjectItem[] = [];
-  filteredProjects: CustomerProjectItem[] = [];
-  customerUsers: CustomerUserItem[] = [];
-  customerStats: CustomerStats | null = null;
-  cfpData: CFPCustomerData[] = [];
+  // Data arrays - UPDATED for new structure
+  projects: ProjectItem[] = [];
+  filteredProjects: ProjectItem[] = [];
+  selectedProject: ProjectItem | null = null;
+  projectCustomers: ProjectCustomerItem[] = [];
+  filteredCustomers: ProjectCustomerItem[] = [];
+  projectUsers: ProjectUserItem[] = [];
+  projectStats: ProjectStats | null = null;
+  cfpData: CFPProjectData[] = [];
 
   // Modal states
-  isAssignProjectModalVisible = false;
-  isCreateProjectModalVisible = false;
+  isAssignCustomerModalVisible = false;
+  isCreateCustomerModalVisible = false;
   isCreateUserModalVisible = false;
 
-  // Edit Project Users Modal
-  isEditProjectUsersModalVisible = false;
-  editingProject: CustomerProjectItem | null = null;
-  editingProjectUsers: SystemUser[] = [];
-  filteredEditingProjectUsers: SystemUser[] = [];
+  // Manage Users Modal - NEW
+  isManageUsersModalVisible = false;
+  selectedCustomerForEdit: ProjectCustomerItem | null = null;
+  currentCustomerUsers: SystemUser[] = [];
+  availableUsersForEdit: SystemUser[] = [];
   filteredAvailableUsers: SystemUser[] = [];
   editUserSearchTerm = '';
+  isLoadingCurrentUsers = false;
+  isLoadingAvailableUsers = false;
   usersToAdd: SystemUser[] = [];
   usersToRemove: SystemUser[] = [];
 
-  // Assign project data
-  availableProjects: ProjectDDLItem[] = [];
+  // Assign customer data
+  availableCustomers: CustomerDDLItem[] = [];
   systemUsers: SystemUser[] = [];
-  selectedProject: ProjectDDLItem | null = null;
+  selectedCustomer: CustomerDDLItem | null = null;
   selectedUsers: SystemUser[] = [];
   filteredUsers: SystemUser[] = [];
-  isLoadingProjects = false;
+  isLoadingCustomers = false;
   isLoadingUsers = false;
 
   // Forms
-  assignProjectForm!: FormGroup;
-  projectForm!: FormGroup;
+  assignCustomerForm!: FormGroup;
+  customerForm!: FormGroup;
   userForm!: FormGroup;
-  editProjectUsersForm!: FormGroup;
-
-  // Edit states - removed editingCustomerId since we don't need it anymore
 
   // Options
   statusOptions = [
     { value: 'all', label: 'All Status' },
     { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-    { value: 'completed', label: 'Completed' }
+    { value: 'inactive', label: 'Inactive' }
   ];
 
   constructor(
@@ -220,18 +227,17 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   // ============ INITIALIZATION ============
   private initForms(): void {
-    this.assignProjectForm = this.fb.group({
-      project_id: ['', [Validators.required]],
+    this.assignCustomerForm = this.fb.group({
+      customer_id: ['', [Validators.required]],
       assigned_users: [[], [Validators.required, Validators.minLength(1)]]
     });
 
-    this.projectForm = this.fb.group({
-      name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
-      description: [''],
-      priority: ['medium', [Validators.required]],
-      start_date: [''],
-      end_date: [''],
-      status: ['active', [Validators.required]]
+    this.customerForm = this.fb.group({
+      company: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
+      email: ['', [Validators.required, Validators.email]],
+      phone: ['', [Validators.pattern(/^[\d\s\-\+\(\)]+$/)]],
+      address: [''],
+      tier: ['Standard', [Validators.required]]
     });
 
     this.userForm = this.fb.group({
@@ -242,24 +248,20 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       department: [''],
       is_primary_contact: [false]
     });
-
-    this.editProjectUsersForm = this.fb.group({
-      project_id: ['', [Validators.required]]
-    });
   }
 
   private handleQueryParams(): void {
     this.route.queryParams.subscribe(params => {
-      if (params['customer']) {
-        const customerId = parseInt(params['customer']);
+      if (params['project']) {
+        const projectId = parseInt(params['project']);
         setTimeout(() => {
-          if (!this.selectedCustomer || this.selectedCustomer.id !== customerId) {
-            this.selectCustomerById(customerId);
+          if (!this.selectedProject || this.selectedProject.id !== projectId) {
+            this.selectProjectById(projectId);
           }
         }, 100);
       } else {
-        if (this.selectedCustomer) {
-          this.clearCustomerSelection();
+        if (this.selectedProject) {
+          this.clearProjectSelection();
         }
       }
     });
@@ -280,209 +282,225 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
           this.isLoading = false;
           if (response?.status === 1 && response.data) {
             this.cfpData = response.data;
-            this.transformCFPDataToCustomers();
+            this.transformCFPDataToProjects();
           }
-          this.filterCustomers();
+          this.filterProjects();
         },
         error: () => {
           this.isLoading = false;
-          this.filterCustomers();
+          this.filterProjects();
         }
       });
   }
 
-  private transformCFPDataToCustomers(): void {
-    this.customers = this.cfpData.map(cfpCustomer => {
-      const totalProjects = cfpCustomer.projects.length;
-      const activeProjects = cfpCustomer.projects.filter(p => p.project_status).length;
-      const totalUsers = cfpCustomer.projects.reduce((sum, p) => sum + p.user_count, 0);
-      const totalOpenTickets = cfpCustomer.projects.reduce((sum, p) => sum + p.open_ticket_count, 0);
-
-      let tier: 'Enterprise' | 'Premium' | 'Standard' = 'Standard';
-      if (totalProjects >= 5) tier = 'Enterprise';
-      else if (totalProjects >= 2) tier = 'Premium';
+  private transformCFPDataToProjects(): void {
+    this.projects = this.cfpData.map(cfpProject => {
+      const totalCustomers = cfpProject.customers.length;
+      const totalUsers = cfpProject.customers.reduce((sum, c) => sum + c.user_count, 0);
+      const totalOpenTickets = cfpProject.customers.reduce((sum, c) => sum + c.open_ticket_count, 0);
 
       return {
-        id: cfpCustomer.customer_id,
-        company: cfpCustomer.customer_name,
-        address: '',
-        email: cfpCustomer.customer_email,
-        phone: cfpCustomer.customer_phone,
-        tier,
-        status: 'active' as const,
+        id: cfpProject.project_id,
+        name: cfpProject.project_name,
+        description: `Project with ${totalCustomers} customer(s) and ${totalUsers} user(s)`,
+        status: cfpProject.project_status ? 'active' as const : 'inactive' as const,
         created_date: new Date().toISOString(),
         created_by: 1,
-        total_projects: totalProjects,
+        total_customers: totalCustomers,
         total_users: totalUsers,
         total_open_tickets: totalOpenTickets
       };
     });
   }
 
-  // ============ CUSTOMER MANAGEMENT ============
-  selectCustomer(customer: CustomerItem): void {
-    if (this.selectedCustomer?.id === customer.id) {
+  // ============ PROJECT MANAGEMENT ============
+  selectProject(project: ProjectItem): void {
+    if (this.selectedProject?.id === project.id) {
       return;
     }
 
-    this.clearCustomerState();
-    this.selectedCustomer = customer;
-    this.updateUrl(customer.id);
+    this.clearProjectState();
+    this.selectedProject = project;
+    this.updateUrl(project.id);
 
     setTimeout(() => {
-      if (this.selectedCustomer?.id === customer.id) {
-        this.loadCustomerData(customer.id);
+      if (this.selectedProject?.id === project.id) {
+        this.loadProjectData(project.id);
       }
     }, 50);
   }
 
-  selectCustomerById(customerId: number): void {
-    const customer = this.customers.find(c => c.id === customerId);
-    if (customer && this.selectedCustomer?.id !== customerId) {
-      this.selectCustomer(customer);
+  selectProjectById(projectId: number): void {
+    const project = this.projects.find(p => p.id === projectId);
+    if (project && this.selectedProject?.id !== projectId) {
+      this.selectProject(project);
     }
   }
 
-  private clearCustomerState(): void {
-    this.customerProjects = [];
-    this.filteredProjects = [];
-    this.customerUsers = [];
-    this.customerStats = null;
-    this.isProjectsLoading = false;
+  private clearProjectState(): void {
+    this.projectCustomers = [];
+    this.filteredCustomers = [];
+    this.projectUsers = [];
+    this.projectStats = null;
+    this.isCustomersLoading = false;
   }
 
-  private updateUrl(customerId: number): void {
-    const currentCustomerId = this.route.snapshot.queryParams['customer'];
-    if (parseInt(currentCustomerId) !== customerId) {
+  private updateUrl(projectId: number): void {
+    const currentProjectId = this.route.snapshot.queryParams['project'];
+    if (parseInt(currentProjectId) !== projectId) {
       this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: { customer: customerId },
+        queryParams: { project: projectId },
         queryParamsHandling: 'merge'
       });
     }
   }
 
-  private loadCustomerData(customerId: number): void {
-    if (!this.selectedCustomer || this.selectedCustomer.id !== customerId) {
+  private loadProjectData(projectId: number): void {
+    if (!this.selectedProject || this.selectedProject.id !== projectId) {
       return;
     }
 
-    this.isProjectsLoading = true;
+    this.isCustomersLoading = true;
 
-    const cfpCustomer = this.cfpData.find(c => c.customer_id === customerId);
+    const cfpProject = this.cfpData.find(p => p.project_id === projectId);
 
-    if (cfpCustomer && this.selectedCustomer?.id === customerId) {
-      this.customerProjects = cfpCustomer.projects.map(p => ({
-        id: p.project_id,
-        customer_id: customerId,
-        name: p.project_name,
-        description: `Project with ${p.user_count} assigned users`,
-        status: p.project_status ? 'active' as const : 'inactive' as const,
-        priority: 'medium' as const,
+    if (cfpProject && this.selectedProject?.id === projectId) {
+      this.projectCustomers = cfpProject.customers.map(c => ({
+        id: c.customer_id,
+        project_id: projectId,
+        customer_id: c.customer_id,
+        customer_name: c.customer_name,
+        customer_email: c.customer_email,
+        customer_phone: c.customer_phone,
+        assigned_user_names: c.assigned_users.map(u => u.name), // ✅ ดึง name
+        assigned_user_data: c.assigned_users, // ✅ เก็บข้อมูลเต็มไว้ใช้ภายหลัง
+        user_count: c.user_count,
+        open_tickets_count: c.open_ticket_count,
         created_date: new Date().toISOString(),
         created_by: 1,
-        open_tickets_count: p.open_ticket_count,
-        assigned_user_names: p.assigned_users,
-        user_count: p.user_count,
         assigned_users: []
       }));
 
-      this.customerStats = {
-        total_projects: cfpCustomer.projects.length,
-        active_projects: cfpCustomer.projects.filter(p => p.project_status).length,
-        total_users: cfpCustomer.projects.reduce((sum, p) => sum + p.user_count, 0),
-        open_tickets: cfpCustomer.projects.reduce((sum, p) => sum + p.open_ticket_count, 0)
+      this.projectStats = {
+        total_customers: cfpProject.customers.length,
+        active_customers: cfpProject.customers.length,
+        total_users: cfpProject.customers.reduce((sum, c) => sum + c.user_count, 0),
+        open_tickets: cfpProject.customers.reduce((sum, c) => sum + c.open_ticket_count, 0)
       };
 
-      this.customerUsers = this.generateUsersFromNames(customerId, cfpCustomer.projects);
-      this.filterProjects();
+      this.projectUsers = this.generateUsersFromCustomers(projectId, cfpProject.customers);
+      this.filterCustomers();
     }
 
-    this.isProjectsLoading = false;
+    this.isCustomersLoading = false;
   }
 
-  private generateUsersFromNames(customerId: number, projects: CFPProjectData[]): CustomerUserItem[] {
-    const uniqueUserNames = new Set<string>();
-    projects.forEach(project => {
-      project.assigned_users.forEach(userName => uniqueUserNames.add(userName));
+  private generateUsersFromCustomers(projectId: number, customers: CFPCustomerData[]): ProjectUserItem[] {
+    const users: ProjectUserItem[] = [];
+
+    customers.forEach(customer => {
+      customer.assigned_users.forEach((assignedUser, index) => {
+        users.push({
+          id: assignedUser.user_id, // ✅ ใช้ user_id จริง
+          project_id: projectId,
+          customer_id: customer.customer_id,
+          name: assignedUser.name,
+          email: `${assignedUser.name.toLowerCase().replace(/\s+/g, '.')}@${customer.customer_name.toLowerCase().replace(/\s+/g, '')}.com`,
+          phone: `+66-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+          role: index === 0 ? 'Project Manager' : 'End User',
+          department: index === 0 ? 'IT' : 'Operations',
+          is_primary_contact: index === 0,
+          status: 'active',
+          created_date: new Date().toISOString(),
+          created_by: 1
+        });
+      });
     });
 
-    return Array.from(uniqueUserNames).map((userName, index) => ({
-      id: index + 1,
-      customer_id: customerId,
-      name: userName,
-      email: `${userName.toLowerCase().replace(/\s+/g, '.')}@customer.com`,
-      phone: `+66-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-      role: index === 0 ? 'Project Manager' : 'End User',
-      department: index === 0 ? 'IT' : 'Operations',
-      is_primary_contact: index === 0,
-      status: 'active',
-      created_date: new Date().toISOString(),
-      created_by: 1
-    }));
+    return users;
   }
 
-  clearCustomerSelection(): void {
-    this.selectedCustomer = null;
-    this.clearCustomerState();
+  clearProjectSelection(): void {
+    this.selectedProject = null;
+    this.clearProjectState();
 
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { customer: null },
+      queryParams: { project: null },
       queryParamsHandling: 'merge'
     });
   }
 
-  // ============ EDIT PROJECT USERS MODAL ============
-  openEditProjectUsersModal(project: CustomerProjectItem): void {
-    this.editingProject = project;
-    this.isEditProjectUsersModalVisible = true;
-    this.resetEditProjectUsersForm();
-    this.loadProjectUsers(project.id);
-    this.loadAllUsersForEdit();
+  // ============ MANAGE USERS MODAL - NEW FUNCTIONS ============
+  openManageUsersModal(customer: ProjectCustomerItem): void {
+    this.selectedCustomerForEdit = customer;
+    this.isManageUsersModalVisible = true;
+    this.resetManageUsersState();
+    this.loadCurrentCustomerUsers();
+    this.loadAvailableUsersForEdit();
   }
 
-  closeEditProjectUsersModal(): void {
+  closeManageUsersModal(): void {
     if (!this.isSubmitting) {
-      this.resetEditProjectUsersForm();
-      this.isEditProjectUsersModalVisible = false;
+      this.resetManageUsersState();
+      this.isManageUsersModalVisible = false;
     }
   }
 
-  private resetEditProjectUsersForm(): void {
-    this.editProjectUsersForm.reset();
-    this.editingProject = null;
-    this.editingProjectUsers = [];
-    this.filteredEditingProjectUsers = [];
+  private resetManageUsersState(): void {
+    this.currentCustomerUsers = [];
+    this.availableUsersForEdit = [];
     this.filteredAvailableUsers = [];
+    this.editUserSearchTerm = '';
     this.usersToAdd = [];
     this.usersToRemove = [];
-    this.editUserSearchTerm = '';
+    this.isLoadingCurrentUsers = false;
+    this.isLoadingAvailableUsers = false;
   }
 
-  private loadProjectUsers(projectId: number): void {
-    // In a real application, this would be an API call
-    // For now, we'll simulate based on assigned_user_names
-    const project = this.customerProjects.find(p => p.id === projectId);
-    if (project && project.assigned_user_names) {
-      this.editingProjectUsers = project.assigned_user_names.map((userName, index) => ({
-        id: Math.floor(Math.random() * 1000) + index,
-        name: userName,
-        email: `${userName.toLowerCase().replace(/\s+/g, '.')}@company.com`,
-        role: index === 0 ? 'Project Manager' : 'Team Member',
-        department: 'Development',
-        is_available: true,
-        current_projects_count: Math.floor(Math.random() * 5) + 1
-      }));
+  private loadCurrentCustomerUsers(): void {
+    if (!this.selectedCustomerForEdit) return;
+
+    this.isLoadingCurrentUsers = true;
+
+    // ✅ ใช้ข้อมูลจาก assigned_user_data ที่มี user_id จริง
+    if (this.selectedCustomerForEdit.assigned_user_data && 
+        this.selectedCustomerForEdit.assigned_user_data.length > 0) {
+      
+      this.currentCustomerUsers = this.selectedCustomerForEdit.assigned_user_data.map(assignedUser => {
+        // หาข้อมูลเต็มจาก systemUsers ถ้ามี
+        const fullUserData = this.systemUsers.find(u => u.id === assignedUser.user_id);
+        
+        // ถ้าเจอใน systemUsers ให้ใช้ข้อมูลเต็ม ไม่เจอก็สร้างจาก assigned_user_data
+        return fullUserData || {
+          id: assignedUser.user_id, // ✅ ใช้ ID จริงจาก backend
+          name: assignedUser.name,
+          email: '', // จะ empty ก่อน จนกว่าจะโหลด systemUsers เสร็จ
+          role: 'User',
+          is_available: true,
+          current_projects_count: 1
+        };
+      });
     } else {
-      this.editingProjectUsers = [];
+      this.currentCustomerUsers = [];
     }
-    this.filteredEditingProjectUsers = [...this.editingProjectUsers];
+
+    this.isLoadingCurrentUsers = false;
   }
 
-  private loadAllUsersForEdit(): void {
-    this.isLoadingUsers = true;
+  private loadAvailableUsersForEdit(): void {
+    this.isLoadingAvailableUsers = true;
 
+    // ถ้ามี systemUsers แล้วก็ใช้เลย
+    if (this.systemUsers.length > 0) {
+      this.updateCurrentUsersWithFullData(); // ✅ อัพเดท currentUsers ด้วยข้อมูลเต็ม
+      this.filterAvailableUsersForEdit();
+      this.isLoadingAvailableUsers = false;
+      return;
+    }
+
+    // ถ้ายังไม่มีก็โหลด
     this.apiService.get('users/Allusers')
       .pipe(
         takeUntil(this.destroy$),
@@ -490,227 +508,252 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (response: any) => {
-          this.isLoadingUsers = false;
           const userData = Array.isArray(response) ? response :
             response?.data ? response.data :
               response?.status === 1 && response.data ? response.data : [];
 
-          const allUsers = this.transformUsersResponse(userData);
-          this.filterAvailableUsers(allUsers);
+          this.systemUsers = this.transformUsersResponse(userData);
+          this.updateCurrentUsersWithFullData(); // ✅ อัพเดท currentUsers ด้วยข้อมูลเต็ม
+          this.filterAvailableUsersForEdit();
+          this.isLoadingAvailableUsers = false;
         },
         error: () => {
-          this.isLoadingUsers = false;
-          this.filteredAvailableUsers = [];
+          this.isLoadingAvailableUsers = false;
+          this.filterAvailableUsersForEdit();
         }
       });
   }
 
-  private filterAvailableUsers(allUsers: SystemUser[]): void {
-    // Filter out users who are already in the project
-    this.filteredAvailableUsers = allUsers.filter(user => {
-      const isAlreadyInProject = this.editingProjectUsers.some(projectUser => 
-        projectUser.id === user.id || projectUser.email === user.email
-      );
-      const isNotInAddList = !this.usersToAdd.some(addUser => addUser.id === user.id);
-      
-      // Apply search filter
-      const searchTerm = this.editUserSearchTerm.toLowerCase();
-      const matchesSearch = !searchTerm ||
-        this.getUserDisplayName(user).toLowerCase().includes(searchTerm) ||
-        user.email.toLowerCase().includes(searchTerm) ||
-        (user.role && user.role.toLowerCase().includes(searchTerm));
-
-      return !isAlreadyInProject && isNotInAddList && matchesSearch;
+  // ✅ Method ใหม่: อัพเดท currentUsers ด้วยข้อมูลเต็มจาก systemUsers
+  private updateCurrentUsersWithFullData(): void {
+    this.currentCustomerUsers = this.currentCustomerUsers.map(currentUser => {
+      const fullUserData = this.systemUsers.find(u => u.id === currentUser.id);
+      return fullUserData || currentUser;
     });
   }
 
-  addUserToProject(user: SystemUser): void {
-    // Add to pending additions
-    this.usersToAdd.push(user);
+  private filterAvailableUsersForEdit(): void {
+    const searchTerm = this.editUserSearchTerm.toLowerCase();
     
-    // Remove from available users list
-    this.filteredAvailableUsers = this.filteredAvailableUsers.filter(u => u.id !== user.id);
+    // Get IDs of current users and users to add
+    const currentUserIds = this.currentCustomerUsers.map(u => u.id);
+    const usersToAddIds = this.usersToAdd.map(u => u.id);
     
-    // Add to current project users display temporarily
-    this.editingProjectUsers.push(user);
-    this.filterEditingProjectUsers();
+    this.filteredAvailableUsers = this.systemUsers.filter(user => {
+      const displayName = this.getUserDisplayName(user);
+      
+      const matchSearch = !searchTerm ||
+        displayName.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm));
+      
+      // Exclude users that are already assigned or marked to be added
+      const notCurrentlyAssigned = !currentUserIds.includes(user.id) && !usersToAddIds.includes(user.id);
+      
+      return matchSearch && notCurrentlyAssigned;
+    });
   }
 
-  removeUserFromProject(user: SystemUser): void {
-    // Check if this user was in the original project users or was just added
-    const wasOriginalUser = !this.usersToAdd.some(addUser => addUser.id === user.id);
-    
-    if (wasOriginalUser) {
-      // Add to pending removals
-      this.usersToRemove.push(user);
-    } else {
-      // Remove from pending additions
-      this.usersToAdd = this.usersToAdd.filter(addUser => addUser.id !== user.id);
-    }
-    
-    // Remove from current project users display
-    this.editingProjectUsers = this.editingProjectUsers.filter(u => u.id !== user.id);
-    this.filterEditingProjectUsers();
-    
-    // Add back to available users if it was just added
-    if (!wasOriginalUser) {
-      this.filteredAvailableUsers.push(user);
-      this.sortAvailableUsers();
+  addUserToCustomer(user: SystemUser): void {
+    if (!this.usersToAdd.some(u => u.id === user.id)) {
+      this.usersToAdd.push(user);
+      this.filterAvailableUsersForEdit();
     }
   }
 
-  private sortAvailableUsers(): void {
-    this.filteredAvailableUsers.sort((a, b) => 
-      this.getUserDisplayName(a).localeCompare(this.getUserDisplayName(b))
-    );
+  removeUserFromCustomer(user: SystemUser): void {
+    // If it's a current user, mark for removal
+    if (this.currentCustomerUsers.some(u => u.id === user.id)) {
+      if (!this.usersToRemove.some(u => u.id === user.id)) {
+        this.usersToRemove.push(user);
+      }
+    }
+    
+    // If it's a user to add, remove from add list
+    const addIndex = this.usersToAdd.findIndex(u => u.id === user.id);
+    if (addIndex >= 0) {
+      this.usersToAdd.splice(addIndex, 1);
+      this.filterAvailableUsersForEdit();
+    }
+  }
+
+  undoRemoveUser(user: SystemUser): void {
+    const removeIndex = this.usersToRemove.findIndex(u => u.id === user.id);
+    if (removeIndex >= 0) {
+      this.usersToRemove.splice(removeIndex, 1);
+    }
   }
 
   onEditUserSearchChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.editUserSearchTerm = input.value;
-    this.filterEditingProjectUsers();
-    
-    // Re-filter available users based on search
-    if (this.systemUsers.length > 0) {
-      this.filterAvailableUsers(this.systemUsers);
-    } else {
-      this.loadAllUsersForEdit();
-    }
-  }
-
-  private filterEditingProjectUsers(): void {
-    const searchTerm = this.editUserSearchTerm.toLowerCase();
-    
-    this.filteredEditingProjectUsers = this.editingProjectUsers.filter(user => {
-      return !searchTerm ||
-        this.getUserDisplayName(user).toLowerCase().includes(searchTerm) ||
-        user.email.toLowerCase().includes(searchTerm) ||
-        (user.role && user.role.toLowerCase().includes(searchTerm));
-    });
+    this.filterAvailableUsersForEdit();
   }
 
   hasUserChanges(): boolean {
     return this.usersToAdd.length > 0 || this.usersToRemove.length > 0;
   }
 
-  onSubmitEditProjectUsers(): void {
-    console.log('✅ Submit clicked');
-    if (!this.editingProject || !this.hasUserChanges() || this.isSubmitting) {
+  onSubmitManageUsers(): void {
+    if (!this.selectedCustomerForEdit || !this.hasUserChanges() || this.isSubmitting) {
       return;
     }
 
     this.isSubmitting = true;
 
-    // Prepare the update payload
-    const updatePayload = {
-      project_id: this.editingProject.id,
-      users_to_add: this.usersToAdd.map(user => ({ user_id: user.id })),
-      users_to_remove: this.usersToRemove.map(user => ({ user_id: user.id }))
+    // Calculate final user list
+    const currentUserIds = this.currentCustomerUsers.map(u => u.id);
+    const usersToAddIds = this.usersToAdd.map(u => u.id);
+    const usersToRemoveIds = this.usersToRemove.map(u => u.id);
+
+    // Final user list = current users - removed users + added users
+    const finalUserIds = [
+      ...currentUserIds.filter(id => !usersToRemoveIds.includes(id)),
+      ...usersToAddIds
+    ];
+
+    const updateDto: UpdateCustomerForProjectDto = {
+      project_id: this.selectedProject?.id,
+      customer_id: this.selectedCustomerForEdit.customer_id,
+      assigned_users: finalUserIds.map(id => ({ user_id: id }))
     };
 
-    console.log('Updating project users:', updatePayload);
+    console.log('Updating customer users:', updateDto);
 
-    // API call to update project users
-    this.apiService.patch(`customer-for-project/cfp/update/${this.editingProject.id}`, updatePayload)
+    this.apiService.patch(`customer-for-project/cfp/update/${this.selectedCustomerForEdit.id}`, updateDto)
       .pipe(
-        // takeUntil(this.destroy$),
+        takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
       )
       .subscribe({
         next: (response: any) => {
           this.isSubmitting = false;
           if (response && (response.status === 1 || response.code === 1)) {
-            this.onProjectUsersUpdatedSuccess();
-            this.closeEditProjectUsersModal();
-            this.showSuccess('Project users updated successfully!');
-            this.loadCFPData(); // Reload data to reflect changes
+            this.onManageUsersSuccess();
+            this.closeManageUsersModal();
+            this.showSuccess('Users updated successfully!');
+            this.loadCFPData();
           } else {
-            this.showError('Failed to update project users');
+            this.showError('Failed to update users');
           }
         },
         error: (error) => {
           this.isSubmitting = false;
-          console.error('Update project users error:', error);
-          this.showError('Failed to update project users');
+          console.error('Update users error:', error);
+          
+          if (error?.status === 404) {
+            this.showError('Customer assignment not found');
+          } else if (error?.status === 403) {
+            this.showError('You do not have permission to update users');
+          } else if (error?.status === 400) {
+            this.showError('Invalid request data');
+          } else {
+            this.showError('Failed to update users');
+          }
         }
       });
   }
 
-  private onProjectUsersUpdatedSuccess(): void {
-    if (this.editingProject) {
-      // Update the project in the local data
-      const projectIndex = this.customerProjects.findIndex(p => p.id === this.editingProject!.id);
-      if (projectIndex >= 0) {
-        // Update user count and names
-        const currentUsers = this.editingProjectUsers.filter(user => 
-          !this.usersToRemove.some(removeUser => removeUser.id === user.id)
-        );
-        
-        this.customerProjects[projectIndex].user_count = currentUsers.length;
-        this.customerProjects[projectIndex].assigned_user_names = currentUsers.map(user => 
-          this.getUserDisplayName(user)
-        );
-        
-        // Update customer stats if available
-        if (this.customerStats) {
-          const userCountDifference = this.usersToAdd.length - this.usersToRemove.length;
-          this.customerStats.total_users += userCountDifference;
-        }
-      }
+  private onManageUsersSuccess(): void {
+    if (!this.selectedCustomerForEdit) return;
+
+    const customerIndex = this.projectCustomers.findIndex(c => c.id === this.selectedCustomerForEdit?.id);
+    if (customerIndex >= 0) {
+      const finalUsers = [
+        ...this.currentCustomerUsers.filter(u => !this.usersToRemove.some(ru => ru.id === u.id)),
+        ...this.usersToAdd
+      ];
       
-      this.filterProjects(); // Refresh the filtered projects display
+      this.projectCustomers[customerIndex].assigned_user_names = finalUsers.map(u => this.getUserDisplayName(u));
+      this.projectCustomers[customerIndex].user_count = finalUsers.length;
+      
+      this.filterCustomers();
+      
+      if (this.projectStats) {
+        const userDifference = this.usersToAdd.length - this.usersToRemove.length;
+        this.projectStats.total_users += userDifference;
+      }
     }
   }
 
-  // ============ PROJECT ACTIONS ============
-  editProject(projectId: number): void {
-    this.router.navigate(['/settings/project-edit', projectId]);
+  // ============ CUSTOMER ACTIONS ============
+  editCustomer(customerId: number): void {
+    this.router.navigate(['/settings/customer-edit', customerId]);
   }
 
-  viewProject(projectId: number): void {
-    this.router.navigate(['/projects', projectId]);
+  viewCustomer(customerId: number): void {
+    this.router.navigate(['/customers', customerId]);
   }
 
-  deleteProject(projectId: number): void {
-    const project = this.customerProjects.find(p => p.id === projectId);
-    if (!project) return;
+  deleteCustomer(customerId: number): void {
+    const customer = this.projectCustomers.find(c => c.customer_id === customerId);
+    if (!customer) return;
 
-    if (confirm(`Delete project "${project.name}"?`)) {
-      this.isProjectsLoading = true;
-      this.apiService.delete(`customer-projects/${projectId}`)
+    if (confirm(`Remove customer "${customer.customer_name}" from this project?`)) {
+      this.isCustomersLoading = true;
+      
+      this.apiService.delete(`customer-for-project/cfp/delete/${customer.id}`)
+        .pipe(
+          takeUntil(this.destroy$),
+          catchError(this.handleError.bind(this))
+        )
         .subscribe({
-          next: () => {
-            this.customerProjects = this.customerProjects.filter(p => p.id !== projectId);
-            this.filterProjects();
-            if (this.customerStats) this.customerStats.total_projects--;
-            this.showSuccess('Project deleted successfully');
-            this.isProjectsLoading = false;
-            this.loadCFPData();
+          next: (response: any) => {
+            this.isCustomersLoading = false;
+            if (response && (response.status === 1 || response.code === 1 || response === null)) {
+              this.projectCustomers = this.projectCustomers.filter(c => c.customer_id !== customerId);
+              this.filterCustomers();
+              
+              if (this.projectStats) {
+                this.projectStats.total_customers--;
+                if (customer.user_count) {
+                  this.projectStats.total_users -= customer.user_count;
+                }
+                if (customer.open_tickets_count) {
+                  this.projectStats.open_tickets -= customer.open_tickets_count;
+                }
+              }
+              
+              this.showSuccess('Customer removed from project successfully');
+              this.loadCFPData();
+            } else {
+              this.showError('Failed to remove customer from project');
+            }
           },
-          error: () => {
-            this.isProjectsLoading = false;
-            this.showError('Failed to delete project');
+          error: (error) => {
+            this.isCustomersLoading = false;
+            console.error('Delete customer error:', error);
+            
+            if (error?.status === 404) {
+              this.showError('Customer assignment not found');
+            } else if (error?.status === 403) {
+              this.showError('You do not have permission to remove this customer');
+            } else if (error?.status === 400) {
+              this.showError('Cannot remove customer - there may be dependencies');
+            } else {
+              this.showError('Failed to remove customer from project');
+            }
           }
         });
     }
   }
 
-  // ============ CREATE PROJECT & USER MODALS ============
-  openCreateProjectModal(): void {
-    if (!this.selectedCustomer) return;
-    this.isCreateProjectModalVisible = true;
-    this.resetProjectForm();
+  // ============ CREATE CUSTOMER & USER MODALS ============
+  openCreateCustomerModal(): void {
+    if (!this.selectedProject) return;
+    this.isCreateCustomerModalVisible = true;
+    this.resetCustomerForm();
   }
 
-  closeCreateProjectModal(): void {
+  closeCreateCustomerModal(): void {
     if (!this.isSubmitting) {
-      this.resetProjectForm();
-      this.isCreateProjectModalVisible = false;
+      this.resetCustomerForm();
+      this.isCreateCustomerModalVisible = false;
     }
   }
 
   openCreateUserModal(): void {
-    if (!this.selectedCustomer) return;
+    if (!this.selectedProject) return;
     this.isCreateUserModalVisible = true;
     this.resetUserForm();
   }
@@ -722,10 +765,9 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
   }
 
-  private resetProjectForm(): void {
-    this.projectForm.reset({
-      priority: 'medium',
-      status: 'active'
+  private resetCustomerForm(): void {
+    this.customerForm.reset({
+      tier: 'Standard'
     });
   }
 
@@ -736,21 +778,20 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-  onSubmitProject(): void {
-    if (!this.selectedCustomer || !this.projectForm.valid || this.isSubmitting) return;
+  onSubmitCustomer(): void {
+    if (!this.selectedProject || !this.customerForm.valid || this.isSubmitting) return;
 
     this.isSubmitting = true;
     const formData = {
-      customer_id: this.selectedCustomer.id,
-      name: this.projectForm.get('name')?.value?.trim(),
-      description: this.projectForm.get('description')?.value?.trim() || undefined,
-      priority: this.projectForm.get('priority')?.value,
-      start_date: this.projectForm.get('start_date')?.value || undefined,
-      end_date: this.projectForm.get('end_date')?.value || undefined,
-      status: this.projectForm.get('status')?.value
+      project_id: this.selectedProject.id,
+      company: this.customerForm.get('company')?.value?.trim(),
+      email: this.customerForm.get('email')?.value?.trim(),
+      phone: this.customerForm.get('phone')?.value?.trim() || undefined,
+      address: this.customerForm.get('address')?.value?.trim() || undefined,
+      tier: this.customerForm.get('tier')?.value
     };
 
-    this.apiService.post('customer-projects', formData)
+    this.apiService.post('customers', formData)
       .pipe(
         takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
@@ -759,28 +800,28 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           this.isSubmitting = false;
           if (response && (response.data?.id || response.id)) {
-            const createdProject = response.data || response;
-            this.onProjectCreated(createdProject);
-            this.closeCreateProjectModal();
-            this.showSuccess('Project created successfully!');
+            const createdCustomer = response.data || response;
+            this.onCustomerCreated(createdCustomer);
+            this.closeCreateCustomerModal();
+            this.showSuccess('Customer created successfully!');
             this.loadCFPData();
           } else {
-            this.showError('Failed to create project');
+            this.showError('Failed to create customer');
           }
         },
         error: () => {
           this.isSubmitting = false;
-          this.showError('Failed to create project');
+          this.showError('Failed to create customer');
         }
       });
   }
 
   onSubmitUser(): void {
-    if (!this.selectedCustomer || !this.userForm.valid || this.isSubmitting) return;
+    if (!this.selectedProject || !this.userForm.valid || this.isSubmitting) return;
 
     this.isSubmitting = true;
     const formData = {
-      customer_id: this.selectedCustomer.id,
+      project_id: this.selectedProject.id,
       name: this.userForm.get('name')?.value?.trim(),
       email: this.userForm.get('email')?.value?.trim(),
       phone: this.userForm.get('phone')?.value?.trim() || undefined,
@@ -789,7 +830,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       is_primary_contact: this.userForm.get('is_primary_contact')?.value || false
     };
 
-    this.apiService.post('customer-users', formData)
+    this.apiService.post('project-users', formData)
       .pipe(
         takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
@@ -814,74 +855,86 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
       });
   }
 
-  private onProjectCreated(newProject: CustomerProjectItem): void {
-    this.customerProjects.unshift(newProject);
-    this.filterProjects();
-    if (this.customerStats) {
-      this.customerStats.total_projects++;
-      if (newProject.status === 'active') {
-        this.customerStats.active_projects++;
-      }
+  private onCustomerCreated(newCustomer: ProjectCustomerItem): void {
+    this.projectCustomers.unshift(newCustomer);
+    this.filterCustomers();
+    if (this.projectStats) {
+      this.projectStats.total_customers++;
     }
   }
 
-  private onUserCreated(newUser: CustomerUserItem): void {
-    this.customerUsers.unshift(newUser);
-    if (this.customerStats) {
-      this.customerStats.total_users++;
+  private onUserCreated(newUser: ProjectUserItem): void {
+    this.projectUsers.unshift(newUser);
+    if (this.projectStats) {
+      this.projectStats.total_users++;
     }
   }
 
-  getProjectDescriptionLength(): number {
-    return this.projectForm?.get('description')?.value?.length || 0;
-  }
-
-  loadCustomers(): void {
+  loadProjects(): void {
     this.loadCFPData();
   }
 
-  // ============ ASSIGN PROJECT ============
-  openAssignProjectModal(): void {
-    if (!this.selectedCustomer) return;
+  // ============ ASSIGN CUSTOMER ============
+  openAssignCustomerModal(): void {
+    if (!this.selectedProject) return;
 
-    this.isAssignProjectModalVisible = true;
-    this.resetAssignProjectForm();
-    this.loadProjectDDL();
+    this.isAssignCustomerModalVisible = true;
+    this.resetAssignCustomerForm();
+    this.loadCustomerDDL();
     this.loadAllUsers();
   }
 
-  closeAssignProjectModal(): void {
+  closeAssignCustomerModal(): void {
     if (!this.isSubmitting) {
-      this.resetAssignProjectForm();
-      this.isAssignProjectModalVisible = false;
+      this.resetAssignCustomerForm();
+      this.isAssignCustomerModalVisible = false;
     }
   }
 
-  private resetAssignProjectForm(): void {
-    this.assignProjectForm.reset();
-    this.selectedProject = null;
+  private resetAssignCustomerForm(): void {
+    this.assignCustomerForm.reset();
+    this.selectedCustomer = null;
     this.selectedUsers = [];
     this.filteredUsers = [];
     this.userSearchTerm = '';
   }
 
-  private loadProjectDDL(): void {
-    this.isLoadingProjects = true;
+  private loadCustomerDDL(): void {
+    this.isLoadingCustomers = true;
 
-    this.apiService.get('projects/all')
+    this.apiService.get('get_all_customer')
       .pipe(
         takeUntil(this.destroy$),
-        catchError(() => of({ code: 0, data: null }))
+        catchError((error) => {
+          console.error('Error loading customers:', error);
+          return of({ code: 0, status: false, message: 'Error loading customers', data: null });
+        })
       )
       .subscribe({
         next: (response: any) => {
-          this.isLoadingProjects = false;
-          if (response?.code === 1 && response.data) {
-            this.availableProjects = response.data;
+          this.isLoadingCustomers = false;
+          console.log('Customer DDL Response:', response);
+          
+          if (response && response.code === 1 && response.status === true && Array.isArray(response.data)) {
+            this.availableCustomers = response.data.map((customer: any) => ({
+              id: customer.id,
+              company: customer.name,
+              email: customer.email || '',
+              phone: customer.phone || '',
+              tier: customer.tier || 'Standard',
+              status: customer.status || 'active'
+            }));
+            
+            console.log('Transformed customers:', this.availableCustomers);
+          } else {
+            console.warn('Invalid customer response structure:', response);
+            this.availableCustomers = [];
           }
         },
-        error: () => {
-          this.isLoadingProjects = false;
+        error: (error) => {
+          this.isLoadingCustomers = false;
+          console.error('Customer DDL error:', error);
+          this.availableCustomers = [];
         }
       });
   }
@@ -930,16 +983,16 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }));
   }
 
-  onProjectSelect(): void {
-    const projectId = this.assignProjectForm.get('project_id')?.value;
-    this.selectedProject = this.availableProjects.find(p => p.id === parseInt(projectId)) || null;
+  onCustomerSelect(): void {
+    const customerId = this.assignCustomerForm.get('customer_id')?.value;
+    this.selectedCustomer = this.availableCustomers.find(c => c.id === parseInt(customerId)) || null;
   }
 
   toggleUserSelection(user: SystemUser): void {
     if (!this.selectedUsers.some(u => u.id === user.id)) {
       this.selectedUsers.push(user);
 
-      this.assignProjectForm.patchValue({
+      this.assignCustomerForm.patchValue({
         assigned_users: this.selectedUsers.map(u => ({ user_id: u.id }))
       });
 
@@ -952,7 +1005,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     if (index >= 0) {
       this.selectedUsers.splice(index, 1);
 
-      this.assignProjectForm.patchValue({
+      this.assignCustomerForm.patchValue({
         assigned_users: this.selectedUsers.map(u => ({ user_id: u.id }))
       });
 
@@ -960,8 +1013,8 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
   }
 
-  onSubmitAssignProject(): void {
-    if (!this.selectedCustomer || !this.assignProjectForm.valid ||
+  onSubmitAssignCustomer(): void {
+    if (!this.selectedProject || !this.assignCustomerForm.valid ||
       this.isSubmitting || this.selectedUsers.length === 0) {
       if (this.selectedUsers.length === 0) {
         this.showError('Please select at least one user');
@@ -972,8 +1025,8 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     this.isSubmitting = true;
 
     const formData: CreateCustomerForProjectDto = {
-      customer_id: this.selectedCustomer.id,
-      project_id: parseInt(this.assignProjectForm.get('project_id')?.value),
+      project_id: this.selectedProject.id,
+      customer_id: parseInt(this.assignCustomerForm.get('customer_id')?.value),
       assigned_users: this.selectedUsers.map(user => ({
         user_id: user.id
       }))
@@ -990,63 +1043,53 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           this.isSubmitting = false;
           if (response && (response.status === 1 || response.code === 1)) {
-            this.onProjectAssignedSuccess();
-            this.closeAssignProjectModal();
-            this.showSuccess('Project assigned successfully!');
+            this.onCustomerAssignedSuccess();
+            this.closeAssignCustomerModal();
+            this.showSuccess('Customer assigned to project successfully!');
             this.loadCFPData();
           } else {
-            this.showError('Failed to assign project');
+            this.showError('Failed to assign customer to project');
           }
         },
         error: (error) => {
           this.isSubmitting = false;
           console.error('Assignment error:', error);
-          this.showError('Failed to assign project');
+          this.showError('Failed to assign customer to project');
         }
       });
   }
 
-  private onProjectAssignedSuccess(): void {
-    if (this.selectedProject && this.selectedCustomer) {
-      const newProject: CustomerProjectItem = {
+  private onCustomerAssignedSuccess(): void {
+    if (this.selectedCustomer && this.selectedProject) {
+      const newCustomer: ProjectCustomerItem = {
         id: Math.floor(Math.random() * 1000),
+        project_id: this.selectedProject.id,
         customer_id: this.selectedCustomer.id,
-        name: this.selectedProject.name,
-        description: `Project assigned with ${this.selectedUsers.length} users`,
-        status: 'active',
-        priority: 'medium',
-        created_date: new Date().toISOString(),
-        created_by: 1,
-        open_tickets_count: 0,
+        customer_name: this.selectedCustomer.company,
+        customer_email: this.selectedCustomer.email,
+        customer_phone: this.selectedCustomer.phone || '',
         assigned_user_names: this.selectedUsers.map(u => this.getUserDisplayName(u)),
         user_count: this.selectedUsers.length,
+        open_tickets_count: 0,
+        created_date: new Date().toISOString(),
+        created_by: 1,
         assigned_users: []
       };
 
-      this.customerProjects.unshift(newProject);
-      this.filterProjects();
+      this.projectCustomers.unshift(newCustomer);
+      this.filterCustomers();
 
-      if (this.customerStats) {
-        this.customerStats.total_projects++;
-        this.customerStats.active_projects++;
-        this.customerStats.total_users += this.selectedUsers.length;
+      if (this.projectStats) {
+        this.projectStats.total_customers++;
+        this.projectStats.total_users += this.selectedUsers.length;
       }
     }
   }
 
   // ============ FILTERING ============
-  filterCustomers(): void {
-    const searchTerm = this.customerSearchTerm.toLowerCase();
-    this.filteredCustomers = this.customers.filter(customer =>
-      !searchTerm ||
-      customer.company.toLowerCase().includes(searchTerm) ||
-      customer.email.toLowerCase().includes(searchTerm)
-    );
-  }
-
   filterProjects(): void {
     const searchTerm = this.projectSearchTerm.toLowerCase();
-    this.filteredProjects = this.customerProjects.filter(project => {
+    this.filteredProjects = this.projects.filter(project => {
       const matchesSearch = !searchTerm ||
         project.name.toLowerCase().includes(searchTerm) ||
         (project.description && project.description.toLowerCase().includes(searchTerm));
@@ -1056,6 +1099,15 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
       return matchesSearch && matchesStatus;
     });
+  }
+
+  filterCustomers(): void {
+    const searchTerm = this.customerSearchTerm.toLowerCase();
+    this.filteredCustomers = this.projectCustomers.filter(customer =>
+      !searchTerm ||
+      customer.customer_name.toLowerCase().includes(searchTerm) ||
+      customer.customer_email.toLowerCase().includes(searchTerm)
+    );
   }
 
   onUserSearchChange(event: Event): void {
@@ -1082,25 +1134,24 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     });
   }
 
-  // Event handlers
-  onCustomerSearchChange(): void { this.filterCustomers(); }
   onProjectSearchChange(): void { this.filterProjects(); }
+  onCustomerSearchChange(): void { this.filterCustomers(); }
   onStatusFilterChange(): void { this.filterProjects(); }
 
-  exportCustomerData(): void {
+  exportProjectData(): void {
     this.showSuccess('Export feature will be implemented soon');
   }
 
-  refreshCustomerData(): void {
-    if (this.selectedCustomer) {
-      const selectedId = this.selectedCustomer.id;
+  refreshProjectData(): void {
+    if (this.selectedProject) {
+      const selectedId = this.selectedProject.id;
 
       this.isLoading = true;
       this.loadCFPData();
 
       setTimeout(() => {
-        if (this.selectedCustomer?.id === selectedId) {
-          this.loadCustomerData(selectedId);
+        if (this.selectedProject?.id === selectedId) {
+          this.loadProjectData(selectedId);
         }
         this.isLoading = false;
       }, 500);
@@ -1110,21 +1161,18 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   // ============ UTILITY METHODS ============
-  isFieldInvalid(formName: 'assign' | 'project' | 'user' | 'editUsers', fieldName: string): boolean {
+  isFieldInvalid(formName: 'assign' | 'customer' | 'user', fieldName: string): boolean {
     let form: FormGroup;
 
     switch (formName) {
       case 'assign':
-        form = this.assignProjectForm;
+        form = this.assignCustomerForm;
         break;
-      case 'project':
-        form = this.projectForm;
+      case 'customer':
+        form = this.customerForm;
         break;
       case 'user':
         form = this.userForm;
-        break;
-      case 'editUsers':
-        form = this.editProjectUsersForm;
         break;
       default:
         return false;
@@ -1134,12 +1182,12 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     return !!(field && field.invalid && (field.dirty || field.touched));
   }
 
-  getCustomerAvatarLetter(companyName: string): string {
-    return companyName ? companyName.charAt(0).toUpperCase() : '?';
-  }
-
   getProjectAvatarLetter(projectName: string): string {
     return projectName ? projectName.charAt(0).toUpperCase() : '?';
+  }
+
+  getCustomerAvatarLetter(customerName: string): string {
+    return customerName ? customerName.charAt(0).toUpperCase() : '?';
   }
 
   getUserAvatarLetter(user: string | SystemUser | undefined): string {
@@ -1167,19 +1215,9 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   getStatusBadgeClass(status: string): string {
     const statusMap: { [key: string]: string } = {
       active: 'status-active',
-      inactive: 'status-inactive',
-      completed: 'status-completed'
+      inactive: 'status-inactive'
     };
     return statusMap[status.toLowerCase()] || 'status-default';
-  }
-
-  getPriorityBadgeClass(priority: string): string {
-    const priorityMap: { [key: string]: string } = {
-      high: 'priority-high',
-      medium: 'priority-medium',
-      low: 'priority-low'
-    };
-    return priorityMap[priority.toLowerCase()] || 'priority-default';
   }
 
   getTicketsCountClass(count: number): string {
@@ -1206,20 +1244,41 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ============ HELPER METHODS FOR TEMPLATES ============
+  getUserNamesString(users: SystemUser[]): string {
+    return users.map(u => this.getUserDisplayName(u)).join(', ');
+  }
+
+  isUserNotInRemoveList(user: SystemUser): boolean {
+    return !this.usersToRemove.some(u => u.id === user.id);
+  }
+
+  isUserInRemoveList(user: SystemUser): boolean {
+    return this.usersToRemove.some(u => u.id === user.id);
+  }
+
+  isUserNotSelected(user: SystemUser): boolean {
+    return !this.selectedUsers.some(u => u.id === user.id);
+  }
+
+  getUserAvatarLetterByName(userName: string): string {
+    return userName ? userName.charAt(0).toUpperCase() : '?';
+  }
+
   // ============ PERMISSION METHODS ============
-  canManageCustomerProjects(): boolean {
+  canManageProjects(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  canCreateProjects(): boolean {
+  canCreateCustomers(): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  canEditProject(project: CustomerProjectItem): boolean {
+  canEditCustomer(customer: ProjectCustomerItem): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
-  canDeleteProject(project: CustomerProjectItem): boolean {
+  canDeleteCustomer(customer: ProjectCustomerItem): boolean {
     return this.authService.hasPermission(permissionEnum.MANAGE_PROJECT) || this.authService.isAdmin();
   }
 
@@ -1228,15 +1287,15 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
   }
 
   // ============ TRACK BY FUNCTIONS ============
-  trackByCustomerId(index: number, customer: CustomerItem): number {
-    return customer.id;
-  }
-
-  trackByProjectId(index: number, project: CustomerProjectItem): number {
+  trackByProjectId(index: number, project: ProjectItem): number {
     return project.id;
   }
 
-  trackByUserId(index: number, user: CustomerUserItem): number {
+  trackByCustomerId(index: number, customer: ProjectCustomerItem): number {
+    return customer.customer_id;
+  }
+
+  trackByUserId(index: number, user: ProjectUserItem): number {
     return user.id;
   }
 
