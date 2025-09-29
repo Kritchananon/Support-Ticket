@@ -34,7 +34,7 @@ export interface ProjectDDLResponse {
   code: number;
   message: string;
   data: ProjectDDL[];
-  success?: boolean;
+  status?: boolean;
   total?: number;
 }
 

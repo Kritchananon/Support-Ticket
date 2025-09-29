@@ -1,6 +1,7 @@
 import { Component, OnInit, Input, Output, EventEmitter, inject, OnChanges, SimpleChanges, HostListener, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 // API Services
 import {
@@ -10,6 +11,9 @@ import {
 } from '../../../../shared/services/api.service';
 import { AuthService } from '../../../../shared/services/auth.service';
 import { TicketService } from '../../../../shared/services/ticket.service';
+
+// Business Hours Calculator
+import { BusinessHoursCalculator } from '../../../../shared/services/business-hours-calculator.service';
 
 // Models
 import {
@@ -34,6 +38,31 @@ import {
   UserListItem,
   getUserFullName,
 } from '../../../../shared/models/user.model';
+
+// Environment
+import { environment } from '../../../../../environments/environment';
+
+// ===== Fix Issue Attachment Interfaces ===== ✅
+interface UploadFixIssueAttachmentResponse {
+  success: boolean;
+  message: string;
+  data: {
+    uploaded_files: Array<{
+      id: number;
+      filename: string;
+      original_name: string;
+      file_size: number;
+      file_url: string;
+      extension: string;
+    }>;
+    total_uploaded: number;
+    total_files: number;
+    errors?: Array<{
+      filename: string;
+      error: string;
+    }>;
+  };
+}
 
 // Interfaces
 interface ActionDropdownOption {
@@ -114,6 +143,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private authService = inject(AuthService);
   private ticketService = inject(TicketService);
   private fb = inject(FormBuilder);
+  private http = inject(HttpClient);
+
+  // API URL
+  private apiUrl = environment.apiUrl;
+
+  // Business Hours Calculator
+  private businessHoursCalculator: BusinessHoursCalculator;
 
   // Input Properties
   @Input() ticketData: TicketData | null = null;
@@ -180,6 +216,41 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private lastFormSnapshot: any = null;
   private formChangeSubscription: any = null;
 
+  // ===== Fix Issue Attachment Properties ===== ✅
+  isUploadingFixAttachment = false;
+  fixAttachmentUploadError = '';
+
+  constructor() {
+    this.businessHoursCalculator = new BusinessHoursCalculator();
+    this.initializeHolidays();
+  }
+
+  private initializeHolidays(): void {
+    const holidays2025 = [
+      new Date('2025-01-01'),
+      new Date('2025-02-12'),
+      new Date('2025-04-06'),
+      new Date('2025-04-13'),
+      new Date('2025-04-14'),
+      new Date('2025-04-15'),
+      new Date('2025-05-01'),
+      new Date('2025-05-05'),
+      new Date('2025-05-12'),
+      new Date('2025-06-03'),
+      new Date('2025-07-10'),
+      new Date('2025-07-28'),
+      new Date('2025-08-12'),
+      new Date('2025-10-13'),
+      new Date('2025-10-23'),
+      new Date('2025-12-05'),
+      new Date('2025-12-10'),
+      new Date('2025-12-31'),
+    ];
+
+    this.businessHoursCalculator.setHolidays(holidays2025);
+    console.log('Initialized holidays:', holidays2025.length, 'days');
+  }
+
   ngOnInit(): void {
     console.log('SupportInformationFormComponent initialized');
     console.log('Initial ticketData:', this.ticketData);
@@ -189,19 +260,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     this.checkUserPermissions();
     this.loadActionDropdownOptions();
     this.initializeAssigneeList();
-
-    // โหลดข้อมูลที่เก็บไว้ก่อนหน้า (ถ้ามี)
     this.restorePersistedFormData();
-
-    // ติดตามการเปลี่ยนแปลงฟอร์มและเก็บอัตโนมัติ
     this.setupFormPersistence();
+    this.setupAutoCalculation();
 
     this.isComponentInitialized = true;
     console.log('Form component initialization complete');
   }
 
   ngOnDestroy(): void {
-    // ทำความสะอาดเมื่อ component ถูกทำลาย
     if (this.formChangeSubscription) {
       this.formChangeSubscription.unsubscribe();
     }
@@ -221,13 +288,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         isRefreshing: this.isRefreshing
       });
 
-      // ป้องกัน multiple processing
       if (!this.isRefreshing) {
         this.isRefreshing = true;
         this.hasTicketDataChanged = true;
         this.onTicketDataChanged();
 
-        // รีเซ็ตสถานะหลัง delay เล็กน้อย
         setTimeout(() => {
           this.isRefreshing = false;
         }, 100);
@@ -241,33 +306,219 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         to: loadingChange.currentValue
       });
 
-      // เมื่อเริ่มโหลด ให้เก็บสถานะฟอร์มไว้
       if (loadingChange.currentValue === true && !this.isRefreshing) {
         this.takeFormSnapshot();
       }
     }
   }
 
-  // Enhanced Form Persistence System
+  // ===== Fix Issue Attachment Methods ===== ✅
+
+  /**
+   * อัปโหลดไฟล์แนบ fix issue
+   */
+  private async uploadFixIssueAttachments(ticketId: number, files: File[]): Promise<boolean> {
+    if (!files || files.length === 0) return true;
+
+    try {
+      this.isUploadingFixAttachment = true;
+      this.fixAttachmentUploadError = '';
+
+      const formData = new FormData();
+      formData.append('ticket_id', ticketId.toString());
+      files.forEach(file => formData.append('files', file));
+
+      const token = this.authService.getToken();
+      const headers = new HttpHeaders({
+        'Authorization': `Bearer ${token}`
+      });
+
+      const response = await this.http.patch<UploadFixIssueAttachmentResponse>(
+        `${this.apiUrl}/fix_issue/attachment`,
+        formData,
+        { headers }
+      ).toPromise();
+
+      if (response && response.success) {
+        console.log('✅ Fix attachments uploaded:', response.data.total_uploaded, 'files');
+        
+        if (response.data.errors && response.data.errors.length > 0) {
+          console.warn('Upload errors:', response.data.errors);
+        }
+        
+        return true;
+      } else {
+        this.fixAttachmentUploadError = response?.message || 'ไม่สามารถอัปโหลดไฟล์ได้';
+        return false;
+      }
+
+    } catch (error: any) {
+      console.error('Error uploading fix attachments:', error);
+      this.fixAttachmentUploadError = error?.error?.message || 'เกิดข้อผิดพลาดในการอัปโหลด';
+      return false;
+
+    } finally {
+      this.isUploadingFixAttachment = false;
+    }
+  }
+
+  /**
+   * ตรวจสอบไฟล์ก่อนอัปโหลด
+   */
+  private validateFixIssueFiles(files: File[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
+      'image/webp', 'image/bmp', 'image/tiff',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/csv', 'application/json',
+      'application/zip', 'application/x-rar-compressed'
+    ];
+
+    files.forEach(file => {
+      if (!allowedTypes.includes(file.type)) {
+        errors.push(`${file.name}: ประเภทไฟล์ไม่รองรับ`);
+      }
+      if (file.size > maxSize) {
+        errors.push(`${file.name}: ขนาดเกิน 10MB`);
+      }
+    });
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  // ===== Existing Methods Continue Below ===== 
+
+  private setupAutoCalculation(): void {
+    this.supporterForm.get('close_estimate')?.valueChanges.subscribe(() => {
+      this.calculateEstimateTimeFromForm();
+    });
+
+    this.supporterForm.get('due_date')?.valueChanges.subscribe(() => {
+      this.calculateLeadTimeFromForm();
+    });
+  }
+
+  private calculateEstimateTimeFromForm(): void {
+    const closeEstimate = this.supporterForm.get('close_estimate')?.value;
+    
+    if (!closeEstimate) {
+      this.estimateTime = 0;
+      return;
+    }
+
+    const openTicketDate = this.getOpenTicketDate();
+    if (!openTicketDate) {
+      console.warn('Cannot calculate estimate time: No open ticket date found');
+      this.estimateTime = 0;
+      return;
+    }
+
+    try {
+      const closeEstimateDate = new Date(closeEstimate);
+      this.estimateTime = this.businessHoursCalculator.calculateEstimateTime(
+        openTicketDate,
+        closeEstimateDate
+      );
+
+      console.log('Estimate Time calculated:', {
+        from: openTicketDate,
+        to: closeEstimateDate,
+        hours: this.estimateTime
+      });
+
+      this.supporterForm.patchValue({
+        estimate_time: Math.round(this.estimateTime)
+      }, { emitEvent: false });
+
+    } catch (error) {
+      console.error('Error calculating estimate time:', error);
+      this.estimateTime = 0;
+    }
+  }
+
+  private calculateLeadTimeFromForm(): void {
+    const dueDate = this.supporterForm.get('due_date')?.value;
+    
+    if (!dueDate) {
+      this.leadTime = 0;
+      return;
+    }
+
+    const openTicketDate = this.getOpenTicketDate();
+    if (!openTicketDate) {
+      console.warn('Cannot calculate lead time: No open ticket date found');
+      this.leadTime = 0;
+      return;
+    }
+
+    try {
+      const dueDateObj = new Date(dueDate);
+      this.leadTime = this.businessHoursCalculator.calculateLeadTime(
+        openTicketDate,
+        dueDateObj
+      );
+
+      console.log('Lead Time calculated:', {
+        from: openTicketDate,
+        to: dueDateObj,
+        hours: this.leadTime
+      });
+
+      this.supporterForm.patchValue({
+        lead_time: Math.round(this.leadTime)
+      }, { emitEvent: false });
+
+    } catch (error) {
+      console.error('Error calculating lead time:', error);
+      this.leadTime = 0;
+    }
+  }
+
+  private getOpenTicketDate(): Date | null {
+    if (!this.ticketData?.status_history) {
+      return null;
+    }
+
+    const openTicketHistory = this.ticketData.status_history.find(
+      history => history.status_id === 2
+    );
+
+    if (!openTicketHistory?.create_date) {
+      console.warn('Open ticket date not found in status history');
+      return null;
+    }
+
+    try {
+      return new Date(openTicketHistory.create_date);
+    } catch (error) {
+      console.error('Error parsing open ticket date:', error);
+      return null;
+    }
+  }
+
   private setupFormPersistence(): void {
-    // เก็บข้อมูลฟอร์มทุกครั้งที่มีการเปลี่ยนแปลง (แต่ไม่บ่อยเกินไป)
     let saveTimeout: any = null;
 
     this.formChangeSubscription = this.supporterForm.valueChanges.subscribe((formValue) => {
-      // ใช้ debounce เพื่อไม่ให้เก็บข้อมูลบ่อยเกินไป
       if (saveTimeout) {
         clearTimeout(saveTimeout);
       }
 
       saveTimeout = setTimeout(() => {
         this.persistFormData();
-      }, 1000); // เก็บหลังจากหยุดพิมพ์ 1 วินาที
+      }, 1000);
     });
   }
 
   private persistFormData(): void {
     if (!this.hasFormData()) {
-      // ถ้าไม่มีข้อมูล ให้ลบข้อมูลที่เก็บไว้
       localStorage.removeItem(this.formPersistenceKey);
       return;
     }
@@ -281,9 +532,9 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
           size: file.size,
           type: file.type,
           lastModified: file.lastModified
-        })), // เก็บ metadata ของไฟล์ (ไฟล์จริงเก็บไม่ได้)
+        })),
         timestamp: Date.now(),
-        ticketNo: this.ticket_no // เก็บ ticket_no เพื่อตรวจสอบ
+        ticketNo: this.ticket_no
       };
 
       localStorage.setItem(this.formPersistenceKey, JSON.stringify(dataToSave));
@@ -309,9 +560,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
       const parsedData = JSON.parse(savedData);
 
-      // ตรวจสอบอายุข้อมูล (ไม่เก็บเกิน 1 ชั่วโมง)
       const age = Date.now() - parsedData.timestamp;
-      const maxAge = 60 * 60 * 1000; // 1 ชั่วโมง
+      const maxAge = 60 * 60 * 1000;
 
       if (age > maxAge) {
         console.log('Persisted data too old, removing');
@@ -319,13 +569,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return;
       }
 
-      // ตรวจสอบว่าเป็น ticket เดียวกันหรือไม่
       if (parsedData.ticketNo && this.ticket_no && parsedData.ticketNo !== this.ticket_no) {
         console.log('Persisted data for different ticket, ignoring');
         return;
       }
 
-      // กู้คืนข้อมูล
       if (parsedData.formValue) {
         console.log('Restoring persisted form data:', parsedData.formValue);
         this.supporterForm.patchValue(parsedData.formValue);
@@ -335,7 +583,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         this.selectedAssigneeId = parsedData.selectedAssigneeId;
       }
 
-      // สำหรับไฟล์ - แสดงแค่ชื่อว่าเคยเลือกไว้ (แต่ต้องเลือกใหม่)
       if (parsedData.selectedFiles && parsedData.selectedFiles.length > 0) {
         console.log('Previous files were selected (need to re-select):',
           parsedData.selectedFiles.map((f: any) => f.name));
@@ -373,7 +620,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
 
     const age = Date.now() - this.formStateSnapshot.timestamp;
-    const maxAge = 30000; // 30 วินาที
+    const maxAge = 30000;
 
     if (age > maxAge) {
       console.log('Form snapshot too old, discarding');
@@ -383,21 +630,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     console.log('Restoring form snapshot:', this.formStateSnapshot.formValue);
 
-    // กู้คืนค่าในฟอร์ม
     this.supporterForm.patchValue(this.formStateSnapshot.formValue);
-
-    // กู้คืน assignee
     this.selectedAssigneeId = this.formStateSnapshot.selectedAssigneeId;
 
-    // กู้คืนไฟล์ (ถ้าเป็นไฟล์เดิม)
     if (this.formStateSnapshot.selectedFiles.length > 0) {
       this.selectedFiles = [...this.formStateSnapshot.selectedFiles];
       this.fileUploadProgress = [...this.formStateSnapshot.fileUploadProgress];
     }
 
-    // ล้าง snapshot หลังใช้
     this.formStateSnapshot = null;
-
     return true;
   }
 
@@ -410,43 +651,34 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       currentFormData: this.hasFormData()
     });
 
-    // รีเซ็ต form state เมื่อมีข้อมูล ticket ใหม่
     this.supporterFormState.error = null;
     if (!this.justSaved) {
       this.supporterFormState.successMessage = null;
     }
 
-    // รีเฟรช action dropdown
     if (this.ticketData?.ticket && this.statusList.length > 0) {
       this.buildActionDropdownOptions();
     }
 
-    // คำนวณเวลาใหม่
     this.calculateRealtime();
 
-    // จัดการการอัปเดตฟอร์ม
     if (this.ticketData?.ticket) {
       if (this.justSaved) {
-        // กรณีเพิ่งบันทึก - ใช้ข้อมูลที่เก็บไว้
         this.updateFormAfterSave();
       } else if (this.formStateSnapshot && !this.hasFormData()) {
-        // กรณีมี snapshot และฟอร์มปัจจุบันว่าง - กู้คืน snapshot
         console.log('Restoring from snapshot');
         this.restoreFormSnapshot();
       } else if (!this.hasFormData()) {
-        // กรณีฟอร์มว่างและไม่มี snapshot - ลองกู้คืนจาก localStorage หรือโหลดจาก ticket
         this.restorePersistedFormData();
         if (!this.hasFormData()) {
           console.log('Loading from ticket data');
           this.updateFormWithTicketData();
         }
       } else {
-        // กรณีอื่นๆ - รักษาข้อมูลที่มีอยู่
         console.log('Keeping current form data');
       }
     }
 
-    // รีเซ็ตสถานะ
     if (this.justSaved) {
       setTimeout(() => {
         this.justSaved = false;
@@ -457,7 +689,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   private updateFormAfterSave(): void {
     if (!this.ticketData?.ticket || !this.formDataBeforeRefresh) {
-      // ถ้าไม่มีข้อมูลที่เก็บไว้ ให้อัปเดตปกติ
       this.updateFormWithTicketData();
       return;
     }
@@ -467,10 +698,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     console.log('Updating form after save with preserved user data:', savedFormData);
 
-    // รักษาข้อมูลที่ผู้ใช้กรอกไว้ แต่อัปเดตข้อมูลที่มาจากฐานข้อมูล
     this.supporterForm.patchValue({
-      action: '', // เคลียร์ action เสมอ
-      // รักษาข้อมูลที่ผู้ใช้กรอก หรือใช้ข้อมูลจาก DB ถ้าไม่มี
+      action: '',
       estimate_time: savedFormData.estimate_time || this.parseNumberField(ticket.estimate_time),
       due_date: savedFormData.due_date || this.formatDateTimeForInput(ticket.due_date),
       lead_time: savedFormData.lead_time || this.parseNumberField(ticket.lead_time),
@@ -479,8 +708,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       related_ticket_id: savedFormData.related_ticket_id || ticket.related_ticket_id || ''
     });
 
-    // อัปเดต validation
     this.validateSupporterForm();
+    this.calculateRealtime();
   }
 
   private updateFormWithTicketData(): void {
@@ -502,9 +731,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       justSaved: this.justSaved
     });
 
-    // อัปเดตฟอร์มด้วยข้อมูลจาก ticket (ไม่เขียนทับข้อมูลที่ผู้ใช้กรอกอยู่)
     const newFormValue = {
-      action: currentFormValue.action || '', // รักษา action ที่เลือกไว้
+      action: currentFormValue.action || '',
       estimate_time: this.parseNumberField(ticket.estimate_time),
       due_date: this.formatDateTimeForInput(ticket.due_date),
       lead_time: this.parseNumberField(ticket.lead_time),
@@ -513,18 +741,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       related_ticket_id: ticket.related_ticket_id || ''
     };
 
-    // เฉพาะ fields ที่ว่างใน form ปัจจุบัน ถึงจะอัปเดต
     const patchData: any = {};
     Object.keys(newFormValue).forEach(key => {
       if (key === 'action') {
-        // action ไม่อัปเดต ให้ผู้ใช้เลือกเอง
         return;
       }
 
       const currentValue = currentFormValue[key];
       const newValue = newFormValue[key as keyof typeof newFormValue];
 
-      // อัปเดตถ้าค่าปัจจุบันว่าง หรือไม่มีค่า
       if (!currentValue || currentValue === '') {
         patchData[key] = newValue;
       }
@@ -535,8 +760,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       console.log('Patched form with:', patchData);
     }
 
-    // อัปเดต validation
     this.validateSupporterForm();
+    this.calculateRealtime();
   }
 
   private parseNumberField(value: any): number | null {
@@ -556,9 +781,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     try {
       let date: Date;
 
-      // ลองแปลงแบบต่างๆ
       if (typeof dateString === 'string') {
-        // แทนที่ space ด้วย T ถ้าจำเป็น
         const normalizedDateString = dateString.replace(' ', 'T');
         date = new Date(normalizedDateString);
       } else {
@@ -570,7 +793,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return '';
       }
 
-      // แปลงเป็นเวลาท้องถิ่น
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -605,27 +827,25 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   clearAllFormData(): void {
     console.log('Clearing all form data');
 
-    // ลบข้อมูลที่เก็บไว้
     localStorage.removeItem(this.formPersistenceKey);
 
-    // รีเซ็ตทุกสถานะ
     this.justSaved = false;
     this.formDataBeforeRefresh = null;
     this.formStateSnapshot = null;
     this.isRefreshing = false;
     this.lastFormSnapshot = null;
 
-    // รีเซ็ตฟอร์ม
     this.supporterForm.reset();
     this.selectedFiles = [];
     this.fileUploadProgress = [];
     this.selectedAssigneeId = null;
+    
+    this.estimateTime = 0;
+    this.leadTime = 0;
 
-    // รีเซ็ต messages
     this.supporterFormState.error = null;
     this.supporterFormState.successMessage = null;
 
-    // รีเซ็ต validation
     this.supporterFormValidation = {
       estimate_time: { isValid: true },
       due_date: { isValid: true },
@@ -678,7 +898,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       return {
         hasPersistedData: true,
         lastSaved: new Date(parsedData.timestamp),
-        dataAge: Math.floor(age / 1000), // วินาที
+        dataAge: Math.floor(age / 1000),
         isValidForCurrentTicket: isValid
       };
     } catch {
@@ -691,7 +911,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
-  // TrackBy Functions for Performance
   trackByActionOption(index: number, option: ActionDropdownOption): string | number {
     return option.statusId;
   }
@@ -704,23 +923,14 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return file.name + file.size + file.lastModified;
   }
 
-  // Debug Helper
-  getFormDebugInfo() {
-    const persistenceStatus = this.getFormPersistenceStatus();
-
-    return {
-      hasFormData: this.hasFormData(),
-      justSaved: this.justSaved,
-      hasSnapshot: !!this.formStateSnapshot,
-      hasBeforeRefreshData: !!this.formDataBeforeRefresh,
-      isRefreshing: this.isRefreshing,
-      formValue: this.supporterForm?.value,
-      persistence: persistenceStatus,
-      ticketNo: this.ticket_no
-    };
+  debugLog(message: string, data?: any): void {
+    console.log(message, data);
   }
 
-  // Existing Methods (unchanged but maintaining for compatibility)
+  get isJustSaved(): boolean {
+    return this.justSaved;
+  }
+
   get debugInfo() {
     return {
       isComponentInitialized: this.isComponentInitialized,
@@ -736,7 +946,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     };
   }
 
-  // Initialize Methods
   private initializeSupporterForm(): void {
     this.supporterForm = this.fb.group({
       action: ['', [Validators.required]],
@@ -748,7 +957,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       related_ticket_id: ['']
     });
 
-    // Listen to form changes for real-time validation
     this.supporterForm.valueChanges.subscribe(() => {
       this.validateSupporterForm();
     });
@@ -757,8 +965,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private checkUserPermissions(): void {
     const userPermissions = this.authService.getEffectivePermissions();
 
-    this.canUserSaveSupporter = userPermissions.includes(8) || // CHANGE_STATUS
-      userPermissions.includes(19) || // ASSIGNEE
+    this.canUserSaveSupporter = userPermissions.includes(8) ||
+      userPermissions.includes(19) ||
       this.authService.isAdmin() ||
       this.authService.isSupporter();
 
@@ -773,18 +981,18 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   canEditSupportInformation(): boolean {
     const userPermissions = this.authService.getEffectivePermissions();
 
-    return userPermissions.includes(8) ||   // CHANGE_STATUS
-      userPermissions.includes(19) ||  // ASSIGNEE
-      this.authService.isAdmin() ||    // Admin
-      this.authService.isSupporter();  // Supporter
+    return userPermissions.includes(8) ||
+      userPermissions.includes(19) ||
+      this.authService.isAdmin() ||
+      this.authService.isSupporter();
   }
 
   canShowSupporterForm(): boolean {
     const userPermissions = this.authService.getEffectivePermissions();
 
-    const hasRequiredPermission = userPermissions.includes(5) ||  // VIEW_ALL_TICKETS
-      userPermissions.includes(8) ||  // CHANGE_STATUS 
-      userPermissions.includes(19);    // ASSIGNEE
+    const hasRequiredPermission = userPermissions.includes(5) ||
+      userPermissions.includes(8) ||
+      userPermissions.includes(19);
 
     const shouldShow = hasRequiredPermission && !this.isLoadingTicketData;
 
@@ -809,7 +1017,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       this.authService.isSupporter();
   }
 
-  // Form State Methods
   isFormReady(): boolean {
     return this.isComponentInitialized &&
       !this.isLoadingTicketData &&
@@ -832,7 +1039,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return 'พร้อมใช้งาน';
   }
 
-  // Action Dropdown Methods
   private async loadActionDropdownOptions(): Promise<void> {
     console.log('Loading action dropdown options...');
     this.isLoadingActions = true;
@@ -918,30 +1124,54 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
-  calculateRealtime() {
-    if (this.ticketData?.ticket) {
-      try {
-        const closeEstimateDate = this.ticketData.ticket.close_estimate ?
-          new Date(this.ticketData.ticket.close_estimate) : new Date();
-        const dueDateDate = this.ticketData.ticket.due_date ?
-          new Date(this.ticketData.ticket.due_date) : new Date();
+  calculateRealtime(): void {
+    if (!this.ticketData?.ticket) {
+      this.estimateTime = 0;
+      this.leadTime = 0;
+      return;
+    }
 
-        this.estimateTime = this.ticketService.calculateEstimateTime(closeEstimateDate);
-        this.leadTime = this.ticketService.calculateLeadTime(dueDateDate);
+    const openTicketDate = this.getOpenTicketDate();
+    if (!openTicketDate) {
+      console.warn('Cannot calculate real-time: No open ticket date found');
+      this.estimateTime = 0;
+      this.leadTime = 0;
+      return;
+    }
 
-        console.log('Real-time calculations updated:', {
-          estimateTime: this.estimateTime,
-          leadTime: this.leadTime
-        });
-      } catch (error) {
-        console.error('Error in calculateRealtime:', error);
+    try {
+      if (this.ticketData.ticket.close_estimate) {
+        const closeEstimateDate = new Date(this.ticketData.ticket.close_estimate);
+        this.estimateTime = this.businessHoursCalculator.calculateEstimateTime(
+          openTicketDate,
+          closeEstimateDate
+        );
+      } else {
         this.estimateTime = 0;
+      }
+
+      if (this.ticketData.ticket.due_date) {
+        const dueDateObj = new Date(this.ticketData.ticket.due_date);
+        this.leadTime = this.businessHoursCalculator.calculateLeadTime(
+          openTicketDate,
+          dueDateObj
+        );
+      } else {
         this.leadTime = 0;
       }
+
+      console.log('Real-time calculations updated:', {
+        openTicketDate,
+        estimateTime: this.estimateTime,
+        leadTime: this.leadTime
+      });
+    } catch (error) {
+      console.error('Error in calculateRealtime:', error);
+      this.estimateTime = 0;
+      this.leadTime = 0;
     }
   }
-
-  // Assignee Methods
+  
   private initializeAssigneeList(): void {
     if (this.canAssignTicket()) {
       this.refreshAssigneeList();
@@ -1002,7 +1232,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return selectedUser ? getUserFullName(selectedUser) : '';
   }
 
-  // File Upload Methods
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files) return;
@@ -1043,7 +1272,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     };
   }
 
-  // Form Validation Methods
   private validateSupporterForm(): void {
     const formValue = this.supporterForm.value;
 
@@ -1057,7 +1285,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       attachments: { isValid: true }
     };
 
-    // Validate estimate_time
     if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
       const estimateTime = parseInt(formValue.estimate_time);
       if (isNaN(estimateTime) || estimateTime < 0 || estimateTime > 1000) {
@@ -1068,7 +1295,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
-    // Validate lead_time
     if (formValue.lead_time !== null && formValue.lead_time !== '') {
       const leadTime = parseInt(formValue.lead_time);
       if (isNaN(leadTime) || leadTime < 0 || leadTime > 10000) {
@@ -1079,7 +1305,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
-    // Validate due_date
     if (formValue.due_date) {
       const dueDate = new Date(formValue.due_date);
       const today = new Date();
@@ -1093,7 +1318,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
-    // Validate close_estimate
     if (formValue.close_estimate) {
       const closeDate = new Date(formValue.close_estimate);
       const now = new Date();
@@ -1106,7 +1330,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
-    // Validate fix_issue_description
     if (formValue.fix_issue_description && formValue.fix_issue_description.length > 5000) {
       this.supporterFormValidation.fix_issue_description = {
         isValid: false,
@@ -1114,7 +1337,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       };
     }
 
-    // Validate attachments
     if (this.selectedFiles.length > this.maxFiles) {
       this.supporterFormValidation.attachments = {
         isValid: false,
@@ -1131,7 +1353,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return this.supporterFormValidation[fieldName].error || '';
   }
 
-  // Save Methods
   onSaveAll(): void {
     console.log('Unified save started');
 
@@ -1164,7 +1385,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       let supporterSuccess = false;
       let assignSuccess = false;
 
-      // Step 1: Save Supporter Form
       if (hasSupporterChanges && this.canUserSaveSupporter) {
         console.log('Saving supporter data...');
         supporterSuccess = await this.saveSupporterData();
@@ -1176,7 +1396,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         supporterSuccess = true;
       }
 
-      // Step 2: Assign Ticket
       if (hasAssigneeSelected && this.canAssignTicket()) {
         console.log('Assigning ticket...');
         assignSuccess = await this.assignTicketData();
@@ -1211,6 +1430,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return;
       }
 
+      // ✅ Validate files ก่อน
+      if (this.selectedFiles.length > 0) {
+        const fileValidation = this.validateFixIssueFiles(this.selectedFiles);
+        if (!fileValidation.valid) {
+          this.supporterFormState.error = fileValidation.errors.join(', ');
+          resolve(false);
+          return;
+        }
+      }
+
       const validation = this.ticketService.validateSupporterData(formData, this.selectedFiles);
       if (!validation.isValid) {
         this.supporterFormState.error = validation.errors.join(', ');
@@ -1218,11 +1447,33 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return;
       }
 
-      this.ticketService.saveSupporter(this.ticket_no, formData, this.selectedFiles)
+      // ✅ ส่งไฟล์เป็น [] เพราะจะอัปโหลดแยก
+      this.ticketService.saveSupporter(this.ticket_no, formData, [])
         .subscribe({
-          next: (response: SaveSupporterResponse) => {
+          next: async (response: SaveSupporterResponse) => {
             if (response.success) {
-              this.supporterDataSaved.emit(response);
+              console.log('✅ Supporter data saved');
+              
+              // ✅ อัปโหลดไฟล์แนบหลังจากบันทึกสำเร็จ
+              let filesUploaded = true;
+              if (this.selectedFiles.length > 0 && this.ticketData?.ticket?.id) {
+                filesUploaded = await this.uploadFixIssueAttachments(
+                  this.ticketData.ticket.id,
+                  this.selectedFiles
+                );
+                
+                if (!filesUploaded) {
+                  console.warn('⚠️ Some files failed to upload');
+                  this.supporterFormState.successMessage = 
+                    'บันทึกข้อมูลสำเร็จ แต่มีไฟล์บางไฟล์อัปโหลดไม่สำเร็จ';
+                }
+              }
+              
+              // ✅ Emit event พร้อมข้อมูลไฟล์
+              this.supporterDataSaved.emit({
+                ...response,
+              });
+              
               resolve(true);
             } else {
               this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูล Supporter ได้';
@@ -1287,23 +1538,18 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (allSuccess) {
       console.log('Save successful - preserving form data');
 
-      // ลบข้อมูลที่เก็บไว้หลังบันทึกสำเร็จ
       localStorage.removeItem(this.formPersistenceKey);
       this.lastFormSnapshot = null;
 
-      // เก็บข้อมูลปัจจุบันสำหรับการแสดงผลหลัง refresh
       this.formDataBeforeRefresh = { ...this.supporterForm.value };
       this.justSaved = true;
 
-      // รีเซ็ตเฉพาะสิ่งที่ต้องรีเซ็ต
       this.selectedAssigneeId = null;
       this.selectedFiles = [];
       this.fileUploadProgress = [];
 
-      // เคลียร์ action เพื่อให้เลือกใหม่
       this.supporterForm.patchValue({ action: '' });
 
-      // ให้ parent refresh
       this.refreshRequired.emit();
 
       this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จแล้ว';
@@ -1315,7 +1561,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     console.log('Unified save completed:', { supporterSuccess, assignSuccess, allSuccess });
   }
 
-  // Helper Methods
   private createSupporterFormData(): SaveSupporterFormData {
     const formValue = this.supporterForm.value;
     const formData: SaveSupporterFormData = {};
@@ -1327,22 +1572,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
-    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
-      const estimateTime = parseInt(formValue.estimate_time);
-      if (!isNaN(estimateTime)) {
-        formData.estimate_time = estimateTime;
-      }
+    if (this.estimateTime > 0) {
+      formData.estimate_time = Math.round(this.estimateTime);
     }
 
     if (formValue.due_date) {
       formData.due_date = formValue.due_date;
     }
 
-    if (formValue.lead_time !== null && formValue.lead_time !== '') {
-      const leadTime = parseInt(formValue.lead_time);
-      if (!isNaN(leadTime)) {
-        formData.lead_time = leadTime;
-      }
+    if (this.leadTime > 0) {
+      formData.lead_time = Math.round(this.leadTime);
     }
 
     if (formValue.close_estimate) {
@@ -1491,10 +1730,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return this.ticketData?.ticket?.status_id || 1;
   }
 
-  // Browser unload protection
   @HostListener('window:beforeunload', ['$event'])
   unloadNotification($event: any): void {
-    // เก็บข้อมูลก่อนปิดหน้า
     if (this.hasFormData()) {
       this.persistFormData();
 
@@ -1504,13 +1741,21 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
-    // เพิ่มฟังก์ชันสำหรับ debug ที่สามารถเรียกจาก template ได้
-  debugLog(message: string, data?: any): void {
-    console.log(message, data);
-  }
+  getFormDebugInfo() {
+    const persistenceStatus = this.getFormPersistenceStatus();
 
-  // เพิ่ม getter สำหรับตรวจสอบสถานะการบันทึก
-  get isJustSaved(): boolean {
-    return this.justSaved;
+    return {
+      hasFormData: this.hasFormData(),
+      justSaved: this.justSaved,
+      hasSnapshot: !!this.formStateSnapshot,
+      hasBeforeRefreshData: !!this.formDataBeforeRefresh,
+      isRefreshing: this.isRefreshing,
+      formValue: this.supporterForm?.value,
+      persistence: persistenceStatus,
+      ticketNo: this.ticket_no,
+      estimateTime: this.estimateTime,
+      leadTime: this.leadTime,
+      openTicketDate: this.getOpenTicketDate()
+    };
   }
 }
