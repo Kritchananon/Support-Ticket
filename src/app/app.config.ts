@@ -12,6 +12,7 @@ import { PERMISSION_DIRECTIVES } from './shared/directives/permission.directive'
 // ✅ Import Services (for dependency injection)
 import { AuthService } from './shared/services/auth.service';
 import { ApiService } from './shared/services/api.service';
+import { NotificationService } from './shared/services/notification.service'; // ✅ NEW
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -39,6 +40,7 @@ export const appConfig: ApplicationConfig = {
     // ✅ Core Services (explicitly provided for better DI)
     AuthService,
     ApiService,
+    NotificationService, // ✅ NEW: Register NotificationService
     
     // ✅ Permission Directives (available globally)
     ...PERMISSION_DIRECTIVES.map(directive => ({

@@ -5,6 +5,8 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { TicketService } from '../../../shared/services/ticket.service';
+import { NotificationService } from '../../../shared/services/notification.service'; // ✅ เพิ่ม import
+import { NotificationResponse } from '../../../shared/models/notification.model'; // ✅ เพิ่ม import type
 import { ProjectDropdownComponent } from '../../../shared/components/project-dropdown/project-dropdown.component';
 import { CategoryDropdownComponent } from '../../../shared/components/category-dropdown/category-dropdown.component';
 import { debounceTime } from 'rxjs';
@@ -30,6 +32,7 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private ticketService = inject(TicketService);
+  private notificationService = inject(NotificationService);
   private cdr = inject(ChangeDetectorRef);
 
   get environment() {
@@ -1664,6 +1667,26 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     return { isValid, errors };
   }
 
+  /**
+   * ✅ ส่ง notification เมื่อสร้าง ticket สำเร็จจริงๆ (หลังจากอัพโหลดไฟล์เสร็จแล้ว)
+   */
+  private sendNewTicketNotification(ticketNo: string): void {
+    console.log('📤 Sending new ticket notification for:', ticketNo);
+
+    this.notificationService.notifyTicketChanges({
+      ticket_no: ticketNo,
+      isNewTicket: true
+    }).subscribe({
+      next: (response) => {
+        console.log('✅ New ticket notification sent successfully:', response);
+      },
+      error: (error) => {
+        console.warn('⚠️ Failed to send notification (non-critical):', error);
+        // ไม่ block flow หลักถ้า notification ส่งไม่สำเร็จ
+      }
+    });
+  }
+
   private createTicketAutomatically(): void {
     if (this.isEditMode) return;
 
@@ -1866,10 +1889,26 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
     }, 500);
   }
 
+  /**
+   * ✅ เรียกเมื่ออัพเดท ticket เสร็จสมบูรณ์แล้ว (EDIT MODE)
+   */
   private completeTicketUpdateSuccess(successfulUploads: number, failedUploads: number): void {
-    console.log('Completing ticket update - all successful');
+    console.log('✅ Ticket update completed successfully');
 
     this.clearEditData();
+
+    // ✅ ส่ง notification หลังจากอัพเดทเสร็จจริงๆ (ถ้าเป็น edit mode)
+    // สำหรับ edit mode อาจจะไม่ต้องส่ง notification แบบ "new ticket"
+    // แต่ถ้าต้องการให้แจ้งเตือนว่ามีการแก้ไข ให้เปิด comment ด้านล่าง
+    /*
+    if (this.ticket_no && this.isEditMode) {
+      // อาจจะส่งแบบ status change หรือ update notification
+      this.notificationService.notifyTicketChanges({
+        ticket_no: this.ticket_no,
+        statusId: this.ticketData?.ticket?.status_id
+      }).subscribe();
+    }
+    */
 
     let message = `Ticket updated successfully\nTicket ID: ${this.ticket_no}`;
 
@@ -2358,41 +2397,102 @@ export class TicketCreateComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // ===== EDIT MODE: Update existing ticket =====
     if (this.isEditMode) {
+      console.log('📝 Updating existing ticket:', this.ticket_no);
       this.updateExistingTicket();
       return;
     }
 
+    // ===== CREATE MODE: Create new ticket =====
+    
+    // ถ้ายังไม่ได้ reserve ticket_no ให้ reserve ก่อน
     if (!this.isTicketCreated) {
+      console.log('📝 Reserving ticket number first...');
       this.createTicketAutomatically();
       return;
     }
 
+    // ถ้ามีไฟล์ที่กำลังอัพโหลดอยู่ ให้รอให้เสร็จก่อน
     if (this.selectedFiles.length > 0 && this.uploadingFileNames.length > 0) {
+      console.log('⏳ Waiting for file uploads to complete...');
       this.waitForUploadsAndFinish();
       return;
     }
 
+    // ✅ ทุกอย่างเสร็จสมบูรณ์ - สร้าง ticket เสร็จจริงๆ แล้ว
+    console.log('✅ All steps completed - finalizing ticket creation');
     this.completedTicketCreation();
   }
 
   private waitForUploadsAndFinish(): void {
     this.isSubmitting = true;
 
-    setTimeout(() => {
-      this.isSubmitting = false;
-      if (this.isEditMode) {
-        this.completeTicketUpdateSuccess(0, 0);
-      } else {
-        this.completedTicketCreation();
+    console.log('⏳ Waiting for uploads to complete...');
+
+    // รอให้ไฟล์อัพโหลดเสร็จ (ใช้ตรวจสอบจริงๆ แทนการ setTimeout)
+    const checkInterval = setInterval(() => {
+      const stillUploading = this.uploadingFileNames.length > 0;
+      const hasErrors = this.errorFileNames.length > 0;
+      const totalFiles = this.selectedFiles.length;
+      const completedFiles = this.uploadedFileNames.length + this.errorFileNames.length;
+
+      console.log('Upload progress:', {
+        stillUploading,
+        totalFiles,
+        completed: completedFiles,
+        uploaded: this.uploadedFileNames.length,
+        errors: this.errorFileNames.length
+      });
+
+      // ถ้าไฟล์อัพโหลดเสร็จหมดแล้ว (หรือมี error)
+      if (!stillUploading || completedFiles >= totalFiles) {
+        clearInterval(checkInterval);
+        this.isSubmitting = false;
+
+        if (this.isEditMode) {
+          this.completeTicketUpdateSuccess(
+            this.uploadedFileNames.length,
+            this.errorFileNames.length
+          );
+        } else {
+          // ✅ CREATE MODE: ส่ง notification หลังจากทุกอย่างเสร็จ
+          this.completedTicketCreation();
+        }
       }
-    }, 2000);
+    }, 500); // เช็คทุก 500ms
+
+    // Timeout fallback (ถ้าค้างเกิน 30 วินาที)
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      if (this.isSubmitting) {
+        console.warn('⚠️ Upload timeout - proceeding anyway');
+        this.isSubmitting = false;
+        
+        if (this.isEditMode) {
+          this.completeTicketUpdateSuccess(
+            this.uploadedFileNames.length,
+            this.errorFileNames.length
+          );
+        } else {
+          this.completedTicketCreation();
+        }
+      }
+    }, 30000);
   }
 
+  /**
+   * ✅ เรียกเมื่อสร้าง ticket เสร็จสมบูรณ์แล้ว (CREATE MODE)
+   */
   private completedTicketCreation(): void {
-    console.log('Ticket creation completed');
+    console.log('✅ Ticket creation completed successfully');
 
     this.clearIncompleteTicket();
+
+    // ✅ ส่ง notification หลังจากสร้าง ticket เสร็จจริงๆ
+    if (this.ticket_no) {
+      this.sendNewTicketNotification(this.ticket_no);
+    }
 
     this.alertMessage = `Ticket created successfully\nTicket ID: ${this.ticket_no}`;
     this.alertType = 'success';

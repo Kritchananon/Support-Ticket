@@ -17,6 +17,7 @@ import {
   satisfactionResponse
 } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
+import { NotificationService } from '../../../shared/services/notification.service'; // ✅ NEW
 
 // Import Permission Models
 import {
@@ -151,6 +152,7 @@ export class TicketDetailComponent implements OnInit {
   private apiService = inject(ApiService);
   private http = inject(HttpClient);
   public authService = inject(AuthService);
+  private notificationService = inject(NotificationService); // ✅ NEW
 
   // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
@@ -529,6 +531,44 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
+  /**
+   * ส่ง notification เมื่อเปลี่ยนสถานะ ticket
+   */
+  private sendStatusChangeNotification(ticketNo: string, newStatusId: number): void {
+    console.log('📤 Sending status change notification:', { ticketNo, newStatusId });
+
+    this.notificationService.notifyTicketChanges({
+      ticket_no: ticketNo,
+      statusId: newStatusId
+    }).subscribe({
+      next: (response) => {
+        console.log('✅ Status change notification sent:', response);
+      },
+      error: (error) => {
+        console.warn('⚠️ Failed to send status notification (non-critical):', error);
+      }
+    });
+  }
+
+  /**
+   * ส่ง notification เมื่อ assign ticket
+   */
+  private sendAssignmentNotification(ticketNo: string, assignedUserId: number): void {
+    console.log('📤 Sending assignment notification:', { ticketNo, assignedUserId });
+
+    this.notificationService.notifyTicketChanges({
+      ticket_no: ticketNo,
+      assignedUserId: assignedUserId
+    }).subscribe({
+      next: (response) => {
+        console.log('✅ Assignment notification sent:', response);
+      },
+      error: (error) => {
+        console.warn('⚠️ Failed to send assignment notification (non-critical):', error);
+      }
+    });
+  }
+
   // ===== ✅ EVENT HANDLERS FOR CHILD COMPONENTS =====
 
   /**
@@ -539,7 +579,15 @@ export class TicketDetailComponent implements OnInit {
 
     // อัพเดท ticket data
     if (response.data?.ticket) {
+      const oldStatusId = this.ticketData?.ticket?.status_id;
+      const newStatusId = response.data.ticket.status_id;
+
       Object.assign(this.ticketData!.ticket, response.data.ticket);
+
+      // ✅ NEW: ส่ง notification ถ้าสถานะเปลี่ยน
+      if (oldStatusId && newStatusId && oldStatusId !== newStatusId) {
+        this.sendStatusChangeNotification(this.ticket_no, newStatusId);
+      }
     }
 
     // อัพเดท attachments
@@ -569,6 +617,11 @@ export class TicketDetailComponent implements OnInit {
     if (this.ticketData?.ticket) {
       this.ticketData.ticket.update_by = `User ${response.assigned_to}`;
       this.ticketData.ticket.update_date = new Date().toISOString();
+    }
+
+    // ✅ NEW: ส่ง notification
+    if (response.assigned_to) {
+      this.sendAssignmentNotification(this.ticket_no, response.assigned_to);
     }
 
     // รีเฟรชข้อมูล

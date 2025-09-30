@@ -1,3 +1,5 @@
+// src/app/shared/components/header/header.component.ts
+
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -12,26 +14,30 @@ import { User, AuthState, UserWithPermissions } from '../../models/user.model';
 // ✅ Import Permission Directives
 import { HasPermissionDirective, HasRoleDirective } from '../../directives/permission.directive';
 
+// ✅ NEW: Import NotificationBellComponent
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
+
 @Component({
   selector: 'app-header',
   standalone: true,
   imports: [
     CommonModule,
     RouterModule,
-    HasPermissionDirective,  // ✅ Import permission directives
-    HasRoleDirective
+    HasPermissionDirective,
+    HasRoleDirective,
+    NotificationBellComponent  // ✅ เพิ่ม import
   ],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css']
 })
 export class HeaderComponent implements OnInit, OnDestroy {
-  public authService = inject(AuthService);  // ✅ เปลี่ยนเป็น public
+  public authService = inject(AuthService);
   private router = inject(Router);
 
   // ✅ User and Auth State with enhanced types
   currentUser: UserWithPermissions | null = null;
   authState: AuthState | null = null;
-  userPermissions: number[] = [];  // ✅ เปลี่ยนเป็น number[]
+  userPermissions: number[] = [];
   userRoles: UserRole[] = [];
   
   // ✅ UI State
@@ -404,22 +410,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===== NOTIFICATION METHODS ===== ✅
-
-  getNotificationCount(): number {
-    // TODO: Implement notification system
-    return 0;
-  }
-
-  hasUnreadNotifications(): boolean {
-    return this.getNotificationCount() > 0;
-  }
-
-  markNotificationsAsRead(): void {
-    // TODO: Implement notification system
-    console.log('📬 Marking notifications as read');
-  }
-
   // ===== UTILITY METHODS ===== ✅
 
   isOnline(): boolean {
@@ -428,101 +418,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   getBrowserInfo(): string {
     return navigator.userAgent;
-  }
-
-  // ===== DEBUG METHODS ===== ✅
-
-  debugHeaderState(): void {
-    console.group('🔍 Header Component Debug');
-    
-    console.log('👤 User Info:', {
-      hasUser: !!this.currentUser,
-      username: this.currentUser?.username,
-      fullName: this.getUserFullName(),
-      initials: this.getUserInitials(),
-      contact: this.getUserContact(),
-      primaryRole: this.getPrimaryRole(),
-      roleDisplay: this.getRoleDisplay()
-    });
-    
-    console.log('🔐 Auth Info:', {
-      isAuthenticated: this.authService.isAuthenticated(),
-      permissionCount: this.userPermissions.length,
-      roleCount: this.userRoles.length,
-      permissions: this.userPermissions,
-      roles: this.userRoles,
-      isAdmin: this.isAdmin(),
-      isSupporter: this.isSupporter(),
-      isUser: this.isUser()
-    });
-    
-    console.log('🎛️ Component State:', {
-      currentLanguage: this.currentLanguage,
-      showTokenWarning: this.showTokenWarning,
-      isRefreshing: this.isRefreshing,
-      isLoading: this.isLoading
-    });
-    
-    if (this.tokenInfo) {
-      console.log('🔑 Token Info:', this.tokenInfo);
-    }
-    
-    console.groupEnd();
-  }
-
-  forceRefresh(): void {
-    console.log('🔄 Force refreshing header component');
-    this.loadUserData();
-    this.updateTokenInfo();
-  }
-
-  testAuthStatus(): void {
-    console.log('🧪 Testing authentication status');
-    this.authService.debugAuthStatus();
-    this.authService.checkCurrentPermissionStatus();
-  }
-
-  // ✅ NEW: Method สำหรับ debug permission issue
-  debugPermissionIssue(): void {
-    console.group('🔍 Permission Issue Debug');
-    
-    // ✅ เรียก debug method ใน auth service
-    this.authService.debugPermissionsInStorage();
-    
-    console.log('Header Component State:', {
-      currentUser: this.currentUser,
-      userPermissions: this.userPermissions,
-      userRoles: this.userRoles,
-      primaryRole: this.getPrimaryRole()
-    });
-    
-    console.log('Auth Service Checks:', {
-      isAuthenticated: this.authService.isAuthenticated(),
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter(),
-      isUser: this.authService.isUser(),
-      canManageTickets: this.authService.canManageTickets(),
-      canViewAllTickets: this.authService.canViewAllTickets(),
-      rawPermissions: this.authService.getUserPermissions(),
-      rawRoles: this.authService.getUserRoles()
-    });
-    
-    // ✅ ตรวจสอบ permission เฉพาะๆ
-    const supporterPermissions = [5, 6, 7, 8, 9, 10, 13];
-    console.log('Supporter Permission Checks:', {
-      hasChangeStatus: this.authService.hasPermission(5), // CHANGE_STATUS
-      hasReplyTicket: this.authService.hasPermission(6), // REPLY_TICKET
-      hasCloseTicket: this.authService.hasPermission(7), // CLOSE_TICKET
-      hasSolveProblem: this.authService.hasPermission(8), // SOLVE_PROBLEM
-      hasAssignee: this.authService.hasPermission(9), // ASSIGNEE
-      hasOpenTicket: this.authService.hasPermission(10), // OPEN_TICKET
-      hasViewAllTickets: this.authService.hasPermission(13) // VIEW_ALL_TICKETS
-    });
-    
-    console.groupEnd();
-    
-    // ✅ แสดงใน alert เพื่อให้ user เห็น
-    alert(`Current Role: ${this.getPrimaryRole()}\nPermissions: ${this.userPermissions.length}\nRoles: ${this.userRoles.join(', ')}\n\nSupporter Check: ${this.isSupporter()}\nCan Manage Tickets: ${this.canManageTickets()}`);
   }
 
   // ===== PERMISSION HELPERS FOR TEMPLATE ===== ✅

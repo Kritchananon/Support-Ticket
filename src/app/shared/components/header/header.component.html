@@ -1,3 +1,5 @@
+<!-- src/app/shared/components/header/header.component.html -->
+
 <!-- ✅ Token Warning Bar -->
 <div *ngIf="showTokenWarning" class="token-warning-bar">
   <span>⚠️ {{ getText('Your session will expire soon. Do you want to extend it?', 'เซสชันของคุณจะหมดอายุเร็วๆ นี้ ต้องการต่ออายุหรือไม่?') }}</span>
@@ -17,36 +19,9 @@
 
     <!-- Right Side Navigation -->
     <div class="header-nav ms-auto">
-      <!-- ✅ Notifications (Support team only) -->
-      <div class="dropdown me-3" *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
-        <button 
-          class="btn-icon dropdown-toggle" 
-          type="button" 
-          data-bs-toggle="dropdown" 
-          aria-expanded="false"
-          [attr.aria-label]="getText('Notifications', 'การแจ้งเตือน')">
-          <i class="bi bi-bell"></i>
-          <span *ngIf="hasUnreadNotifications()" class="notification-badge">
-            {{ getNotificationCount() }}
-          </span>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end notification-menu">
-          <li class="dropdown-header">
-            {{ getText('Notifications', 'การแจ้งเตือน') }}
-            <button *ngIf="hasUnreadNotifications()" 
-                    (click)="markNotificationsAsRead()" 
-                    class="btn btn-sm btn-link float-end">
-              {{ getText('Mark all as read', 'อ่านทั้งหมด') }}
-            </button>
-          </li>
-          <li><hr class="dropdown-divider"></li>
-          
-          <!-- TODO: Add notification items -->
-          <li class="dropdown-item-text text-center text-muted">
-            {{ getText('No new notifications', 'ไม่มีการแจ้งเตือนใหม่') }}
-          </li>
-        </ul>
-      </div>
+      
+      <!-- ✅ NEW: Notifications Bell (Support team only) -->
+      <app-notification-bell></app-notification-bell>
 
       <!-- Language Selector -->
       <div class="dropdown me-3">
@@ -144,7 +119,7 @@
           <li><hr class="dropdown-divider"></li>
           
           <!-- Admin Panel (Admin only) -->
-          <li *hasRole="[ROLES.ADMIN]">
+          <li *ngIf="hasRole(ROLES.ADMIN)">
             <a class="dropdown-item" [routerLink]="['/admin']">
               <i class="bi bi-shield-check me-2"></i>
               {{ getText('Admin Panel', 'แผงผู้ดูแล') }}
@@ -152,7 +127,7 @@
           </li>
           
           <!-- Support Panel (Support team only) -->
-          <li *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
+          <li *ngIf="hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER])">
             <a class="dropdown-item" [routerLink]="['/support']">
               <i class="bi bi-headset me-2"></i>
               {{ getText('Support Panel', 'แผงสนับสนุน') }}
@@ -160,7 +135,7 @@
           </li>
 
           <!-- User Management (Admin only) -->
-          <li *hasPermission="[permissionEnum.ADD_USER, permissionEnum.DEL_USER]">
+          <li *ngIf="hasPermission(permissionEnum.ADD_USER) || hasPermission(permissionEnum.DEL_USER)">
             <a class="dropdown-item" [routerLink]="['/admin/users']">
               <i class="bi bi-people me-2"></i>
               {{ getText('User Management', 'จัดการผู้ใช้') }}
@@ -168,7 +143,7 @@
           </li>
 
           <!-- Reports (Support team only) -->
-          <li *hasRole="[ROLES.ADMIN, ROLES.SUPPORTER]">
+          <li *ngIf="hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER])">
             <a class="dropdown-item" [routerLink]="['/reports']">
               <i class="bi bi-graph-up me-2"></i>
               {{ getText('Reports', 'รายงาน') }}
