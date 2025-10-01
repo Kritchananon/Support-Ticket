@@ -42,7 +42,7 @@ import {
 // Environment
 import { environment } from '../../../../../environments/environment';
 
-// ===== Fix Issue Attachment Interfaces ===== ✅
+// ===== Fix Issue Attachment Interfaces =====
 interface UploadFixIssueAttachmentResponse {
   success: boolean;
   message: string;
@@ -62,6 +62,18 @@ interface UploadFixIssueAttachmentResponse {
       error: string;
     }>;
   };
+}
+
+// เพิ่ม interface สำหรับ existing attachments
+interface ExistingAttachment {
+  attachment_id: number;
+  path: string;
+  filename?: string;
+  file_type?: string;
+  file_size?: number;
+  is_image?: boolean;
+  preview_url?: string;
+  download_url?: string;
 }
 
 // Interfaces
@@ -141,12 +153,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   // Dependency Injection
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
-  private ticketService = inject(TicketService);
+  public ticketService = inject(TicketService);
   private fb = inject(FormBuilder);
   private http = inject(HttpClient);
 
   // API URL
-  private apiUrl = environment.apiUrl;
+  public apiUrl = environment.apiUrl;
 
   // Business Hours Calculator
   private businessHoursCalculator: BusinessHoursCalculator;
@@ -190,8 +202,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   // File Upload Properties
   selectedFiles: File[] = [];
   fileUploadProgress: FileUploadProgress[] = [];
+  existingFixAttachments: ExistingAttachment[] = [];
   maxFiles = 5;
   maxFileSize = 10 * 1024 * 1024; // 10MB
+
+  // File Preview URLs
+  private filePreviewUrls: { [key: string]: string } = {};
 
   // Form Validation
   supporterFormValidation: SupporterFormValidation = {
@@ -216,9 +232,20 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private lastFormSnapshot: any = null;
   private formChangeSubscription: any = null;
 
-  // ===== Fix Issue Attachment Properties ===== ✅
+  // ===== Fix Issue Attachment Properties =====
   isUploadingFixAttachment = false;
   fixAttachmentUploadError = '';
+
+  // File Analysis Properties
+  attachmentTypes: {
+    [key: number]: {
+      type: 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file';
+      extension: string;
+      filename: string;
+      isLoading?: boolean;
+      isAnalyzed?: boolean;
+    }
+  } = {};
 
   constructor() {
     this.businessHoursCalculator = new BusinessHoursCalculator();
@@ -269,6 +296,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   }
 
   ngOnDestroy(): void {
+    // Revoke blob URLs
+    Object.values(this.filePreviewUrls).forEach(url => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
+
     if (this.formChangeSubscription) {
       this.formChangeSubscription.unsubscribe();
     }
@@ -310,9 +344,21 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         this.takeFormSnapshot();
       }
     }
+
+    setTimeout(() => {
+      console.log('🔍 Delayed check - ticketData:', this.ticketData);
+      console.log('🔍 Delayed check - fix_attachment:', this.ticketData?.fix_attachment);
+
+      if (this.ticketData?.fix_attachment) {
+        console.log('✅ Found fix_attachment, loading...');
+        this.loadExistingFixAttachments();
+      } else {
+        console.log('❌ No fix_attachment found');
+      }
+    }, 500);
   }
 
-  // ===== Fix Issue Attachment Methods ===== ✅
+  // ===== Fix Issue Attachment Methods =====
 
   /**
    * อัปโหลดไฟล์แนบ fix issue
@@ -341,11 +387,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
       if (response && response.success) {
         console.log('✅ Fix attachments uploaded:', response.data.total_uploaded, 'files');
-        
+
         if (response.data.errors && response.data.errors.length > 0) {
           console.warn('Upload errors:', response.data.errors);
         }
-        
+
         return true;
       } else {
         this.fixAttachmentUploadError = response?.message || 'ไม่สามารถอัปโหลดไฟล์ได้';
@@ -363,14 +409,627 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   }
 
   /**
+   * โหลด existing attachments และวิเคราะห์ไฟล์
+   */
+  private loadExistingFixAttachments(): void {
+    if (!this.ticketData?.fix_attachment) {
+      this.existingFixAttachments = [];
+      return;
+    }
+
+    console.log('=== Fix Attachment Data ===');
+    console.log('API URL:', this.apiUrl);
+
+    this.existingFixAttachments = this.ticketData.fix_attachment.map(att => {
+      console.log('Raw attachment:', att);
+
+      // วิธีที่ 1: เช็คจาก extension
+      const extension = att.filename ?
+        att.filename.split('.').pop()?.toLowerCase() :
+        att.path.split('.').pop()?.toLowerCase();
+
+      const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+      let isImage = imageExtensions.includes(extension || '');
+
+      // ✅ วิธีที่ 2: ถ้าไม่มี extension ให้เช็คจาก file_type
+      if (!isImage && att.file_type) {
+        isImage = att.file_type.toLowerCase().includes('image');
+      }
+
+      // ✅ วิธีที่ 3: ถ้า path มี /images/ ก็น่าจะเป็นรูปภาพ
+      if (!isImage && att.path) {
+        isImage = att.path.includes('/images/');
+      }
+
+      let previewUrl: string | undefined = undefined;
+      if (isImage) {
+        if (att.path.startsWith('http://') || att.path.startsWith('https://')) {
+          previewUrl = att.path;
+        } else {
+          previewUrl = `${this.apiUrl}${att.path.startsWith('/') ? '' : '/'}${att.path}`;
+        }
+      }
+
+      const mappedAttachment = {
+        ...att,
+        is_image: isImage,
+        preview_url: previewUrl
+      };
+
+      console.log('Mapped attachment:', mappedAttachment);
+
+      return mappedAttachment;
+    });
+
+    console.log('Loaded existing fix attachments:', this.existingFixAttachments);
+
+    setTimeout(() => {
+      this.analyzeAllExistingAttachments();
+    }, 100);
+  }
+
+  /**
+   * ได้รับ URL สำหรับดาวน์โหลด attachment
+   */
+  getAttachmentDownloadUrl(attachment: any): string {
+    if (!attachment || !attachment.path) {
+      return '#';
+    }
+
+    const path = attachment.path;
+
+    // ถ้า path เป็น full URL อยู่แล้ว (ขึ้นต้นด้วย http:// หรือ https://)
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    // ถ้า path เป็น data URL
+    if (path.startsWith('data:')) {
+      return path;
+    }
+
+    // ถ้าเป็น relative path ให้เพิ่ม apiUrl
+    return `${this.apiUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+  }
+
+  /**
+   * วิเคราะห์ไฟล์ existing attachments ทั้งหมด
+   */
+  private analyzeAllExistingAttachments(): void {
+    if (!this.existingFixAttachments || this.existingFixAttachments.length === 0) {
+      console.log('No existing attachments to analyze');
+      return;
+    }
+
+    console.log('🔍 Starting analysis of existing attachments:', this.existingFixAttachments.length);
+
+    this.existingFixAttachments.forEach((attachment, index) => {
+      console.log(`🔍 Analyzing attachment ${index + 1}:`, {
+        id: attachment.attachment_id,
+        path: attachment.path,
+        filename: attachment.filename
+      });
+
+      this.analyzeExistingAttachment(attachment);
+    });
+  }
+
+  /**
+   * วิเคราะห์ไฟล์ existing attachment แต่ละไฟล์
+   */
+  private async analyzeExistingAttachment(attachment: any): Promise<void> {
+    if (!attachment || !attachment.attachment_id) {
+      console.warn('Invalid attachment data:', attachment);
+      return;
+    }
+
+    const attachmentId = attachment.attachment_id;
+
+    if (this.attachmentTypes[attachmentId]?.isAnalyzed) {
+      console.log('✅ Attachment already analyzed:', attachmentId);
+      return;
+    }
+
+    this.attachmentTypes[attachmentId] = {
+      type: 'file',
+      extension: '',
+      filename: 'Loading...',
+      isLoading: true,
+      isAnalyzed: false
+    };
+
+    try {
+      // ✅ เรียก API เพื่อดึงข้อมูลไฟล์จริง
+      const response = await fetch(attachment.path, { method: 'HEAD' });
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const contentType = response.headers.get('Content-Type') || '';
+
+      let realFilename = `attachment_${attachmentId}`;
+
+      // ดึงชื่อไฟล์จริงจาก Content-Disposition header
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          realFilename = filenameMatch[1].replace(/['"]/g, '');
+          realFilename = decodeURIComponent(realFilename);
+        }
+      }
+
+      const extension = this.getFileExtensionHelper(realFilename) ||
+        this.getExtensionFromMimeType(contentType);
+
+      this.attachmentTypes[attachmentId] = {
+        type: this.determineFileCategoryByMimeType(contentType),
+        extension: extension,
+        filename: realFilename,
+        isLoading: false,
+        isAnalyzed: true
+      };
+
+      console.log('✅ File analyzed from HTTP headers:', {
+        id: attachmentId,
+        contentType,
+        filename: realFilename,
+        category: this.attachmentTypes[attachmentId].type
+      });
+
+    } catch (error) {
+      console.error('Error analyzing attachment:', error);
+
+      // Fallback
+      this.attachmentTypes[attachmentId] = {
+        type: 'file',
+        extension: '',
+        filename: `attachment_${attachmentId}`,
+        isLoading: false,
+        isAnalyzed: true
+      };
+    }
+  }
+
+  /**
+   * แปลง MIME type เป็น file extension
+   */
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeMap: { [key: string]: string } = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/bmp': 'bmp',
+      'image/svg+xml': 'svg',
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'text/plain': 'txt',
+      'text/csv': 'csv',
+      'application/zip': 'zip',
+      'application/x-rar-compressed': 'rar'
+    };
+
+    return mimeMap[mimeType.toLowerCase()] || '';
+  }
+
+  /**
+   * กำหนดประเภทไฟล์จาก MIME type
+   */
+  private determineFileCategoryByMimeType(mimeType: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const type = mimeType.toLowerCase();
+
+    if (type.startsWith('image/')) return 'image';
+    if (type === 'application/pdf') return 'pdf';
+    if (type.includes('spreadsheet') || type.includes('excel')) return 'excel';
+    if (type.includes('word') || type.includes('document')) return 'word';
+    if (type.startsWith('text/')) return 'text';
+    if (type.includes('zip') || type.includes('rar') || type.includes('archive')) return 'archive';
+    if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
+
+    return 'file';
+  }
+
+  /**
+   * แยกชื่อไฟล์จาก path
+   */
+  private extractFilenameFromPath(path: string): string {
+    if (!path || typeof path !== 'string') {
+      console.warn('Invalid path provided:', path);
+      return 'unknown';
+    }
+
+    try {
+      if (path.startsWith('data:')) {
+        return 'data_file';
+      }
+
+      const parts = path.split('/');
+      const lastPart = parts[parts.length - 1];
+      const cleanFilename = lastPart.split('?')[0];
+
+      try {
+        return decodeURIComponent(cleanFilename) || 'unknown';
+      } catch {
+        return cleanFilename || 'unknown';
+      }
+    } catch (error) {
+      console.warn('Error extracting filename from path:', path, error);
+      return 'unknown';
+    }
+  }
+
+  /**
+   * ได้รับ file extension
+   */
+  private getFileExtensionHelper(filename: string): string {
+    if (!filename || filename === 'unknown' || typeof filename !== 'string') {
+      return '';
+    }
+
+    try {
+      const parts = filename.split('.');
+      if (parts.length > 1) {
+        const extension = parts[parts.length - 1].toLowerCase();
+        return /^[a-z0-9]+$/i.test(extension) ? extension : '';
+      }
+      return '';
+    } catch (error) {
+      console.warn('Error getting file extension:', filename, error);
+      return '';
+    }
+  }
+
+  private getFileTypeFromFilename(filename: string): string {
+    const extension = this.getFileExtensionHelper(filename);
+    return extension || 'unknown';
+  }
+
+  /**
+   * กำหนดประเภทไฟล์
+   */
+  private determineFileCategory(fileType: string, filename: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const type = (fileType || '').toLowerCase();
+    const ext = this.getFileExtensionHelper(filename).toLowerCase();
+
+    // Image files
+    if (type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'].includes(ext)) {
+      return 'image';
+    }
+
+    // PDF files
+    if (type.includes('pdf') || ext === 'pdf') {
+      return 'pdf';
+    }
+
+    // Excel files
+    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv', 'ods'].includes(ext)) {
+      return 'excel';
+    }
+
+    // Word files
+    if (type.includes('word') || type.includes('document') || ['doc', 'docx', 'rtf', 'odt'].includes(ext)) {
+      return 'word';
+    }
+
+    // Text files
+    if (type.includes('text') || ['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'csv'].includes(ext)) {
+      return 'text';
+    }
+
+    // Archive files
+    if (type.includes('archive') || type.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)) {
+      return 'archive';
+    }
+
+    // Video files
+    if (type.includes('video') || ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) {
+      return 'video';
+    }
+
+    // Audio files
+    if (type.includes('audio') || ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma'].includes(ext)) {
+      return 'audio';
+    }
+
+    return 'file';
+  }
+
+  private determineFileCategoryByExtension(extension: string): 'image' | 'pdf' | 'excel' | 'word' | 'text' | 'archive' | 'video' | 'audio' | 'file' {
+    const ext = extension.toLowerCase();
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'].includes(ext)) {
+      return 'image';
+    }
+
+    if (ext === 'pdf') {
+      return 'pdf';
+    }
+
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) {
+      return 'excel';
+    }
+
+    if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) {
+      return 'word';
+    }
+
+    if (['txt', 'log', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts'].includes(ext)) {
+      return 'text';
+    }
+
+    if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)) {
+      return 'archive';
+    }
+
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'].includes(ext)) {
+      return 'video';
+    }
+
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma'].includes(ext)) {
+      return 'audio';
+    }
+
+    return 'file';
+  }
+
+  /**
+   * ตรวจสอบว่า existing attachment เป็นไฟล์รูปภาพหรือไม่
+   */
+  isExistingAttachmentImage(attachment: any): boolean {
+    if (!attachment) {
+      return false;
+    }
+
+    const attachmentId = attachment.attachment_id;
+
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].type === 'image';
+    }
+
+    // Fallback
+    if (attachment.path && attachment.path.startsWith('data:image/')) {
+      return true;
+    }
+
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+
+    const isImageByType = fileType.toLowerCase().includes('image');
+    const isImageByExtension = /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|ico)$/i.test(filename);
+
+    return isImageByType || isImageByExtension;
+  }
+
+  /**
+ * ดึง preview URL สำหรับ existing attachment
+ */
+  getExistingAttachmentPreviewUrl(attachment: any): string {
+    if (!attachment) return '';
+
+    if (attachment.preview_url) {
+      return attachment.preview_url;
+    }
+
+    const path = attachment.path;
+    if (!path) return '';
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    return `${this.apiUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+  }
+
+  /**
+   * ได้รับ icon สำหรับ existing attachment
+   */
+  getExistingAttachmentIcon(attachment: any): string {
+    if (!attachment) return 'bi-file-earmark-fill';
+
+    const attachmentId = attachment.attachment_id;
+
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      const fileInfo = this.attachmentTypes[attachmentId];
+
+      switch (fileInfo.type) {
+        case 'image': return 'bi-image-fill';
+        case 'pdf': return 'bi-file-earmark-pdf-fill';
+        case 'excel': return 'bi-file-earmark-excel-fill';
+        case 'word': return 'bi-file-earmark-word-fill';
+        case 'text': return 'bi-file-earmark-text-fill';
+        case 'archive': return 'bi-file-earmark-zip-fill';
+        case 'video': return 'bi-file-earmark-play-fill';
+        case 'audio': return 'bi-file-earmark-music-fill';
+        default: return 'bi-file-earmark-fill';
+      }
+    }
+
+    // Fallback
+    const filename = attachment.filename || '';
+    const fileType = attachment.file_type || '';
+
+    if (fileType.includes('image') || filename.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i)) {
+      return 'bi-image-fill';
+    }
+
+    if (fileType.includes('pdf') || filename.match(/\.pdf$/i)) {
+      return 'bi-file-earmark-pdf-fill';
+    }
+
+    if (fileType.includes('excel') || fileType.includes('spreadsheet') || filename.match(/\.(xls|xlsx|csv)$/i)) {
+      return 'bi-file-earmark-excel-fill';
+    }
+
+    if (fileType.includes('word') || fileType.includes('document') || filename.match(/\.(doc|docx|rtf)$/i)) {
+      return 'bi-file-earmark-word-fill';
+    }
+
+    if (fileType.includes('text') || filename.match(/\.(txt|log|md|json|xml)$/i)) {
+      return 'bi-file-earmark-text-fill';
+    }
+
+    return 'bi-file-earmark-fill';
+  }
+
+  /**
+   * ได้รับชื่อไฟล์ที่แสดงสำหรับ existing attachment
+   */
+  getExistingAttachmentDisplayName(attachment: any): string {
+    if (!attachment) return 'Unknown file';
+
+    const attachmentId = attachment.attachment_id;
+
+    if (attachmentId && this.attachmentTypes[attachmentId]) {
+      return this.attachmentTypes[attachmentId].filename;
+    }
+
+    return attachment.filename || this.extractFilenameFromPath(attachment.path) || 'Unknown file';
+  }
+
+  /**
+   * ได้รับข้อมูลไฟล์สำหรับ existing attachment
+   */
+  getExistingAttachmentFileInfo(attachmentId: number): {
+    type: string;
+    extension: string;
+    filename: string;
+    isLoading: boolean;
+    icon: string;
+  } {
+    const fileInfo = this.attachmentTypes[attachmentId];
+
+    if (fileInfo) {
+      return {
+        type: fileInfo.type,
+        extension: fileInfo.extension,
+        filename: fileInfo.filename,
+        isLoading: fileInfo.isLoading || false,
+        icon: this.getExistingAttachmentIcon({ attachment_id: attachmentId })
+      };
+    }
+
+    return {
+      type: 'unknown',
+      extension: '',
+      filename: 'Unknown file',
+      isLoading: false,
+      icon: 'bi-file-earmark-fill'
+    };
+  }
+
+  /**
+   * Format file size สำหรับ existing attachments
+   */
+  formatExistingAttachmentSize(attachment: any): string {
+    if (attachment && attachment.file_size) {
+      return this.formatFileSize(attachment.file_size);
+    }
+    return '';
+  }
+
+  /**
+   * จัดการข้อผิดพลาดการโหลดรูปภาพ
+   */
+  onExistingAttachmentImageError(attachmentId: number): void {
+    console.log(`❌ Image failed to load for existing attachment ${attachmentId}`);
+
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'file';
+      this.attachmentTypes[attachmentId].isAnalyzed = true;
+      console.log(`📄 Changed attachment ${attachmentId} from image to file type`);
+    }
+  }
+
+  /**
+   * จัดการการโหลดรูปภาพสำเร็จ
+   */
+  onExistingAttachmentImageLoad(attachmentId: number): void {
+    console.log(`✅ Image loaded successfully for existing attachment ${attachmentId}`);
+
+    if (this.attachmentTypes[attachmentId]) {
+      this.attachmentTypes[attachmentId].type = 'image';
+      this.attachmentTypes[attachmentId].isAnalyzed = true;
+      console.log(`✅ Confirmed attachment ${attachmentId} as image type`);
+    }
+  }
+
+  /**
+   * ได้รับสีตามประเภทไฟล์
+   */
+  getFileTypeColor(fileType: string): string {
+    switch (fileType) {
+      case 'image': return '#6f42c1'; // Purple
+      case 'pdf': return '#dc3545';   // Red
+      case 'excel': return '#198754'; // Green
+      case 'word': return '#0d6efd';  // Blue
+      case 'text': return '#6c757d';  // Gray
+      case 'archive': return '#ffc107'; // Yellow
+      case 'video': return '#e83e8c'; // Pink
+      case 'audio': return '#fd7e14'; // Orange
+      default: return '#6c757d';      // Gray
+    }
+  }
+
+  /**
+   * สร้าง preview URL สำหรับไฟล์ใหม่
+   */
+  getFilePreview(file: File): string {
+    if (!this.filePreviewUrls[file.name]) {
+      if (this.ticketService.isImageFile(file)) {
+        this.filePreviewUrls[file.name] = URL.createObjectURL(file);
+      }
+    }
+    return this.filePreviewUrls[file.name] || '';
+  }
+
+  /**
+   * ได้รับ file type จาก extension
+   */
+  getFileTypeFromExtension(filename: string): string {
+    const extension = this.getFileExtensionHelper(filename).toLowerCase();
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) {
+      return 'image';
+    }
+    if (extension === 'pdf') return 'pdf';
+    if (['xls', 'xlsx', 'csv'].includes(extension)) return 'excel';
+    if (['doc', 'docx', 'rtf'].includes(extension)) return 'word';
+    if (['txt', 'log', 'md', 'json'].includes(extension)) return 'text';
+    if (['zip', 'rar', '7z'].includes(extension)) return 'archive';
+
+    return 'file';
+  }
+
+  // ✅ trackBy function
+  trackByAttachment(index: number, attachment: ExistingAttachment): number {
+    return attachment.attachment_id;
+  }
+
+  trackByFile(index: number, file: File): string {
+    return file.name + file.size + file.lastModified;
+  }
+
+  /**
+   * Format file size
+   */
+  formatFileSize(bytes: number | undefined): string {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  /**
    * ตรวจสอบไฟล์ก่อนอัปโหลด
    */
   private validateFixIssueFiles(files: File[]): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     const maxSize = 10 * 1024 * 1024; // 10MB
-    
+
     const allowedTypes = [
-      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
       'image/webp', 'image/bmp', 'image/tiff',
       'application/pdf',
       'application/msword',
@@ -407,7 +1066,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   private calculateEstimateTimeFromForm(): void {
     const closeEstimate = this.supporterForm.get('close_estimate')?.value;
-    
+
     if (!closeEstimate) {
       this.estimateTime = 0;
       return;
@@ -445,7 +1104,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   private calculateLeadTimeFromForm(): void {
     const dueDate = this.supporterForm.get('due_date')?.value;
-    
+
     if (!dueDate) {
       this.leadTime = 0;
       return;
@@ -643,6 +1302,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   }
 
   private onTicketDataChanged(): void {
+    console.log('🔍 onTicketDataChanged called');
     console.log('=== OnTicketDataChanged Debug ===');
     console.log('State:', {
       hasTicket: !!this.ticketData?.ticket,
@@ -655,6 +1315,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (!this.justSaved) {
       this.supporterFormState.successMessage = null;
     }
+
+    this.loadExistingFixAttachments();
 
     if (this.ticketData?.ticket && this.statusList.length > 0) {
       this.buildActionDropdownOptions();
@@ -839,7 +1501,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     this.selectedFiles = [];
     this.fileUploadProgress = [];
     this.selectedAssigneeId = null;
-    
+
     this.estimateTime = 0;
     this.leadTime = 0;
 
@@ -917,10 +1579,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   trackByUser(index: number, user: UserListItem): number {
     return user.id;
-  }
-
-  trackByFile(index: number, file: File): string {
-    return file.name + file.size + file.lastModified;
   }
 
   debugLog(message: string, data?: any): void {
@@ -1171,7 +1829,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       this.leadTime = 0;
     }
   }
-  
+
   private initializeAssigneeList(): void {
     if (this.canAssignTicket()) {
       this.refreshAssigneeList();
@@ -1241,35 +1899,77 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     if (!validation.isValid) {
       this.supporterFormState.error = validation.errors.join(', ');
+      input.value = '';
       return;
     }
 
-    this.selectedFiles = validation.validFiles;
-    this.supporterFormState.error = null;
+    // ตรวจสอบจำนวนไฟล์รวม
+    if (this.selectedFiles.length + validation.validFiles.length > this.maxFiles) {
+      this.supporterFormState.error = `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`;
+      input.value = '';
+      return;
+    }
 
-    this.fileUploadProgress = this.selectedFiles.map(file => ({
-      filename: file.name,
-      progress: 0,
-      status: 'pending'
-    }));
+    // Clear previous states for these files
+    validation.validFiles.forEach(file => {
+      if (this.filePreviewUrls[file.name] && this.filePreviewUrls[file.name].startsWith('blob:')) {
+        URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+      }
+    });
+
+    // สร้าง preview สำหรับไฟล์รูปภาพ
+    const imagePromises = validation.validFiles
+      .filter(file => this.ticketService.isImageFile(file))
+      .map(file =>
+        new Promise<void>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              this.filePreviewUrls[file.name] = e.target.result as string;
+            }
+            resolve();
+          };
+          reader.onerror = () => resolve();
+          reader.readAsDataURL(file);
+        })
+      );
+
+    Promise.all(imagePromises).then(() => {
+      this.selectedFiles = [...this.selectedFiles, ...validation.validFiles];
+      this.supporterFormState.error = null;
+
+      this.fileUploadProgress = this.selectedFiles.map(file => ({
+        filename: file.name,
+        progress: 0,
+        status: 'pending'
+      }));
+
+      console.log('Files selected with previews:', this.selectedFiles.length);
+    }).catch(error => {
+      console.error('Error processing file selection:', error);
+      this.supporterFormState.error = 'เกิดข้อผิดพลาดในการเลือกไฟล์';
+    });
+
+    input.value = '';
   }
 
   removeSelectedFile(index: number): void {
+    const file = this.selectedFiles[index];
+
+    // Revoke blob URL if exists
+    if (this.filePreviewUrls[file.name] && this.filePreviewUrls[file.name].startsWith('blob:')) {
+      URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+      delete this.filePreviewUrls[file.name];
+    }
+
     this.selectedFiles.splice(index, 1);
     this.fileUploadProgress.splice(index, 1);
 
     if (this.selectedFiles.length === 0) {
       this.supporterFormState.error = null;
     }
-  }
 
-  getFileDisplayInfo(file: File): { name: string; size: string; type: string; icon: string; } {
-    return {
-      name: file.name,
-      size: this.ticketService.formatFileSize(file.size),
-      type: file.type.split('/')[1]?.toUpperCase() || 'FILE',
-      icon: this.ticketService.getFileIcon(file.name)
-    };
+    console.log('File removed. Remaining files:', this.selectedFiles.length);
   }
 
   private validateSupporterForm(): void {
@@ -1430,7 +2130,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return;
       }
 
-      // ✅ Validate files ก่อน
+      // Validate files ก่อน
       if (this.selectedFiles.length > 0) {
         const fileValidation = this.validateFixIssueFiles(this.selectedFiles);
         if (!fileValidation.valid) {
@@ -1447,33 +2147,33 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         return;
       }
 
-      // ✅ ส่งไฟล์เป็น [] เพราะจะอัปโหลดแยก
+      // ส่งไฟล์เป็น [] เพราะจะอัปโหลดแยก
       this.ticketService.saveSupporter(this.ticket_no, formData, [])
         .subscribe({
           next: async (response: SaveSupporterResponse) => {
             if (response.success) {
               console.log('✅ Supporter data saved');
-              
-              // ✅ อัปโหลดไฟล์แนบหลังจากบันทึกสำเร็จ
+
+              // อัปโหลดไฟล์แนบหลังจากบันทึกสำเร็จ
               let filesUploaded = true;
               if (this.selectedFiles.length > 0 && this.ticketData?.ticket?.id) {
                 filesUploaded = await this.uploadFixIssueAttachments(
                   this.ticketData.ticket.id,
                   this.selectedFiles
                 );
-                
+
                 if (!filesUploaded) {
                   console.warn('⚠️ Some files failed to upload');
-                  this.supporterFormState.successMessage = 
+                  this.supporterFormState.successMessage =
                     'บันทึกข้อมูลสำเร็จ แต่มีไฟล์บางไฟล์อัปโหลดไม่สำเร็จ';
                 }
               }
-              
-              // ✅ Emit event พร้อมข้อมูลไฟล์
+
+              // Emit event พร้อมข้อมูลไฟล์
               this.supporterDataSaved.emit({
                 ...response,
               });
-              
+
               resolve(true);
             } else {
               this.supporterFormState.error = response.message || 'ไม่สามารถบันทึกข้อมูล Supporter ได้';

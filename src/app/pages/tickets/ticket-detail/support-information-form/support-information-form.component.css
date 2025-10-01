@@ -77,7 +77,6 @@
   display: flex;
   gap: 10px;
   margin-bottom: 24px;
-  /* align-items: flex-end; */
 }
 
 .form-group {
@@ -180,7 +179,6 @@
   display: flex;
   gap: 20px;
   margin-bottom: 24px;
-  /* align-items: flex-end; */
 }
 
 /* ===== DIVIDERS ===== */
@@ -280,109 +278,179 @@
   color: #374151;
 }
 
-/* ===== ATTACHMENT SECTION ===== */
+/* ===== ATTACHMENTS SECTION ===== */
 
-.attachment-area {
+/* Attachment Container - Horizontal Layout */
+.attachment-container {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 16px;
-  border: 1px dashed #D1D5DB;
+  background: #FAFAFA;
+  border: 1px solid #E0E0E0;
   border-radius: 8px;
   min-height: 120px;
-  background: #FAFAFA;
 }
 
-.file-preview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 6px;
+/* Attachment Card */
+.attachment-card {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
   transition: all 0.2s ease;
-  margin-bottom: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
-.file-preview:hover {
-  background: #F9FAFB;
-  border-color: #D1D5DB;
-  transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+.attachment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.file-info {
+.attachment-card.new {
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+/* Remove Button */
+.remove-attachment-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(220, 53, 69, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+  opacity: 0;
 }
 
-.file-name {
-  font-weight: 500;
+.attachment-card:hover .remove-attachment-btn {
+  opacity: 1;
+}
+
+.remove-attachment-btn:hover {
+  background: #DC3545;
+  transform: scale(1.1);
+}
+
+.remove-attachment-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.remove-attachment-btn i {
   font-size: 14px;
-  color: #374151;
-  margin-bottom: 2px;
 }
 
-.file-upload {
+/* Attachment Preview */
+.attachment-preview {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  border: 2px dashed #D1D5DB;
-  border-radius: 6px;
-  cursor: pointer;
-  gap: 8px;
-  color: #6B7280;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
-  transition: all 0.2s ease;
-  background: #FFFFFF;
+  padding: 0;
+  background: #F5F5F5;
+  overflow: hidden;
 }
 
-.file-upload:hover:not(.disabled) {
-  background: #F9FAFB;
-  border-color: #9CA3AF;
-  color: #374151;
+.attachment-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 8px;
 }
 
-.file-upload.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: #F3F4F6;
-  border-color: #D1D5DB;
-  color: #6B7280;
-}
-
-.plus-icon {
-  width: 20px;
-  height: 20px;
-  background: #6B7280;
-  border-radius: 50%;
-  position: relative;
+.attachment-icon-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  background: #FFFFFF;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
 }
 
-.plus-icon::before,
-.plus-icon::after {
-  content: '';
-  position: absolute;
-  background: white;
+.attachment-icon {
+  font-size: 48px;
+  color: #6c757d;
 }
 
-.plus-icon::before {
-  width: 1.5px;
-  height: 10px;
+/* File Type Specific Colors */
+.bi-file-earmark-pdf-fill { color: #DC3545; }
+.bi-file-earmark-word-fill { color: #2B579A; }
+.bi-file-earmark-excel-fill { color: #217346; }
+.bi-file-earmark-text-fill { color: #6c757d; }
+.bi-file-earmark-zip-fill { color: #FFA500; }
+.bi-image-fill { color: #6f42c1; }
+
+.file-type-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.plus-icon::after {
-  width: 10px;
-  height: 1.5px;
+/* Upload Card */
+.attachment-upload-card {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed #3B82F6;
+  border-radius: 8px;
+  background: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.attachment-upload-card:hover:not(.disabled) {
+  background: #F0F7FF;
+  border-color: #2563EB;
+}
+
+.attachment-upload-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #D1D5DB;
+}
+
+.upload-icon {
+  font-size: 28px;
+  color: #3B82F6;
+}
+
+.attachment-upload-card.disabled .upload-icon {
+  color: #9CA3AF;
+}
+
+.upload-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #3B82F6;
+}
+
+.attachment-upload-card.disabled .upload-label {
+  color: #9CA3AF;
 }
 
 /* ===== FORM ACTIONS ===== */
@@ -484,6 +552,17 @@
 
 /* ===== ANIMATIONS ===== */
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -533,8 +612,36 @@
     font-size: 12px;
   }
   
-  .attachment-area {
+  .attachment-container {
     padding: 12px;
+    gap: 12px;
+  }
+
+  .attachment-card,
+  .attachment-upload-card {
+    width: 90px;
+    height: 90px;
+  }
+
+  .attachment-icon {
+    font-size: 32px;
+  }
+
+  .remove-attachment-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .remove-attachment-btn i {
+    font-size: 12px;
+  }
+
+  .upload-icon {
+    font-size: 24px;
+  }
+
+  .upload-label {
+    font-size: 11px;
   }
 }
 
@@ -563,8 +670,41 @@
     width: 100px;
   }
   
-  .file-upload {
-    font-size: 13px;
-    padding: 16px;
+  .attachment-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .attachment-card,
+  .attachment-upload-card {
+    width: 70px;
+    height: 70px;
+  }
+
+  .attachment-icon {
+    font-size: 24px;
+  }
+
+  .file-type-label {
+    font-size: 8px;
+  }
+
+  .upload-icon {
+    font-size: 20px;
+  }
+
+  .upload-label {
+    font-size: 9px;
+  }
+
+  .remove-attachment-btn {
+    width: 20px;
+    height: 20px;
+    top: 4px;
+    right: 4px;
+  }
+
+  .remove-attachment-btn i {
+    font-size: 10px;
   }
 }
