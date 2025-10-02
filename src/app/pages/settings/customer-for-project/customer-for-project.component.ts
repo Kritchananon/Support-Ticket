@@ -13,6 +13,7 @@ import { permissionEnum } from '../../../shared/models/permission.model';
 export interface AssignedUser {
   name: string;
   user_id: number;
+  cfp_id?: number; // Add this optional field
 }
 
 export interface CFPProjectData {
@@ -49,6 +50,7 @@ export interface ProjectItem {
 
 export interface ProjectCustomerItem {
   id: number;
+  cfp_id?: number; // เพิ่มนี้ - primary key จริงของ customer_for_project
   project_id: number;
   customer_id: number;
   customer_name: string;
@@ -368,13 +370,14 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     if (cfpProject && this.selectedProject?.id === projectId) {
       this.projectCustomers = cfpProject.customers.map(c => ({
         id: c.customer_id,
+        cfp_id: c.assigned_users[0]?.cfp_id, // ✅ เพิ่มนี้ - ใช้ cfp_id แรก
         project_id: projectId,
         customer_id: c.customer_id,
         customer_name: c.customer_name,
         customer_email: c.customer_email,
         customer_phone: c.customer_phone,
-        assigned_user_names: c.assigned_users.map(u => u.name), // ✅ ดึง name
-        assigned_user_data: c.assigned_users, // ✅ เก็บข้อมูลเต็มไว้ใช้ภายหลัง
+        assigned_user_names: c.assigned_users.map(u => u.name),
+        assigned_user_data: c.assigned_users,
         user_count: c.user_count,
         open_tickets_count: c.open_ticket_count,
         created_date: new Date().toISOString(),
@@ -465,13 +468,13 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     this.isLoadingCurrentUsers = true;
 
     // ✅ ใช้ข้อมูลจาก assigned_user_data ที่มี user_id จริง
-    if (this.selectedCustomerForEdit.assigned_user_data && 
-        this.selectedCustomerForEdit.assigned_user_data.length > 0) {
-      
+    if (this.selectedCustomerForEdit.assigned_user_data &&
+      this.selectedCustomerForEdit.assigned_user_data.length > 0) {
+
       this.currentCustomerUsers = this.selectedCustomerForEdit.assigned_user_data.map(assignedUser => {
         // หาข้อมูลเต็มจาก systemUsers ถ้ามี
         const fullUserData = this.systemUsers.find(u => u.id === assignedUser.user_id);
-        
+
         // ถ้าเจอใน systemUsers ให้ใช้ข้อมูลเต็ม ไม่เจอก็สร้างจาก assigned_user_data
         return fullUserData || {
           id: assignedUser.user_id, // ✅ ใช้ ID จริงจาก backend
@@ -534,22 +537,22 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
   private filterAvailableUsersForEdit(): void {
     const searchTerm = this.editUserSearchTerm.toLowerCase();
-    
+
     // Get IDs of current users and users to add
     const currentUserIds = this.currentCustomerUsers.map(u => u.id);
     const usersToAddIds = this.usersToAdd.map(u => u.id);
-    
+
     this.filteredAvailableUsers = this.systemUsers.filter(user => {
       const displayName = this.getUserDisplayName(user);
-      
+
       const matchSearch = !searchTerm ||
         displayName.toLowerCase().includes(searchTerm) ||
         user.email.toLowerCase().includes(searchTerm) ||
         (user.role && user.role.toLowerCase().includes(searchTerm));
-      
+
       // Exclude users that are already assigned or marked to be added
       const notCurrentlyAssigned = !currentUserIds.includes(user.id) && !usersToAddIds.includes(user.id);
-      
+
       return matchSearch && notCurrentlyAssigned;
     });
   }
@@ -568,7 +571,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         this.usersToRemove.push(user);
       }
     }
-    
+
     // If it's a user to add, remove from add list
     const addIndex = this.usersToAdd.findIndex(u => u.id === user.id);
     if (addIndex >= 0) {
@@ -601,26 +604,36 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
 
     this.isSubmitting = true;
 
-    // Calculate final user list
-    const currentUserIds = this.currentCustomerUsers.map(u => u.id);
-    const usersToAddIds = this.usersToAdd.map(u => u.id);
-    const usersToRemoveIds = this.usersToRemove.map(u => u.id);
+    const originalUsers = this.selectedCustomerForEdit.assigned_user_data || [];
 
-    // Final user list = current users - removed users + added users
-    const finalUserIds = [
-      ...currentUserIds.filter(id => !usersToRemoveIds.includes(id)),
-      ...usersToAddIds
-    ];
+    const assignedUsers = this.currentCustomerUsers
+      .filter(user => !this.usersToRemove.some(ru => ru.id === user.id))
+      .map(user => {
+        const originalUser = originalUsers.find(ou => ou.user_id === user.id);
+        return {
+          user_id: user.id,
+          cfp_id: originalUser?.cfp_id
+        };
+      })
+      .concat(
+        this.usersToAdd.map(user => ({
+          user_id: user.id,
+          cfp_id: undefined
+        }))
+      );
 
     const updateDto: UpdateCustomerForProjectDto = {
       project_id: this.selectedProject?.id,
       customer_id: this.selectedCustomerForEdit.customer_id,
-      assigned_users: finalUserIds.map(id => ({ user_id: id }))
+      assigned_users: assignedUsers
     };
 
     console.log('Updating customer users:', updateDto);
 
-    this.apiService.patch(`customer-for-project/cfp/update/${this.selectedCustomerForEdit.id}`, updateDto)
+    // ✅ ใช้ cfp_id แทน id
+    const cfpId = this.selectedCustomerForEdit.cfp_id || this.selectedCustomerForEdit.id;
+
+    this.apiService.patch(`customer-for-project/cfp/update/${cfpId}`, updateDto)
       .pipe(
         takeUntil(this.destroy$),
         catchError(this.handleError.bind(this))
@@ -640,7 +653,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         error: (error) => {
           this.isSubmitting = false;
           console.error('Update users error:', error);
-          
+
           if (error?.status === 404) {
             this.showError('Customer assignment not found');
           } else if (error?.status === 403) {
@@ -663,12 +676,12 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         ...this.currentCustomerUsers.filter(u => !this.usersToRemove.some(ru => ru.id === u.id)),
         ...this.usersToAdd
       ];
-      
+
       this.projectCustomers[customerIndex].assigned_user_names = finalUsers.map(u => this.getUserDisplayName(u));
       this.projectCustomers[customerIndex].user_count = finalUsers.length;
-      
+
       this.filterCustomers();
-      
+
       if (this.projectStats) {
         const userDifference = this.usersToAdd.length - this.usersToRemove.length;
         this.projectStats.total_users += userDifference;
@@ -689,52 +702,61 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
     const customer = this.projectCustomers.find(c => c.customer_id === customerId);
     if (!customer) return;
 
-    if (confirm(`Remove customer "${customer.customer_name}" from this project?`)) {
+    const userCount = customer.assigned_user_data?.length || 0;
+
+    if (confirm(`Delete customer "${customer.customer_name}" and all ${userCount} assigned user(s) from this project?`)) {
       this.isCustomersLoading = true;
-      
-      this.apiService.delete(`customer-for-project/cfp/delete/${customer.id}`)
-        .pipe(
-          takeUntil(this.destroy$),
-          catchError(this.handleError.bind(this))
-        )
-        .subscribe({
-          next: (response: any) => {
-            this.isCustomersLoading = false;
-            if (response && (response.status === 1 || response.code === 1 || response === null)) {
-              this.projectCustomers = this.projectCustomers.filter(c => c.customer_id !== customerId);
-              this.filterCustomers();
-              
-              if (this.projectStats) {
-                this.projectStats.total_customers--;
-                if (customer.user_count) {
-                  this.projectStats.total_users -= customer.user_count;
+
+      // ดึง cfp_id ทั้งหมดของ users ที่ assigned
+      const cfpIds = customer.assigned_user_data?.map(u => u.cfp_id) || [];
+
+      if (cfpIds.length === 0) {
+        this.showError('No user assignments found to delete');
+        this.isCustomersLoading = false;
+        return;
+      }
+
+      // ลบทีละ cfp_id
+      let deletedCount = 0;
+      const totalToDelete = cfpIds.length;
+
+      cfpIds.forEach((cfpId, index) => {
+        this.apiService.delete(`customer-for-project/cfp/delete/${cfpId}`)
+          .pipe(
+            takeUntil(this.destroy$),
+            catchError(this.handleError.bind(this))
+          )
+          .subscribe({
+            next: () => {
+              deletedCount++;
+
+              // เมื่อลบครบทั้งหมดแล้ว
+              if (deletedCount === totalToDelete) {
+                this.isCustomersLoading = false;
+                this.projectCustomers = this.projectCustomers.filter(c => c.customer_id !== customerId);
+                this.filterCustomers();
+
+                if (this.projectStats) {
+                  this.projectStats.total_customers--;
+                  if (customer.user_count) {
+                    this.projectStats.total_users -= customer.user_count;
+                  }
+                  if (customer.open_tickets_count) {
+                    this.projectStats.open_tickets -= customer.open_tickets_count;
+                  }
                 }
-                if (customer.open_tickets_count) {
-                  this.projectStats.open_tickets -= customer.open_tickets_count;
-                }
+
+                this.showSuccess('Customer and all users deleted from project successfully');
+                this.loadCFPData();
               }
-              
-              this.showSuccess('Customer removed from project successfully');
-              this.loadCFPData();
-            } else {
-              this.showError('Failed to remove customer from project');
+            },
+            error: (error) => {
+              this.isCustomersLoading = false;
+              console.error('Delete error for cfp_id:', cfpId, error);
+              this.showError(`Failed to delete some user assignments`);
             }
-          },
-          error: (error) => {
-            this.isCustomersLoading = false;
-            console.error('Delete customer error:', error);
-            
-            if (error?.status === 404) {
-              this.showError('Customer assignment not found');
-            } else if (error?.status === 403) {
-              this.showError('You do not have permission to remove this customer');
-            } else if (error?.status === 400) {
-              this.showError('Cannot remove customer - there may be dependencies');
-            } else {
-              this.showError('Failed to remove customer from project');
-            }
-          }
-        });
+          });
+      });
     }
   }
 
@@ -914,7 +936,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           this.isLoadingCustomers = false;
           console.log('Customer DDL Response:', response);
-          
+
           if (response && response.code === 1 && response.status === true && Array.isArray(response.data)) {
             this.availableCustomers = response.data.map((customer: any) => ({
               id: customer.id,
@@ -924,7 +946,7 @@ export class CustomerForProjectComponent implements OnInit, OnDestroy {
               tier: customer.tier || 'Standard',
               status: customer.status || 'active'
             }));
-            
+
             console.log('Transformed customers:', this.availableCustomers);
           } else {
             console.warn('Invalid customer response structure:', response);
