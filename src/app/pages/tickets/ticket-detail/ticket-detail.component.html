@@ -162,19 +162,6 @@
                 <span>{{ getEditButtonText() }}</span>
               </button>
 
-              <!-- ✅ Admin-only buttons -->
-              <div *ngIf="authService.isAdmin()" class="admin-actions ms-2">
-                <button class="btn btn-warning btn-sm" (click)="escalateTicket()" title="Escalate ticket (Admin only)">
-                  <i class="bi bi-arrow-up-circle me-1"></i>
-                  Escalate
-                </button>
-
-                <button class="btn btn-danger btn-sm ms-2" (click)="forceCloseTicket()"
-                  title="Force close ticket (Admin only)">
-                  <i class="bi bi-x-circle me-1"></i>
-                  Force Close
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -396,7 +383,8 @@
 
           <!-- History Badge -->
           <div class="history-badge" [ngClass]="getHistoryBadgeClass(historyItem)">
-            <i [class]="getHistoryIcon(historyItem.status_name)"></i>
+            <!-- ✅ ส่ง status_id แทน status_name -->
+            <i *ngIf="!isStatusSkipped(historyItem)" [class]="getHistoryIcon(historyItem.status_id)"></i>
           </div>
 
           <!-- History Content -->
@@ -405,11 +393,13 @@
               {{ historyItem.status_name }}
             </div>
 
+            <!-- ✅ แสดงเวลา ถ้ามี -->
             <div class="history-date" *ngIf="hasHistoryDate(historyItem)">
               {{ formatHistoryDate(historyItem.create_date) }}
             </div>
 
-            <div class="history-date pending" *ngIf="!hasHistoryDate(historyItem) && !historyItem.is_completed">
+            <!-- ✅ แสดง "-" ถ้าไม่มีเวลา (ไม่ว่าจะ completed หรือไม่) -->
+            <div class="history-date pending" *ngIf="!hasHistoryDate(historyItem)">
               <span class="text-muted">-</span>
             </div>
           </div>
@@ -466,19 +456,6 @@
                 <i class="bi bi-star me-1"></i>
                 <span *ngIf="!hasExistingSatisfaction">Evaluate</span>
                 <span *ngIf="hasExistingSatisfaction">Evaluated</span>
-              </button>
-            </div>
-
-            <!-- ✅ Admin Actions -->
-            <div *ngIf="authService.isAdmin()" class="admin-actions">
-              <button class="btn btn-sm btn-outline-warning w-100 mb-1" (click)="escalateTicket()">
-                <i class="bi bi-arrow-up-circle me-1"></i>
-                Escalate
-              </button>
-
-              <button class="btn btn-sm btn-outline-danger w-100" (click)="forceCloseTicket()">
-                <i class="bi bi-x-circle me-1"></i>
-                Force Close
               </button>
             </div>
 
@@ -550,4 +527,56 @@
 
     </div>
   </div>
+</div>
+
+<!-- ===== 🆕 วางโค้ด ATTACHMENT PREVIEW MODAL ตรงนี้ ===== -->
+<div class="modal fade" [class.show]="showAttachmentModal" [style.display]="showAttachmentModal ? 'block' : 'none'"
+  [style.z-index]="showAttachmentModal ? '99999' : 'auto'" tabindex="-1" role="dialog" *ngIf="showAttachmentModal">
+  <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+    <div class="modal-content attachment-modal">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-file-earmark me-2"></i>
+          {{ currentAttachment?.filename || 'Attachment Preview' }}
+        </h5>
+        <button type="button" class="btn-close" (click)="closeAttachmentModal()"></button>
+      </div>
+      <div class="modal-body text-center">
+        <!-- Image Preview -->
+        <img *ngIf="isImageAttachment()" [src]="currentAttachment?.path" [alt]="currentAttachment?.filename"
+          class="img-fluid attachment-preview-image">
+
+        <!-- PDF Preview -->
+        <iframe *ngIf="isPdfAttachment()" [src]="sanitizeUrl(currentAttachment?.path)"
+          class="attachment-preview-iframe">
+        </iframe>
+
+        <!-- Other Files -->
+        <div *ngIf="!isImageAttachment() && !isPdfAttachment()" class="attachment-preview-other">
+          <i [class]="getFileIcon(currentAttachment?.path || '', currentAttachment?.attachment_id)"
+            class="attachment-preview-icon"></i>
+          <h4>{{ currentAttachment?.filename }}</h4>
+          <p class="text-muted">{{ getFileTypeText() }}</p>
+          <button class="btn btn-primary" (click)="downloadCurrentAttachment()">
+            <i class="bi bi-download me-2"></i>
+            Download File
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeAttachmentModal()">
+          Close
+        </button>
+        <button type="button" class="btn btn-primary" (click)="downloadCurrentAttachment()">
+          <i class="bi bi-download me-2"></i>
+          Download
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Backdrop -->
+<div class="modal-backdrop fade" [class.show]="showAttachmentModal"
+  [style.z-index]="showAttachmentModal ? '99998' : 'auto'" *ngIf="showAttachmentModal" (click)="closeAttachmentModal()">
 </div>

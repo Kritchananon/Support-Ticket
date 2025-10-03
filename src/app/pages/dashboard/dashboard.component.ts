@@ -101,7 +101,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.dashboardData.stats) {
       this.loadMonthlyTicketsForBar();
     }
-  }, 100);
+  }, 10);
 }
 
   // =============================================================================

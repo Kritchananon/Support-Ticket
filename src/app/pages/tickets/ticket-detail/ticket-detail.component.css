@@ -3,7 +3,8 @@
 .support-details {
   display: flex;
   flex-direction: column;
-  gap: 24px; /* เพิ่มจาก 0px */
+  gap: 24px;
+  /* เพิ่มจาก 0px */
   width: 100%;
   margin-top: 20px;
 }
@@ -12,11 +13,15 @@
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  align-items: flex-start; /* เปลี่ยนจาก center */
-  padding: 20px; /* เพิ่ม padding */
-  gap: 32px; /* เพิ่มจาก 48px */
+  align-items: flex-start;
+  /* เปลี่ยนจาก center */
+  padding: 20px;
+  /* เพิ่ม padding */
+  gap: 32px;
+  /* เพิ่มจาก 48px */
   width: 100%;
-  min-height: 80px; /* เพิ่มจาก 48px */
+  min-height: 80px;
+  /* เพิ่มจาก 48px */
   background: #F8F9FF;
   border-radius: 12px;
   border: 1px solid #E3E7FF;
@@ -29,13 +34,16 @@
   justify-content: flex-start;
   align-items: flex-start;
   padding: 0px;
-  gap: 12px; /* เพิ่มจาก 10px */
-  min-height: 60px; /* เพิ่มจาก 48px */
+  gap: 12px;
+  /* เพิ่มจาก 10px */
+  min-height: 60px;
+  /* เพิ่มจาก 48px */
   flex: 1;
 }
 
 .support-label {
-  font-weight: 600; /* เพิ่มจาก 500 */
+  font-weight: 600;
+  /* เพิ่มจาก 500 */
   font-size: 16px;
   line-height: 120%;
   color: #5873F8;
@@ -45,17 +53,21 @@
 .support-value {
   font-weight: 500;
   font-size: 16px;
-  line-height: 140%; /* เพิ่ม line-height */
+  line-height: 140%;
+  /* เพิ่ม line-height */
   color: #1E2A5E;
   word-wrap: break-word;
   max-width: 100%;
 }
 
 .support-divider {
-  width: 2px; /* เปลี่ยนจาก 42px */
-  height: 40px; /* เปลี่ยนจาก 0px */
+  width: 2px;
+  /* เปลี่ยนจาก 42px */
+  height: 40px;
+  /* เปลี่ยนจาก 0px */
   background: #E3E7FF;
-  transform: none; /* ลบ rotate */
+  transform: none;
+  /* ลบ rotate */
   border: none;
   border-radius: 1px;
 }
@@ -64,14 +76,18 @@
 .fix-attachment-item {
   display: flex;
   align-items: center;
-  gap: 12px; /* เพิ่มจาก 8px */
-  padding: 10px 16px; /* เพิ่มจาก 4px 8px */
+  gap: 12px;
+  /* เพิ่มจาก 8px */
+  padding: 10px 16px;
+  /* เพิ่มจาก 4px 8px */
   background: #FFFFFF;
   border: 2px solid #E3E7FF;
-  border-radius: 8px; /* เพิ่มจาก 4px */
+  border-radius: 8px;
+  /* เพิ่มจาก 4px */
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-bottom: 8px; /* เพิ่มจาก 4px */
+  margin-bottom: 8px;
+  /* เพิ่มจาก 4px */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -83,18 +99,22 @@
 }
 
 .fix-attachment-item i {
-  font-size: 18px; /* เพิ่มจาก 14px */
+  font-size: 18px;
+  /* เพิ่มจาก 14px */
   color: #5873F8;
 }
 
 .fix-attachment-item span {
-  font-size: 14px; /* เพิ่มจาก 12px */
-  font-weight: 600; /* เพิ่มจาก 500 */
+  font-size: 14px;
+  /* เพิ่มจาก 12px */
+  font-weight: 600;
+  /* เพิ่มจาก 500 */
   color: #1E2A5E;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px; /* เพิ่มจาก 120px */
+  max-width: 180px;
+  /* เพิ่มจาก 120px */
 }
 
 /* ===== MAIN CONTAINER ===== */
@@ -230,7 +250,7 @@
   font-weight: 500;
 }
 
-.breadcrumb-item + .breadcrumb-item::before {
+.breadcrumb-item+.breadcrumb-item::before {
   content: "›";
   color: #414141;
   font-weight: normal;
@@ -647,7 +667,7 @@ i.status-icon {
 
 .attachment-item:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .attachment-item:focus {
@@ -701,7 +721,7 @@ i.status-icon {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
   color: white;
   padding: 8px;
   font-size: 10px;
@@ -742,7 +762,7 @@ i.status-icon {
 .attachment-file:hover {
   background: #F8F9FA;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .file-icon-container {
@@ -764,15 +784,41 @@ i.status-icon {
 }
 
 /* File Type Icon Colors */
-.file-icon-pdf { color: #DC3545 !important; }
-.file-icon-excel { color: #28A745 !important; }
-.file-icon-word { color: #2B5CE6 !important; }
-.file-icon-image { color: #FF6B35 !important; }
-.file-icon-text { color: #6C757D !important; }
-.file-icon-archive { color: #FFC107 !important; }
-.file-icon-video { color: #E91E63 !important; }
-.file-icon-audio { color: #9C27B0 !important; }
-.file-icon-file { color: #6C757D !important; }
+.file-icon-pdf {
+  color: #DC3545 !important;
+}
+
+.file-icon-excel {
+  color: #28A745 !important;
+}
+
+.file-icon-word {
+  color: #2B5CE6 !important;
+}
+
+.file-icon-image {
+  color: #FF6B35 !important;
+}
+
+.file-icon-text {
+  color: #6C757D !important;
+}
+
+.file-icon-archive {
+  color: #FFC107 !important;
+}
+
+.file-icon-video {
+  color: #E91E63 !important;
+}
+
+.file-icon-audio {
+  color: #9C27B0 !important;
+}
+
+.file-icon-file {
+  color: #6C757D !important;
+}
 
 /* File Details */
 .file-details {
@@ -1158,8 +1204,8 @@ i.status-icon {
 .history-item:not(:last-child)::after {
   content: '';
   position: absolute;
-  left: 12px;
-  top: 32px;
+  left: 11px;
+  top: 28px;
   width: 2px;
   height: calc(100% + 8px);
   background: #E0E0E0;
@@ -1170,9 +1216,9 @@ i.status-icon {
   background: #28A745;
 }
 
-.history-item.current-status:not(:last-child)::after {
+/* .history-item.current-status:not(:last-child)::after {
   background: linear-gradient(to bottom, #5873F8 50%, #E0E0E0 50%);
-}
+} */
 
 /* History Badges */
 .history-badge {
@@ -1189,6 +1235,19 @@ i.status-icon {
   position: relative;
   transition: all 0.3s ease;
   border: 2px solid;
+}
+
+/* ✅ Skipped badge - เล็กแต่อยู่ตรงกลางแนวเดียวกับ icon อื่นๆ */
+.badge-skipped {
+  background: #F8F9FA;
+  border-color: #DEE2E6;
+  width: 16px;
+  /* ✅ ขนาดเล็ก */
+  height: 16px;
+  /* ✅ ขนาดเล็ก */
+  padding: 0;
+  margin: 4px;
+  /* ✅ เพิ่ม margin เพื่อชดเชยขนาดที่เล็กลง (24-12)/2 = 6px */
 }
 
 .badge-current {
@@ -1317,6 +1376,7 @@ i.status-icon {
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1328,6 +1388,7 @@ i.status-icon {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1339,6 +1400,7 @@ i.status-icon {
     opacity: 0;
     transform: translateY(-50px) scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1350,9 +1412,11 @@ i.status-icon {
     transform: scale(0);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.1);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -1364,6 +1428,7 @@ i.status-icon {
     transform: rotate(-180deg) scale(0.5);
     opacity: 0;
   }
+
   to {
     transform: rotate(0deg) scale(1);
     opacity: 1;
@@ -1375,6 +1440,7 @@ i.status-icon {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1386,6 +1452,7 @@ i.status-icon {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1397,10 +1464,12 @@ i.status-icon {
     transform: scale(1);
     filter: brightness(1);
   }
+
   50% {
     transform: scale(1.1);
     filter: brightness(1.3);
   }
+
   100% {
     transform: scale(1);
     filter: brightness(1);
@@ -1411,9 +1480,11 @@ i.status-icon {
   0% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.6;
   }
+
   100% {
     opacity: 1;
   }
@@ -1423,9 +1494,11 @@ i.status-icon {
   0% {
     box-shadow: 0 0 0 0 rgba(88, 115, 248, 0.4);
   }
+
   70% {
     box-shadow: 0 0 0 6px rgba(88, 115, 248, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(88, 115, 248, 0);
   }
@@ -1436,6 +1509,7 @@ i.status-icon {
     opacity: 0;
     transform: scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -1443,8 +1517,13 @@ i.status-icon {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Card Animations */
@@ -1462,7 +1541,7 @@ i.status-icon {
     max-width: 500px;
     margin: 1.75rem auto;
   }
-  
+
   .modal-dialog-centered {
     min-height: calc(100% - 3.5rem);
   }
@@ -1472,28 +1551,28 @@ i.status-icon {
   .success-modal .modal-body {
     padding: 2rem 1.5rem 1.5rem;
   }
-  
+
   .success-star {
     width: 60px;
     height: 60px;
   }
-  
+
   .success-star i {
     font-size: 30px;
   }
-  
+
   .success-title {
     font-size: 20px;
   }
-  
+
   .success-ticket-info {
     font-size: 14px;
   }
-  
+
   .success-message {
     font-size: 14px;
   }
-  
+
   .success-btn {
     font-size: 14px;
     padding: 10px 24px;
@@ -1507,57 +1586,57 @@ i.status-icon {
     gap: 24px;
     min-height: auto;
   }
-  
+
   .support-title {
     font-size: 20px;
   }
-  
+
   .supporter-form-section {
     padding: 24px;
     margin-top: 24px;
   }
-  
+
   .supporter-form {
     padding: 24px;
   }
-  
+
   .supporter-form-title {
     font-size: 20px;
   }
-  
+
   .support-row {
     flex-direction: column;
     gap: 16px;
     padding: 16px;
     min-height: auto;
   }
-  
+
   .support-item {
     width: 100%;
     min-height: auto;
   }
-  
+
   .support-divider {
     display: none;
   }
-  
+
   .supporter-form-actions {
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .supporter-form-actions .btn {
     width: 100%;
     margin: 0 !important;
   }
-  
+
   .support-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
     height: auto;
   }
-  
+
   .supporter-action {
     margin-left: 0;
     margin-top: 8px;
@@ -1568,38 +1647,38 @@ i.status-icon {
   .support-info-card {
     padding: 20px;
   }
-  
+
   .supporter-form-section {
     padding: 20px;
   }
-  
+
   .supporter-form {
     padding: 20px;
   }
-  
+
   .supporter-form .form-control,
   .supporter-form .form-select {
     padding: 14px 16px;
     font-size: 15px;
   }
-  
+
   .supporter-form-actions .btn {
     padding: 12px 20px;
     font-size: 15px;
   }
-  
+
   .selected-files-preview {
     padding: 12px;
   }
-  
+
   .selected-file-item .file-details {
     margin-left: 6px;
   }
-  
+
   .selected-file-item .file-name {
     font-size: 11px;
   }
-  
+
   .selected-file-item .file-meta {
     font-size: 9px;
   }
@@ -1612,12 +1691,12 @@ i.status-icon {
     width: 140px;
     height: 28px;
   }
-  
+
   .star {
     width: 28px;
     height: 28px;
   }
-  
+
   .star i {
     font-size: 20px;
   }
@@ -1629,12 +1708,12 @@ i.status-icon {
     width: 120px;
     height: 24px;
   }
-  
+
   .star {
     width: 24px;
     height: 24px;
   }
-  
+
   .star i {
     font-size: 18px;
   }
@@ -1645,11 +1724,11 @@ i.status-icon {
   .layout-container {
     flex-direction: column;
   }
-  
+
   .history-card {
     width: 100%;
   }
-  
+
   .ticket-card,
   .support-info-card {
     width: 100%;
@@ -1660,96 +1739,96 @@ i.status-icon {
   .ticket-detail-page {
     padding: 1rem;
   }
-  
+
   .ticket-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
     height: auto;
   }
-  
+
   .ticket-title-container {
     width: 100%;
   }
-  
+
   .ticket-header-right {
     width: 100%;
     justify-content: flex-start;
   }
-  
+
   .ticket-details {
     flex-direction: column;
     gap: 16px;
     height: auto;
     align-items: flex-start;
   }
-  
+
   .detail-item {
     width: 100%;
   }
-  
+
   .detail-divider {
     display: none;
   }
-  
+
   .ticket-footer {
     flex-direction: column;
     gap: 16px;
     height: auto;
   }
-  
+
   .footer-section {
     width: 100%;
   }
-  
+
   .evaluation-section {
     width: 100%;
   }
-  
+
   .issue-content {
     width: 100%;
   }
-  
+
   .attachments-section {
     width: 100%;
   }
-  
+
   .attachment-grid {
     width: 100%;
     justify-content: flex-start;
   }
-  
+
   .attachment-item {
     width: 80px;
     height: 80px;
   }
-  
+
   .file-icon-container {
     width: 30px;
     height: 30px;
   }
-  
+
   .file-icon-container i {
     font-size: 24px;
   }
-  
+
   .file-name {
     font-size: 9px;
   }
-  
+
   .file-type {
     font-size: 7px;
     padding: 1px 4px;
   }
-  
+
   .fix-attachment-item {
     font-size: 11px;
   }
-  
+
   .fix-attachment-item i {
     font-size: 12px;
   }
-  
+
   .fix-attachment-item span {
     font-size: 10px;
     max-width: 100px;
@@ -1759,25 +1838,25 @@ i.status-icon {
   .history-item {
     margin-bottom: 1rem;
   }
-  
+
   .history-badge {
     width: 20px;
     height: 20px;
     margin-right: 8px;
   }
-  
+
   .history-badge i {
     font-size: 12px;
   }
-  
+
   .history-status {
     font-size: 14px;
   }
-  
+
   .history-date {
     font-size: 12px;
   }
-  
+
   .history-item:not(:last-child)::after {
     left: 10px;
     top: 28px;
@@ -1791,100 +1870,100 @@ i.status-icon {
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     gap: 6px;
   }
-  
+
   .attachment-item {
     width: 70px;
     height: 70px;
   }
-  
+
   .attachments-section {
     width: 100%;
   }
-  
+
   .issue-section {
     flex-direction: column;
     height: auto;
     text-align: center;
   }
-  
+
   .issue-content {
     width: 100%;
   }
-  
+
   .file-icon-container {
     width: 24px;
     height: 24px;
     margin-bottom: 4px;
   }
-  
+
   .file-icon-container i {
     font-size: 20px;
   }
-  
+
   .file-name {
     font-size: 8px;
     margin-bottom: 2px;
   }
-  
+
   .file-type {
     font-size: 6px;
     padding: 1px 3px;
   }
-  
+
   .file-meta .file-size {
     font-size: 6px;
   }
-  
+
   .attachment-file {
     padding: 4px;
   }
-  
+
   .download-indicator {
     width: 12px;
     height: 12px;
     top: 2px;
     right: 2px;
   }
-  
+
   .download-indicator i {
     font-size: 6px;
   }
-  
+
   .file-info-overlay {
     padding: 4px;
     font-size: 8px;
   }
-  
+
   .file-name-small {
     font-size: 8px;
   }
-  
+
   .loading-text {
     font-size: 8px;
   }
-  
+
   .attachment-loading i {
     font-size: 16px;
     margin-bottom: 4px;
   }
-  
+
   .no-attachments {
     height: 80px;
   }
-  
+
   .no-attachments i {
     font-size: 20px;
   }
-  
+
   .fix-attachment-item {
     padding: 2px 4px;
     margin-bottom: 2px;
   }
-  
+
   .fix-attachment-item i {
     font-size: 10px;
   }
-  
+
   .fix-attachment-item span {
     font-size: 9px;
     max-width: 80px;
@@ -1895,42 +1974,48 @@ i.status-icon {
     padding: 0.5rem 0;
     gap: 16px;
   }
-  
+
   .history-badge {
     width: 18px;
     height: 18px;
   }
-  
+
   .history-badge i {
     font-size: 10px;
   }
-  
+
   .history-status {
     font-size: 13px;
   }
-  
+
   .history-date {
     font-size: 11px;
   }
-  
+
   .history-item:not(:last-child)::after {
     left: 9px;
     top: 26px;
     height: calc(100% + 2px);
   }
-}/* ===== ✅ IMPROVED SUPPORT INFORMATION STYLES ===== */
+}
+
+/* ===== ✅ IMPROVED SUPPORT INFORMATION STYLES ===== */
 
 /* Support Information Card - ขนาดใหญ่ขึ้นและมีพื้นที่เพียงพอ */
 .support-info-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 32px; /* เพิ่มจาก 20px เป็น 32px */
-  gap: 32px; /* เพิ่มจาก 24px เป็น 32px */
+  padding: 32px;
+  /* เพิ่มจาก 20px เป็น 32px */
+  gap: 32px;
+  /* เพิ่มจาก 24px เป็น 32px */
   width: 100%;
-  min-height: 600px; /* กำหนดความสูงขั้นต่ำ */
+  min-height: 600px;
+  /* กำหนดความสูงขั้นต่ำ */
   background: #FFFFFF;
-  border-radius: 16px; /* เพิ่มจาก 12px เป็น 16px */
+  border-radius: 16px;
+  /* เพิ่มจาก 12px เป็น 16px */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
@@ -1944,8 +2029,10 @@ i.status-icon {
 }
 
 .support-title {
-  font-weight: 700; /* เพิ่มจาก 600 */
-  font-size: 24px; /* เพิ่มจาก 19px */
+  font-weight: 700;
+  /* เพิ่มจาก 600 */
+  font-size: 24px;
+  /* เพิ่มจาก 19px */
   line-height: 120%;
   color: #212121;
   margin: 0;
@@ -1954,9 +2041,11 @@ i.status-icon {
 /* Supporter Action Button - ปรับขนาดและสี */
 .supporter-action .btn {
   font-weight: 600;
-  font-size: 16px; /* เพิ่มขนาดฟอนต์ */
+  font-size: 16px;
+  /* เพิ่มขนาดฟอนต์ */
   border-radius: 10px;
-  padding: 12px 24px; /* เพิ่มจาก 8px 16px */
+  padding: 12px 24px;
+  /* เพิ่มจาก 8px 16px */
   border: 2px solid #5873F8;
   background: #5873F8;
   color: #FFFFFF;
@@ -1978,12 +2067,14 @@ i.status-icon {
   align-items: flex-start;
   padding: 0px;
   width: 100%;
-  height: 3px; /* เพิ่มจาก 2px */
+  height: 3px;
+  /* เพิ่มจาก 2px */
   margin-bottom: 28px;
 }
 
 .support-progress-fill {
-  width: 200px; /* เพิ่มจาก 160px */
+  width: 200px;
+  /* เพิ่มจาก 160px */
   height: 3px;
   background: #5873F8;
   border-radius: 2px;
@@ -2000,9 +2091,11 @@ i.status-icon {
 
 .supporter-form-section {
   margin-top: 32px;
-  padding: 32px; /* เพิ่มจาก 24px */
+  padding: 32px;
+  /* เพิ่มจาก 24px */
   background: linear-gradient(135deg, #F8F9FF 0%, #F0F2FF 100%);
-  border-radius: 16px; /* เพิ่มจาก 12px */
+  border-radius: 16px;
+  /* เพิ่มจาก 12px */
   border: 2px solid #E3E7FF;
   animation: slideInDown 0.4s ease-out;
   box-shadow: 0 8px 32px rgba(88, 115, 248, 0.08);
@@ -2014,14 +2107,18 @@ i.status-icon {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px; /* เพิ่มจาก 24px */
-  padding-bottom: 20px; /* เพิ่มจาก 16px */
+  margin-bottom: 32px;
+  /* เพิ่มจาก 24px */
+  padding-bottom: 20px;
+  /* เพิ่มจาก 16px */
   border-bottom: 2px solid #E3E7FF;
 }
 
 .supporter-form-title {
-  font-size: 24px; /* เพิ่มจาก 20px */
-  font-weight: 700; /* เพิ่มจาก 600 */
+  font-size: 24px;
+  /* เพิ่มจาก 20px */
+  font-weight: 700;
+  /* เพิ่มจาก 600 */
   color: #1E2A5E;
   margin: 0;
   display: flex;
@@ -2037,7 +2134,8 @@ i.status-icon {
 /* Form Container - ปรับขนาดและสี */
 .supporter-form {
   background: #FFFFFF;
-  padding: 32px; /* เพิ่มจาก 24px */
+  padding: 32px;
+  /* เพิ่มจาก 24px */
   border-radius: 12px;
   border: 1px solid #E3E7FF;
   box-shadow: 0 4px 16px rgba(88, 115, 248, 0.05);
@@ -2045,15 +2143,18 @@ i.status-icon {
 
 /* Form Row Spacing */
 .supporter-form .row {
-  margin-bottom: 28px; /* เพิ่ม spacing ระหว่างแถว */
+  margin-bottom: 28px;
+  /* เพิ่ม spacing ระหว่างแถว */
 }
 
 /* Form Labels - ปรับขนาดและสี */
 .supporter-form .form-label {
   font-weight: 600;
-  font-size: 16px; /* เพิ่มจาก 14px */
+  font-size: 16px;
+  /* เพิ่มจาก 14px */
   color: #1E2A5E;
-  margin-bottom: 12px; /* เพิ่มจาก 8px */
+  margin-bottom: 12px;
+  /* เพิ่มจาก 8px */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2073,10 +2174,14 @@ i.status-icon {
 /* Form Inputs - ปรับขนาดและสี */
 .supporter-form .form-control,
 .supporter-form .form-select {
-  border-radius: 8px; /* เพิ่มจาก 6px */
-  border: 2px solid #E3E7FF; /* เพิ่มความหนาของ border */
-  padding: 16px 20px; /* เพิ่มจาก 12px 16px */
-  font-size: 16px; /* เพิ่มจาก 14px */
+  border-radius: 8px;
+  /* เพิ่มจาก 6px */
+  border: 2px solid #E3E7FF;
+  /* เพิ่มความหนาของ border */
+  padding: 16px 20px;
+  /* เพิ่มจาก 12px 16px */
+  font-size: 16px;
+  /* เพิ่มจาก 14px */
   font-weight: 500;
   color: #1E2A5E;
   background: #FFFFFF;
@@ -2107,24 +2212,29 @@ i.status-icon {
 
 .supporter-form .invalid-feedback {
   display: block;
-  font-size: 14px; /* เพิ่มจาก 12px */
+  font-size: 14px;
+  /* เพิ่มจาก 12px */
   font-weight: 500;
-  margin-top: 8px; /* เพิ่มจาก 6px */
+  margin-top: 8px;
+  /* เพิ่มจาก 6px */
   color: #DC3545;
 }
 
 /* Form Text */
 .supporter-form .form-text {
   color: #8B95B7;
-  font-size: 14px; /* เพิ่มจาก 12px */
+  font-size: 14px;
+  /* เพิ่มจาก 12px */
   font-weight: 500;
-  margin-top: 8px; /* เพิ่มจาก 4px */
+  margin-top: 8px;
+  /* เพิ่มจาก 4px */
 }
 
 /* Textarea Specific */
 .supporter-form textarea.form-control {
   resize: vertical;
-  min-height: 120px; /* เพิ่มจาก 100px */
+  min-height: 120px;
+  /* เพิ่มจาก 100px */
   line-height: 1.6;
   font-family: inherit;
 }
@@ -2165,7 +2275,8 @@ i.status-icon {
   background: #FFFFFF;
   border: 2px solid #E3E7FF;
   border-radius: 12px;
-  padding: 24px; /* เพิ่มจาก 16px */
+  padding: 24px;
+  /* เพิ่มจาก 16px */
   margin-top: 20px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
 }
@@ -2174,13 +2285,15 @@ i.status-icon {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px; /* เพิ่มจาก 12px */
+  margin-bottom: 16px;
+  /* เพิ่มจาก 12px */
 }
 
 .selected-files-header h6 {
   color: #1E2A5E;
   font-weight: 700;
-  font-size: 18px; /* เพิ่มขนาด */
+  font-size: 18px;
+  /* เพิ่มขนาด */
   margin: 0;
   display: flex;
   align-items: center;
@@ -2204,10 +2317,12 @@ i.status-icon {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px; /* เพิ่มจาก 12px */
+  padding: 16px;
+  /* เพิ่มจาก 12px */
   background: #F8F9FF;
   border: 2px solid #E9ECFF;
-  border-radius: 10px; /* เพิ่มจาก 6px */
+  border-radius: 10px;
+  /* เพิ่มจาก 6px */
   transition: all 0.3s ease;
   margin-bottom: 12px;
 }
@@ -2220,29 +2335,35 @@ i.status-icon {
 }
 
 .selected-file-item .file-icon {
-  font-size: 24px; /* เพิ่มจาก 18px */
+  font-size: 24px;
+  /* เพิ่มจาก 18px */
   margin-right: 12px;
 }
 
 .selected-file-item .file-name {
   font-weight: 600;
-  font-size: 15px; /* เพิ่มจาก 13px */
+  font-size: 15px;
+  /* เพิ่มจาก 13px */
   color: #1E2A5E;
   margin-bottom: 4px;
 }
 
 .selected-file-item .file-meta {
   display: flex;
-  gap: 12px; /* เพิ่มจาก 8px */
-  font-size: 13px; /* เพิ่มจาก 11px */
+  gap: 12px;
+  /* เพิ่มจาก 8px */
+  font-size: 13px;
+  /* เพิ่มจาก 11px */
   color: #8B95B7;
 }
 
 .selected-file-item .file-type {
   background: #E3E7FF;
   color: #5873F8;
-  padding: 2px 8px; /* เพิ่มจาก 1px 6px */
-  border-radius: 6px; /* เพิ่มจาก 3px */
+  padding: 2px 8px;
+  /* เพิ่มจาก 1px 6px */
+  border-radius: 6px;
+  /* เพิ่มจาก 3px */
   font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
@@ -2255,17 +2376,23 @@ i.status-icon {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  margin-top: 32px; /* เพิ่มจาก 24px */
-  padding-top: 24px; /* เพิ่มจาก 20px */
+  margin-top: 32px;
+  /* เพิ่มจาก 24px */
+  padding-top: 24px;
+  /* เพิ่มจาก 20px */
   border-top: 2px solid #E3E7FF;
-  gap: 16px; /* เพิ่ม gap ระหว่างปุ่ม */
+  gap: 16px;
+  /* เพิ่ม gap ระหว่างปุ่ม */
 }
 
 .supporter-form-actions .btn {
-  font-weight: 700; /* เพิ่มจาก 600 */
+  font-weight: 700;
+  /* เพิ่มจาก 600 */
   font-size: 16px;
-  border-radius: 10px; /* เพิ่มจาก 6px */
-  padding: 14px 28px; /* เพิ่มจาก 10px 20px */
+  border-radius: 10px;
+  /* เพิ่มจาก 6px */
+  padding: 14px 28px;
+  /* เพิ่มจาก 10px 20px */
   transition: all 0.3s ease;
   border: 2px solid;
   min-width: 120px;
@@ -2327,12 +2454,16 @@ i.status-icon {
 /* ===== ✅ ALERT IMPROVEMENTS ===== */
 
 .supporter-form-section .alert {
-  border-radius: 12px; /* เพิ่มจาก 8px */
+  border-radius: 12px;
+  /* เพิ่มจาก 8px */
   border: none;
-  font-size: 15px; /* เพิ่มจาก 14px */
+  font-size: 15px;
+  /* เพิ่มจาก 14px */
   font-weight: 500;
-  margin-bottom: 24px; /* เพิ่มจาก 20px */
-  padding: 16px 20px; /* เพิ่ม padding */
+  margin-bottom: 24px;
+  /* เพิ่มจาก 20px */
+  padding: 16px 20px;
+  /* เพิ่ม padding */
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
@@ -2349,7 +2480,8 @@ i.status-icon {
 }
 
 .supporter-form-section .alert i {
-  margin-right: 12px; /* เพิ่มจาก 8px */
+  margin-right: 12px;
+  /* เพิ่มจาก 8px */
   font-size: 18px;
 }
 
@@ -2358,7 +2490,8 @@ i.status-icon {
 .support-details {
   display: flex;
   flex-direction: column;
-  gap: 24px; /* เพิ่มจาก 0px */
+  gap: 24px;
+  /* เพิ่มจาก 0px */
   width: 100%;
   margin-top: 20px;
 }
@@ -2367,11 +2500,15 @@ i.status-icon {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  align-items: flex-start; /* เปลี่ยนจาก center */
-  padding: 20px; /* เพิ่ม padding */
-  gap: 32px; /* เพิ่มจาก 48px */
+  align-items: flex-start;
+  /* เปลี่ยนจาก center */
+  padding: 20px;
+  /* เพิ่ม padding */
+  gap: 32px;
+  /* เพิ่มจาก 48px */
   width: 100%;
-  min-height: 80px; /* เพิ่มจาก 48px */
+  min-height: 80px;
+  /* เพิ่มจาก 48px */
   background: #F8F9FF;
   border-radius: 12px;
   border: 1px solid #E3E7FF;
@@ -2384,13 +2521,16 @@ i.status-icon {
   justify-content: flex-start;
   align-items: flex-start;
   padding: 0px;
-  gap: 12px; /* เพิ่มจาก 10px */
-  min-height: 60px; /* เพิ่มจาก 48px */
+  gap: 12px;
+  /* เพิ่มจาก 10px */
+  min-height: 60px;
+  /* เพิ่มจาก 48px */
   flex: 1;
 }
 
 .support-label {
-  font-weight: 600; /* เพิ่มจาก 500 */
+  font-weight: 600;
+  /* เพิ่มจาก 500 */
   font-size: 16px;
   line-height: 120%;
   color: #5873F8;
@@ -2400,17 +2540,21 @@ i.status-icon {
 .support-value {
   font-weight: 500;
   font-size: 16px;
-  line-height: 140%; /* เพิ่ม line-height */
+  line-height: 140%;
+  /* เพิ่ม line-height */
   color: #1E2A5E;
   word-wrap: break-word;
   max-width: 100%;
 }
 
 .support-divider {
-  width: 2px; /* เปลี่ยนจาก 42px */
-  height: 40px; /* เปลี่ยนจาก 0px */
+  width: 2px;
+  /* เปลี่ยนจาก 42px */
+  height: 40px;
+  /* เปลี่ยนจาก 0px */
   background: #E3E7FF;
-  transform: none; /* ลบ rotate */
+  transform: none;
+  /* ลบ rotate */
   border: none;
   border-radius: 1px;
 }
@@ -2419,14 +2563,18 @@ i.status-icon {
 .fix-attachment-item {
   display: flex;
   align-items: center;
-  gap: 12px; /* เพิ่มจาก 8px */
-  padding: 10px 16px; /* เพิ่มจาก 4px 8px */
+  gap: 12px;
+  /* เพิ่มจาก 8px */
+  padding: 10px 16px;
+  /* เพิ่มจาก 4px 8px */
   background: #FFFFFF;
   border: 2px solid #E3E7FF;
-  border-radius: 8px; /* เพิ่มจาก 4px */
+  border-radius: 8px;
+  /* เพิ่มจาก 4px */
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-bottom: 8px; /* เพิ่มจาก 4px */
+  margin-bottom: 8px;
+  /* เพิ่มจาก 4px */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -2438,18 +2586,22 @@ i.status-icon {
 }
 
 .fix-attachment-item i {
-  font-size: 18px; /* เพิ่มจาก 14px */
+  font-size: 18px;
+  /* เพิ่มจาก 14px */
   color: #5873F8;
 }
 
 .fix-attachment-item span {
-  font-size: 14px; /* เพิ่มจาก 12px */
-  font-weight: 600; /* เพิ่มจาก 500 */
+  font-size: 14px;
+  /* เพิ่มจาก 12px */
+  font-weight: 600;
+  /* เพิ่มจาก 500 */
   color: #1E2A5E;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px; /* เพิ่มจาก 120px */
+  max-width: 180px;
+  /* เพิ่มจาก 120px */
 }
 
 /* ===== ✅ LOADING STATES ===== */
@@ -2458,8 +2610,10 @@ i.status-icon {
   display: flex;
   align-items: center;
   color: #5873F8;
-  font-size: 16px; /* เพิ่มจาก 14px */
-  font-weight: 600; /* เพิ่มจาก 500 */
+  font-size: 16px;
+  /* เพิ่มจาก 14px */
+  font-weight: 600;
+  /* เพิ่มจาก 500 */
   gap: 10px;
 }
 
@@ -2484,45 +2638,45 @@ i.status-icon {
     gap: 24px;
     min-height: auto;
   }
-  
+
   .support-title {
     font-size: 20px;
   }
-  
+
   .supporter-form-section {
     padding: 24px;
     margin-top: 24px;
   }
-  
+
   .supporter-form {
     padding: 24px;
   }
-  
+
   .supporter-form-title {
     font-size: 20px;
   }
-  
+
   .support-row {
     flex-direction: column;
     gap: 16px;
     padding: 16px;
     min-height: auto;
   }
-  
+
   .support-item {
     width: 100%;
     min-height: auto;
   }
-  
+
   .support-divider {
     display: none;
   }
-  
+
   .supporter-form-actions {
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .supporter-form-actions .btn {
     width: 100%;
     margin: 0 !important;
@@ -2533,21 +2687,21 @@ i.status-icon {
   .support-info-card {
     padding: 20px;
   }
-  
+
   .supporter-form-section {
     padding: 20px;
   }
-  
+
   .supporter-form {
     padding: 20px;
   }
-  
+
   .supporter-form .form-control,
   .supporter-form .form-select {
     padding: 14px 16px;
     font-size: 15px;
   }
-  
+
   .supporter-form-actions .btn {
     padding: 12px 20px;
     font-size: 15px;
@@ -2561,27 +2715,37 @@ i.status-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 5px 12px; /* เท่ากับ btn-edit */
+  padding: 5px 12px;
+  /* เท่ากับ btn-edit */
   font-size: 14px;
   font-weight: 600;
-  border-radius: 6px; /* เท่ากับ btn-edit */
+  border-radius: 6px;
+  /* เท่ากับ btn-edit */
   transition: all 0.3s ease;
-  border: 1px solid #17A2B8; /* เปลี่ยนจาก 2px เป็น 1px เท่ากับ btn-edit */
-  background: transparent; /* เปลี่ยนเป็น transparent เหมือน btn-edit */
+  border: 1px solid #17A2B8;
+  /* เปลี่ยนจาก 2px เป็น 1px เท่ากับ btn-edit */
+  background: transparent;
+  /* เปลี่ยนเป็น transparent เหมือน btn-edit */
   color: #17A2B8;
   text-decoration: none;
   cursor: pointer;
-  height: 24px; /* เท่ากับ btn-edit */
-  min-width: auto; /* ลบ min-width เพื่อให้ขนาดเท่ากับ btn-edit */
-  gap: 4px; /* เท่ากับ btn-edit */
+  height: 24px;
+  /* เท่ากับ btn-edit */
+  min-width: auto;
+  /* ลบ min-width เพื่อให้ขนาดเท่ากับ btn-edit */
+  gap: 4px;
+  /* เท่ากับ btn-edit */
 }
 
 .btn-export-pdf:hover:not(:disabled) {
-  background: #17A2B8; /* เปลี่ยนสีเมื่อ hover เหมือน btn-edit */
+  background: #17A2B8;
+  /* เปลี่ยนสีเมื่อ hover เหมือน btn-edit */
   border-color: #17A2B8;
   color: #FFFFFF;
-  transform: none; /* ลบ transform เพื่อให้เหมือน btn-edit */
-  box-shadow: none; /* ลบ box-shadow เพื่อให้เหมือน btn-edit */
+  transform: none;
+  /* ลบ transform เพื่อให้เหมือน btn-edit */
+  box-shadow: none;
+  /* ลบ box-shadow เพื่อให้เหมือน btn-edit */
 }
 
 .btn-export-pdf:disabled {
@@ -2859,9 +3023,11 @@ i.status-icon {
     transform: scale(0.9);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.05);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -2898,9 +3064,17 @@ i.status-icon {
 }
 
 @keyframes progressPulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 .export-progress-text {
@@ -2916,34 +3090,34 @@ i.status-icon {
   .export-dropdown .dropdown-menu {
     min-width: 250px;
   }
-  
+
   .export-dropdown .dropdown-item {
     padding: 10px 16px;
     font-size: 13px;
   }
-  
+
   .export-dropdown .dropdown-item small {
     font-size: 11px;
   }
-  
+
   .quick-actions .export-actions .btn-group .btn {
     font-size: 10px;
     padding: 5px 6px;
   }
-  
+
   .export-options .card-body {
     padding: 10px;
   }
-  
+
   .export-loading-overlay {
     padding: 20px;
   }
-  
+
   .export-loading-content {
     padding: 20px;
     min-width: 180px;
   }
-  
+
   .export-loading-content p {
     font-size: 14px;
   }
@@ -2951,31 +3125,32 @@ i.status-icon {
 
 @media (max-width: 576px) {
   .btn-export-pdf {
-    padding: 5px 12px; /* คงขนาดเท่าเดิม */
+    padding: 5px 12px;
+    /* คงขนาดเท่าเดิม */
     font-size: 14px;
     height: 24px;
   }
-  
+
   .export-dropdown .dropdown-menu {
     min-width: 220px;
   }
-  
+
   .export-dropdown .dropdown-item {
     padding: 8px 12px;
     font-size: 12px;
   }
-  
+
   .export-loading-content {
     padding: 16px;
     min-width: 160px;
   }
-  
+
   .export-loading-content .spinner-border {
     width: 2rem;
     height: 2rem;
     margin-bottom: 12px;
   }
-  
+
   .export-loading-content p {
     font-size: 13px;
   }
@@ -2987,27 +3162,39 @@ i.status-icon {
 }
 
 .action-buttons .btn-export-pdf {
-  height: 24px; /* เท่ากับ btn-edit */
-  line-height: 100%; /* เท่ากับ btn-edit */
-  padding: 5px 12px; /* เท่ากับ btn-edit */
-  font-size: 14px; /* เท่ากับ btn-edit */
-  font-weight: 600; /* เท่ากับ btn-edit */
-  min-width: auto; /* ลบ min-width */
-  border-radius: 6px; /* เท่ากับ btn-edit */
-  gap: 4px; /* เท่ากับ btn-edit */
-  border: 1px solid #17A2B8; /* เปลี่ยนจาก 2px เป็น 1px */
-  background: transparent; /* เหมือน btn-edit */
+  height: 24px;
+  /* เท่ากับ btn-edit */
+  line-height: 100%;
+  /* เท่ากับ btn-edit */
+  padding: 5px 12px;
+  /* เท่ากับ btn-edit */
+  font-size: 14px;
+  /* เท่ากับ btn-edit */
+  font-weight: 600;
+  /* เท่ากับ btn-edit */
+  min-width: auto;
+  /* ลบ min-width */
+  border-radius: 6px;
+  /* เท่ากับ btn-edit */
+  gap: 4px;
+  /* เท่ากับ btn-edit */
+  border: 1px solid #17A2B8;
+  /* เปลี่ยนจาก 2px เป็น 1px */
+  background: transparent;
+  /* เหมือน btn-edit */
   color: #17A2B8;
 }
 
 .action-buttons .btn-export-pdf:hover:not(:disabled) {
-  background: #17A2B8; /* เหมือน btn-edit hover */
+  background: #17A2B8;
+  /* เหมือน btn-edit hover */
   color: #FFFFFF;
   border-color: #17A2B8;
 }
 
 .action-buttons .btn-export-pdf:disabled {
-  border-color: #adb5bd; /* เหมือน btn-edit disabled */
+  border-color: #adb5bd;
+  /* เหมือน btn-edit disabled */
   color: #adb5bd;
   cursor: not-allowed;
   opacity: 0.6;
@@ -3019,43 +3206,145 @@ i.status-icon {
     background: #2D3748;
     border-color: #4A5568;
   }
-  
+
   .export-dropdown .dropdown-item {
     color: #E2E8F0;
   }
-  
+
   .export-dropdown .dropdown-item:hover {
     background: #4A5568;
     color: #81C784;
   }
-  
+
   .export-options .card {
     background: #2D3748;
     border-color: #4A5568;
   }
-  
+
   .export-options .card-header {
     background: linear-gradient(135deg, #2D3748 0%, #1A202C 100%);
     border-bottom-color: #4A5568;
   }
-  
+
   .export-options .form-select {
     background: #2D3748;
     color: #E2E8F0;
     border-color: #4A5568;
   }
-  
+
   .export-options .form-check-label {
     color: #E2E8F0;
   }
-  
+
   .export-loading-content {
     background: #2D3748;
     color: #E2E8F0;
   }
-  
+
   .export-status-alert {
     background: linear-gradient(135deg, #2D3748 0%, #1A202C 100%);
     color: #E2E8F0;
+  }
+}
+
+/* ===== ATTACHMENT PREVIEW MODAL ===== */
+
+.attachment-modal .modal-content {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.attachment-modal .modal-header {
+  background: linear-gradient(135deg, #5873F8 0%, #4A63E8 100%);
+  color: white;
+  border-radius: 16px 16px 0 0;
+  padding: 20px 24px;
+  border: none;
+}
+
+.attachment-modal .modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.attachment-modal .btn-close {
+  filter: brightness(0) invert(1);
+  opacity: 1;
+}
+
+.attachment-modal .modal-body {
+  padding: 24px;
+  min-height: 400px;
+  max-height: 70vh;
+  overflow: auto;
+  background: #F8F9FA;
+}
+
+/* Image Preview */
+.attachment-preview-image {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* PDF Preview */
+.attachment-preview-iframe {
+  width: 100%;
+  height: 60vh;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Other Files Preview */
+.attachment-preview-other {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+
+.attachment-preview-icon {
+  font-size: 80px;
+  margin-bottom: 24px;
+}
+
+.attachment-preview-other h4 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1E2A5E;
+  margin-bottom: 8px;
+}
+
+.attachment-preview-other p {
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.attachment-modal .modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #E3E7FF;
+  background: white;
+  border-radius: 0 0 16px 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .attachment-modal .modal-dialog {
+    margin: 10px;
+  }
+
+  .attachment-preview-image {
+    max-height: 50vh;
+  }
+
+  .attachment-preview-iframe {
+    height: 50vh;
   }
 }

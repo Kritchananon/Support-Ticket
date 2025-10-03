@@ -7,6 +7,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, forkJoin } from 'rxjs';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { saveAs } from 'file-saver'; // npm install file-saver @types/file-saver
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser'; // 🆕 เพิ่มบรรทัดนี้
 
 // Import API Services (เหลือเฉพาะที่จำเป็น)
 import {
@@ -77,6 +78,7 @@ interface HistoryDisplayItem {
   create_date: string;
   is_active: boolean;
   is_completed: boolean;
+  is_skipped?: boolean; // ✅ เพิ่ม property ใหม่
 }
 
 interface TicketData {
@@ -153,6 +155,7 @@ export class TicketDetailComponent implements OnInit {
   private http = inject(HttpClient);
   public authService = inject(AuthService);
   private notificationService = inject(NotificationService); // ✅ NEW
+  private sanitizer = inject(DomSanitizer); // 🆕 เพิ่มบรรทัดนี้
 
   // ===== CORE PROPERTIES ===== ✅
   ticketData: TicketData | null = null;
@@ -177,6 +180,10 @@ export class TicketDetailComponent implements OnInit {
   hasExistingSatisfaction = false;
   satisfactionMessage = '';
   canEvaluate = false;
+
+  // ===== 🆕 ATTACHMENT MODAL PROPERTIES ===== 
+  showAttachmentModal = false;
+  currentAttachment: any = null;
 
   // ✅ Modal Properties
   showSuccessModal = false;
@@ -219,7 +226,7 @@ export class TicketDetailComponent implements OnInit {
   // ===== CONSTANTS ===== ✅
   private readonly STATUS_WORKFLOW = [
     { id: 1, name: 'Created', icon: 'bi-plus-circle' },
-    { id: 2, name: 'Open Ticket', icon: 'bi-clock' },
+    { id: 2, name: 'Open Ticket', icon: 'bi-folder2-open' },
     { id: 3, name: 'In Progress', icon: 'bi-play-circle' },
     { id: 4, name: 'Resolved', icon: 'bi-clipboard-check' },
     { id: 5, name: 'Completed', icon: 'bi-check-circle' },
@@ -758,32 +765,6 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
-  /**
-   * ✅ Admin-only escalate ticket
-   */
-  escalateTicket(): void {
-    if (!this.authService.isAdmin()) {
-      alert('เฉพาะ Admin เท่านั้นที่สามารถ escalate ticket ได้');
-      return;
-    }
-
-    alert('Ticket has been escalated');
-  }
-
-  /**
-   * ✅ Admin-only force close ticket
-   */
-  forceCloseTicket(): void {
-    if (!this.authService.isAdmin()) {
-      alert('เฉพาะ Admin เท่านั้นที่สามารถ force close ticket ได้');
-      return;
-    }
-
-    if (confirm('คุณแน่ใจหรือไม่ที่ต้องการ force close ticket นี้?')) {
-      alert('Ticket has been force closed');
-    }
-  }
-
   // ===== ✅ SATISFACTION METHODS ===== 
 
   /**
@@ -1232,19 +1213,104 @@ export class TicketDetailComponent implements OnInit {
     return '';
   }
 
+  /**
+   * ✅ แก้ไข method เดิมให้เปิด modal แทน
+   */
   onDownloadAttachment(attachmentId: number, path: string): void {
     const fileInfo = this.getFileInfo(attachmentId);
+    
+    // ✅ เปิด modal แทนการดาวน์โหลดทันที
+    this.currentAttachment = {
+      attachment_id: attachmentId,
+      path: path,
+      filename: fileInfo.filename,
+      type: fileInfo.type
+    };
+    
+    this.showAttachmentModal = true;
+    document.body.classList.add('modal-open');
+  }
 
+  /**
+   * ✅ ปิด modal
+   */
+  closeAttachmentModal(): void {
+    this.showAttachmentModal = false;
+    this.currentAttachment = null;
+    document.body.classList.remove('modal-open');
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าเป็นรูปภาพหรือไม่
+   */
+  isImageAttachment(): boolean {
+    if (!this.currentAttachment) return false;
+    return this.currentAttachment.type === 'image' || 
+           this.isImageFile(this.currentAttachment.path, this.currentAttachment.attachment_id);
+  }
+
+  /**
+   * ✅ ตรวจสอบว่าเป็น PDF หรือไม่
+   */
+  isPdfAttachment(): boolean {
+    if (!this.currentAttachment) return false;
+    return this.currentAttachment.type === 'pdf' ||
+           this.currentAttachment.path.toLowerCase().endsWith('.pdf');
+  }
+
+  /**
+   * ✅ Sanitize URL สำหรับ iframe
+   */
+  sanitizeUrl(url: string): SafeResourceUrl {
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  }
+
+  /**
+   * ✅ ดาวน์โหลดไฟล์ปัจจุบัน
+   */
+  downloadCurrentAttachment(): void {
+    if (!this.currentAttachment) return;
+    
+    const path = this.currentAttachment.path;
+    const filename = this.currentAttachment.filename;
+    
     if (path.startsWith('data:')) {
       const link = document.createElement('a');
       link.href = path;
-      link.download = fileInfo.filename || `attachment_${attachmentId}`;
+      link.download = filename || `attachment_${this.currentAttachment.attachment_id}`;
       link.click();
     } else {
       window.open(path, '_blank');
     }
+    
+    console.log(`Downloading attachment:`, this.currentAttachment);
+  }
 
-    console.log(`Downloading attachment:`, { id: attachmentId, filename: fileInfo.filename, type: fileInfo.type, path: path });
+  /**
+   * ✅ ได้รับข้อความประเภทไฟล์
+   */
+  getFileTypeText(): string {
+    if (!this.currentAttachment) return '';
+    
+    const type = this.currentAttachment.type;
+    const typeMap: { [key: string]: string } = {
+      'pdf': 'PDF Document',
+      'excel': 'Excel Spreadsheet',
+      'word': 'Word Document',
+      'text': 'Text File',
+      'archive': 'Compressed Archive',
+      'video': 'Video File',
+      'audio': 'Audio File',
+      'file': 'File'
+    };
+    
+    return typeMap[type] || 'File';
+  }
+
+  // ===== จบส่วน ATTACHMENT MODAL METHODS ===== 
+
+  backToList(): void {
+    this.router.navigate(['/tickets']);
   }
 
   onImageError(attachmentId: number): void {
@@ -1263,7 +1329,18 @@ export class TicketDetailComponent implements OnInit {
 
   // ===== HISTORY METHODS ===== ✅
 
+
+  // ✅ แก้ไข method isStatusSkipped ให้ตรวจสอบจาก create_date
+  isStatusSkipped(historyItem: HistoryDisplayItem): boolean {
+    // ถ้าไม่มี create_date หรือ create_date เป็นค่าว่าง = status ถูกข้าม
+    return !historyItem.create_date || historyItem.create_date.trim() === '';
+  }
+
+  // ✅ แก้ไข method getHistoryBadgeClass
   getHistoryBadgeClass(historyItem: HistoryDisplayItem): string {
+    if (historyItem.is_skipped) {
+      return 'badge-skipped'; // ✅ ใช้ class ใหม่สำหรับ skipped
+    }
     if (historyItem.is_active) {
       return 'badge-current';
     }
@@ -1273,12 +1350,11 @@ export class TicketDetailComponent implements OnInit {
     return 'badge-pending';
   }
 
-  getHistoryIcon(statusName: string): string {
-    const workflowItem = this.STATUS_WORKFLOW.find(s =>
-      s.name.toLowerCase() === statusName.toLowerCase()
-    );
-    return workflowItem?.icon || 'bi-clock';
-  }
+  // ✅ แก้ไข method ให้ใช้ status_id แทน
+getHistoryIcon(statusId: number): string {
+  const workflowItem = this.STATUS_WORKFLOW.find(s => s.id === statusId);
+  return workflowItem?.icon || 'bi-file-text';
+}
 
   hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
     return !!historyItem.create_date && historyItem.create_date.trim() !== '';
@@ -1479,6 +1555,7 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
+  // ✅ แก้ไข buildDisplayHistory() ให้ set is_skipped จาก create_date
   private buildDisplayHistory(): void {
     if (!this.ticketData?.ticket) return;
 
@@ -1496,6 +1573,17 @@ export class TicketDetailComponent implements OnInit {
       const isActive = workflowStatus.id === currentStatusId;
       const isCompleted = thisPosition < currentPosition && thisPosition !== -1;
 
+      // ✅ กำหนด create_date
+      let createDate = '';
+      if (historyItem?.create_date) {
+        createDate = historyItem.create_date;
+      } else if (isActive) {
+        createDate = new Date().toISOString();
+      }
+
+      // ✅ ตรวจสอบว่า status นี้ถูกข้ามหรือไม่จาก create_date
+      const isSkipped = !createDate || createDate.trim() === '';
+
       const statusName = this.statusCacheLoaded
         ? this.apiService.getCachedStatusName(workflowStatus.id)
         : workflowStatus.name;
@@ -1503,13 +1591,14 @@ export class TicketDetailComponent implements OnInit {
       return {
         status_id: workflowStatus.id,
         status_name: statusName,
-        create_date: historyItem?.create_date || (isActive ? new Date().toISOString() : ''),
+        create_date: createDate,
         is_active: isActive,
-        is_completed: isCompleted
+        is_completed: isCompleted,
+        is_skipped: isSkipped // ✅ จะเป็น true ถ้าไม่มี create_date
       };
     });
 
-    console.log('Built display history with real-time status updates:', this.displayHistory);
+    console.log('Built display history with skipped status detection:', this.displayHistory);
   }
 
   private updateHistoryWithCurrentStatus(currentStatusId: number): void {
@@ -1533,6 +1622,7 @@ export class TicketDetailComponent implements OnInit {
     }
   }
 
+  // ✅ แก้ไข buildHistoryFromExistingData() ด้วยเช่นกัน
   private buildHistoryFromExistingData(): void {
     if (!this.ticketData?.ticket) return;
 
@@ -1548,6 +1638,12 @@ export class TicketDetailComponent implements OnInit {
       const isActive = workflowStatus.id === currentStatusId;
       const isCompleted = thisPosition < currentPosition && thisPosition !== -1;
 
+      // ✅ กำหนด create_date
+      const createDate = existingItem?.create_date || '';
+
+      // ✅ ตรวจสอบว่า status นี้ถูกข้ามหรือไม่จาก create_date
+      const isSkipped = !createDate || createDate.trim() === '';
+
       const statusName = this.statusCacheLoaded
         ? this.apiService.getCachedStatusName(workflowStatus.id)
         : workflowStatus.name;
@@ -1555,13 +1651,14 @@ export class TicketDetailComponent implements OnInit {
       return {
         status_id: workflowStatus.id,
         status_name: statusName,
-        create_date: existingItem?.create_date || '',
+        create_date: createDate,
         is_active: isActive,
-        is_completed: isCompleted
+        is_completed: isCompleted,
+        is_skipped: isSkipped // ✅ จะเป็น true ถ้าไม่มี create_date
       };
     });
 
-    console.log('Built fallback history with status from cache:', this.displayHistory);
+    console.log('Built fallback history with skipped status detection:', this.displayHistory);
   }
 
   private getStatusPosition(statusId: number): number {
@@ -2045,10 +2142,6 @@ export class TicketDetailComponent implements OnInit {
 
     img.crossOrigin = 'anonymous';
     img.src = url;
-  }
-
-  backToList(): void {
-    this.router.navigate(['/tickets']);
   }
 
   canShowForm(): boolean {
