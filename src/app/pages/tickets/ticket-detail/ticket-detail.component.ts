@@ -24,7 +24,8 @@ import { NotificationService } from '../../../shared/services/notification.servi
 import {
   permissionEnum,
   UserRole,
-  ROLES
+  ROLES,
+  ROLE_IDS  // ✅ เพิ่มบรรทัดนี้
 } from '../../../shared/models/permission.model';
 
 // Import utility functions จาก ticket.model.ts
@@ -710,14 +711,15 @@ export class TicketDetailComponent implements OnInit {
   // ===== ✅ TICKET ACTION METHODS ===== 
 
   /**
-   * ✅ Edit ticket with permission check
-   */
+ * ✅ Edit ticket with enhanced role-based validation
+ */
   onEditTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
       console.error('No ticket number available for edit');
       return;
     }
 
+    // ✅ Enhanced permission check with role awareness
     if (!this.authService.hasPermission(permissionEnum.EDIT_TICKET) &&
       !this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN])) {
       console.warn('User does not have permission to edit tickets');
@@ -725,24 +727,34 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
-    const currentStatus = this.getCurrentStatusId();
+    // ✅ Get current status as number
+    const currentStatus: number = this.getCurrentStatusId();
 
-    if (currentStatus === 5) {
-      alert('Ticket นี้เสร็จสิ้นแล้ว ไม่สามารถแก้ไขได้');
-      return;
+    // ✅ Role-specific status validation with informative messages
+    if (this.authService.hasRole(ROLES.USER)) {
+      if (currentStatus !== TICKET_STATUS_IDS.CREATED) {
+        alert('คุณสามารถแก้ไข ticket ได้เฉพาะในสถานะ "Created" เท่านั้น\n\nTicket นี้อยู่ในสถานะ: ' + this.getCurrentStatusName());
+        return;
+      }
+    } else if (this.authService.hasRole(ROLES.ADMIN)) {
+      if (currentStatus !== TICKET_STATUS_IDS.CREATED && currentStatus !== TICKET_STATUS_IDS.OPEN_TICKET) {
+        alert('คุณสามารถแก้ไข ticket ได้เฉพาะในสถานะ "Created" และ "Open Ticket" เท่านั้น\n\nTicket นี้อยู่ในสถานะ: ' + this.getCurrentStatusName());
+        return;
+      }
+    } else if (this.authService.hasRole(ROLES.SUPPORTER)) {
+      if (currentStatus === TICKET_STATUS_IDS.COMPLETED || currentStatus === TICKET_STATUS_IDS.CANCEL) {
+        alert('ไม่สามารถแก้ไข ticket ที่อยู่ในสถานะ "' + this.getCurrentStatusName() + '" ได้');
+        return;
+      }
     }
 
-    if (currentStatus === 6) {
-      alert('Ticket นี้ถูกยกเลิกแล้ว ไม่สามารถแก้ไขได้');
-      return;
-    }
-
+    // ✅ Proceed with edit if all validations pass
     this.saveTicketDataForEdit();
     this.router.navigate(['/tickets/edit', this.ticketData.ticket.ticket_no]);
   }
 
   /**
-   * ✅ Delete ticket with permission check
+   * ✅ Delete ticket with enhanced role-based validation
    */
   onDeleteTicket(): void {
     if (!this.ticketData?.ticket?.ticket_no) {
@@ -750,6 +762,7 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
+    // ✅ Enhanced permission check
     if (!this.authService.hasPermission(permissionEnum.DELETE_TICKET) &&
       !this.authService.isAdmin()) {
       console.warn('User does not have permission to delete tickets');
@@ -757,6 +770,28 @@ export class TicketDetailComponent implements OnInit {
       return;
     }
 
+    // ✅ Get current status as number
+    const currentStatus: number = this.getCurrentStatusId();
+
+    // ✅ Role-specific status validation with informative messages
+    if (this.authService.hasRole(ROLES.USER)) {
+      if (currentStatus !== TICKET_STATUS_IDS.CREATED) {
+        alert('คุณสามารถลบ ticket ได้เฉพาะในสถานะ "Created" เท่านั้น\n\nTicket นี้อยู่ในสถานะ: ' + this.getCurrentStatusName());
+        return;
+      }
+    } else if (this.authService.hasRole(ROLES.ADMIN)) {
+      if (currentStatus !== TICKET_STATUS_IDS.CREATED && currentStatus !== TICKET_STATUS_IDS.OPEN_TICKET) {
+        alert('คุณสามารถลบ ticket ได้เฉพาะในสถานะ "Created" และ "Open Ticket" เท่านั้น\n\nTicket นี้อยู่ในสถานะ: ' + this.getCurrentStatusName());
+        return;
+      }
+    } else if (this.authService.hasRole(ROLES.SUPPORTER)) {
+      if (currentStatus === TICKET_STATUS_IDS.COMPLETED || currentStatus === TICKET_STATUS_IDS.CANCEL) {
+        alert('ไม่สามารถลบ ticket ที่อยู่ในสถานะ "' + this.getCurrentStatusName() + '" ได้');
+        return;
+      }
+    }
+
+    // ✅ Proceed with deletion if all validations pass
     const ticketNo = this.ticketData.ticket.ticket_no;
     const confirmMessage = `คุณแน่ใจหรือไม่ที่ต้องการลบ ticket ${ticketNo}?\n\nการลบนี้ไม่สามารถยกเลิกได้`;
 
@@ -845,37 +880,135 @@ export class TicketDetailComponent implements OnInit {
   // ===== ✅ PERMISSION-AWARE HELPER METHODS ===== 
 
   /**
-   * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with permission check and constants)
-   */
-  canEdit(): boolean {
-    if (!this.ticketData?.ticket) return false;
-
-    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-      this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
-
-    if (!hasEditPermission) return false;
-
-    const status = this.getCurrentStatusId();
-    return [1, 2, 3, 4].includes(status);
+ * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with role-based status restrictions)
+ */
+canEdit(): boolean {
+  if (!this.ticketData?.ticket) {
+    console.log('❌ canEdit: No ticket data');
+    return false;
   }
 
+  const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+    this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+
+  console.log('🔍 Edit Permission Check:', {
+    hasEditPermission,
+    hasEditTicketPermission: this.authService.hasPermission(permissionEnum.EDIT_TICKET),
+    hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
+    hasSupporterRole: this.authService.hasRole(ROLES.SUPPORTER),
+    userRoles: this.authService.getUserRoles(),
+    userRoleIds: this.authService.getUserRoleIds()  // ✅ เพิ่ม debug
+  });
+
+  if (!hasEditPermission) {
+    console.log('❌ canEdit: No edit permission');
+    return false;
+  }
+
+  const currentStatus = Number(this.getCurrentStatusId());
+  
+  console.log('📊 Status Check:', {
+    currentStatus,
+    currentStatusName: this.getCurrentStatusName(),
+    CREATED: TICKET_STATUS_IDS.CREATED,
+    OPEN_TICKET: TICKET_STATUS_IDS.OPEN_TICKET,
+    isCreated: currentStatus === TICKET_STATUS_IDS.CREATED,
+    isOpenTicket: currentStatus === TICKET_STATUS_IDS.OPEN_TICKET
+  });
+
+  // ✅ เช็ค Admin ก่อน (priority สูงสุด)
+  const isAdmin = this.authService.hasRole(ROLES.ADMIN) || 
+                  this.authService.hasRoleId(ROLE_IDS.ADMIN);  // ✅ เพิ่มการเช็ค Role ID
+  
+  const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) || 
+                      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
+  
+  const isUser = this.authService.hasRole(ROLES.USER) || 
+                 this.authService.hasRoleId(ROLE_IDS.USER);
+
+  console.log('👤 Role Checks (Enhanced):', {
+    isAdmin,
+    isSupporter,
+    isUser,
+    hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
+    hasAdminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
+    userRoles: this.authService.getUserRoles(),
+    userRoleIds: this.authService.getUserRoleIds()
+  });
+
+  // ✅ Admin - แก้ไขได้จนถึง Open Ticket
+  if (isAdmin) {
+    const result = currentStatus === TICKET_STATUS_IDS.CREATED ||
+                   currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
+    console.log('👑 ADMIN can edit:', result, {
+      currentStatus,
+      currentStatusName: this.getCurrentStatusName(),
+      canEditStatuses: ['Created', 'Open Ticket']
+    });
+    return result;
+  }
+
+  // ✅ Supporter - แก้ไขได้ทุก status ยกเว้น Completed และ Cancel
+  if (isSupporter) {
+    const result = currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
+                   currentStatus !== TICKET_STATUS_IDS.CANCEL;
+    console.log('🔧 SUPPORTER can edit:', result);
+    return result;
+  }
+
+  // ✅ User - แก้ไขได้เฉพาะ Created
+  if (isUser) {
+    const result = currentStatus === TICKET_STATUS_IDS.CREATED;
+    console.log('👨 USER can edit:', result);
+    return result;
+  }
+
+  console.log('❌ canEdit: No matching role');
+  return false;
+}
+
   /**
-   * ✅ ตรวจสอบว่าสามารถลบได้หรือไม่ (with permission check and constants)
+   * ✅ ตรวจสอบว่าสามารถลบได้หรือไม่ (with role-based status restrictions)
    */
   canDelete(): boolean {
-    if (!this.ticketData?.ticket) return false;
+  if (!this.ticketData?.ticket) return false;
 
-    const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
-      this.authService.isAdmin();
+  const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
+    this.authService.isAdmin();
 
-    if (!hasDeletePermission) return false;
+  if (!hasDeletePermission) return false;
 
-    const status = this.getCurrentStatusId();
-    return ![5, 6].includes(status);
+  const currentStatus: number = this.getCurrentStatusId();
+
+  // ✅ เช็คทั้ง role name และ role ID
+  const isAdmin = this.authService.hasRole(ROLES.ADMIN) || 
+                  this.authService.hasRoleId(ROLE_IDS.ADMIN);
+  
+  const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) || 
+                      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
+  
+  const isUser = this.authService.hasRole(ROLES.USER) || 
+                 this.authService.hasRoleId(ROLE_IDS.USER);
+
+  if (isUser && !isAdmin && !isSupporter) {
+    return currentStatus === TICKET_STATUS_IDS.CREATED;
   }
 
+  if (isAdmin) {
+    return currentStatus === TICKET_STATUS_IDS.CREATED ||
+           currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
+  }
+
+  if (isSupporter) {
+    return currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
+           currentStatus !== TICKET_STATUS_IDS.CANCEL;
+  }
+
+  return false;
+}
+
   /**
-   * ✅ ได้รับข้อความปุ่ม Edit (with permission context and constants)
+   * ✅ ได้รับข้อความปุ่ม Edit (with role-aware status messages)
    */
   getEditButtonText(): string {
     if (!this.ticketData?.ticket) return 'No Permission';
@@ -888,17 +1021,53 @@ export class TicketDetailComponent implements OnInit {
 
     if (!hasEditPermission) return 'Edit';
 
-    const status = this.getCurrentStatusId();
+    const currentStatus = this.getCurrentStatusId();
 
-    switch (status) {
-      case TICKET_STATUS_IDS.COMPLETED: return 'Completed';
-      case TICKET_STATUS_IDS.CANCEL: return 'Cancelled';
-      default: return 'Edit';
+    // ✅ Role-specific messages
+    if (this.authService.hasRole(ROLES.USER)) {
+      switch (currentStatus) {
+        case TICKET_STATUS_IDS.CREATED:
+          return 'Edit';
+        case TICKET_STATUS_IDS.OPEN_TICKET:
+          return 'Opened';
+        case TICKET_STATUS_IDS.COMPLETED:
+          return 'Completed';
+        case TICKET_STATUS_IDS.CANCEL:
+          return 'Cancelled';
+        default:
+          return 'In Process';
+      }
+    }
+
+    if (this.authService.hasRole(ROLES.ADMIN)) {
+      switch (currentStatus) {
+        case TICKET_STATUS_IDS.CREATED:
+        case TICKET_STATUS_IDS.OPEN_TICKET:
+          return 'Edit';
+        case TICKET_STATUS_IDS.IN_PROGRESS:
+          return 'In Progress';
+        case TICKET_STATUS_IDS.COMPLETED:
+          return 'Completed';
+        case TICKET_STATUS_IDS.CANCEL:
+          return 'Cancelled';
+        default:
+          return 'Edit';
+      }
+    }
+
+    // Supporter and default
+    switch (currentStatus) {
+      case TICKET_STATUS_IDS.COMPLETED:
+        return 'Completed';
+      case TICKET_STATUS_IDS.CANCEL:
+        return 'Cancelled';
+      default:
+        return 'Edit';
     }
   }
 
   /**
-   * ✅ ได้รับ CSS class สำหรับปุ่ม Edit (with permission context)
+   * ✅ ได้รับ CSS class สำหรับปุ่ม Edit (with role-aware styling)
    */
   getEditButtonClass(): string {
     const hasPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
@@ -906,11 +1075,24 @@ export class TicketDetailComponent implements OnInit {
 
     if (!hasPermission) return 'btn-edit disabled no-permission';
 
-    return this.canEdit() ? 'btn-edit' : 'btn-edit disabled';
+    const canEdit = this.canEdit();
+    const currentStatus = this.getCurrentStatusId();
+
+    // ✅ Add role-specific class for better UX
+    let roleClass = '';
+    if (this.authService.hasRole(ROLES.USER)) {
+      roleClass = 'user-restricted';
+    } else if (this.authService.hasRole(ROLES.ADMIN)) {
+      roleClass = 'admin-restricted';
+    }
+
+    return canEdit
+      ? `btn-edit ${roleClass}`.trim()
+      : `btn-edit disabled ${roleClass}`.trim();
   }
 
   /**
-   * ✅ ได้รับ CSS class สำหรับปุ่ม Delete (with permission context)
+   * ✅ ได้รับ CSS class สำหรับปุ่ม Delete (with role-aware styling)
    */
   getDeleteButtonClass(): string {
     const hasPermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
@@ -918,7 +1100,117 @@ export class TicketDetailComponent implements OnInit {
 
     if (!hasPermission) return 'btn-delete disabled no-permission';
 
-    return this.canDelete() ? 'btn-delete' : 'btn-delete disabled';
+    const canDelete = this.canDelete();
+
+    // ✅ Add role-specific class for better UX
+    let roleClass = '';
+    if (this.authService.hasRole(ROLES.USER)) {
+      roleClass = 'user-restricted';
+    } else if (this.authService.hasRole(ROLES.ADMIN)) {
+      roleClass = 'admin-restricted';
+    }
+
+    return canDelete
+      ? `btn-delete ${roleClass}`.trim()
+      : `btn-delete disabled ${roleClass}`.trim();
+  }
+
+  /**
+ * ✅ ได้รับ tooltip สำหรับปุ่ม Edit แบบละเอียด
+ */
+  getEditButtonTooltip(): string {
+    if (!this.ticketData?.ticket) {
+      return 'ไม่มีข้อมูล ticket';
+    }
+
+    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+      this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+
+    if (!hasEditPermission) {
+      return 'คุณไม่มีสิทธิ์แก้ไข ticket';
+    }
+
+    // ✅ Explicitly type as number to avoid TypeScript errors
+    const currentStatus: number = this.getCurrentStatusId();
+    const statusName = this.getCurrentStatusName();
+
+    // ✅ Role-specific tooltips
+    if (this.authService.hasRole(ROLES.USER)) {
+      if (currentStatus === TICKET_STATUS_IDS.CREATED) {
+        return 'แก้ไข ticket (User: สามารถแก้ไขได้เฉพาะในสถานะ Created)';
+      } else {
+        return `ไม่สามารถแก้ไขได้ (User: แก้ไขได้เฉพาะในสถานะ Created)\nสถานะปัจจุบัน: ${statusName}`;
+      }
+    }
+
+    if (this.authService.hasRole(ROLES.ADMIN)) {
+      // ✅ Use direct comparison instead of includes to avoid type errors
+      if (currentStatus === TICKET_STATUS_IDS.CREATED || currentStatus === TICKET_STATUS_IDS.OPEN_TICKET) {
+        return `แก้ไข ticket (Admin: สามารถแก้ไขได้จนถึงสถานะ Open Ticket)`;
+      } else {
+        return `ไม่สามารถแก้ไขได้ (Admin: แก้ไขได้เฉพาะ Created และ Open Ticket)\nสถานะปัจจุบัน: ${statusName}`;
+      }
+    }
+
+    if (this.authService.hasRole(ROLES.SUPPORTER)) {
+      // ✅ Use direct comparison instead of includes to avoid type errors
+      if (currentStatus === TICKET_STATUS_IDS.COMPLETED || currentStatus === TICKET_STATUS_IDS.CANCEL) {
+        return `ไม่สามารถแก้ไขได้ (Supporter: ไม่สามารถแก้ไข ${statusName} ได้)`;
+      } else {
+        return `แก้ไข ticket (Supporter: แก้ไขได้ทุกสถานะยกเว้น Completed และ Cancel)`;
+      }
+    }
+
+    return this.canEdit() ? 'แก้ไข ticket นี้' : `ไม่สามารถแก้ไขในสถานะ ${statusName} ได้`;
+  }
+
+  /**
+ * ✅ ได้รับ tooltip สำหรับปุ่ม Delete แบบละเอียด
+ */
+  getDeleteButtonTooltip(): string {
+    if (!this.ticketData?.ticket) {
+      return 'ไม่มีข้อมูล ticket';
+    }
+
+    const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
+      this.authService.isAdmin();
+
+    if (!hasDeletePermission) {
+      return 'คุณไม่มีสิทธิ์ลบ ticket';
+    }
+
+    // ✅ Explicitly type as number to avoid TypeScript errors
+    const currentStatus: number = this.getCurrentStatusId();
+    const statusName = this.getCurrentStatusName();
+
+    // ✅ Role-specific tooltips
+    if (this.authService.hasRole(ROLES.USER)) {
+      if (currentStatus === TICKET_STATUS_IDS.CREATED) {
+        return 'ลบ ticket (User: สามารถลบได้เฉพาะในสถานะ Created)';
+      } else {
+        return `ไม่สามารถลบได้ (User: ลบได้เฉพาะในสถานะ Created)\nสถานะปัจจุบัน: ${statusName}`;
+      }
+    }
+
+    if (this.authService.hasRole(ROLES.ADMIN)) {
+      // ✅ Use direct comparison instead of includes to avoid type errors
+      if (currentStatus === TICKET_STATUS_IDS.CREATED || currentStatus === TICKET_STATUS_IDS.OPEN_TICKET) {
+        return `ลบ ticket (Admin: สามารถลบได้จนถึงสถานะ Open Ticket)`;
+      } else {
+        return `ไม่สามารถลบได้ (Admin: ลบได้เฉพาะ Created และ Open Ticket)\nสถานะปัจจุบัน: ${statusName}`;
+      }
+    }
+
+    if (this.authService.hasRole(ROLES.SUPPORTER)) {
+      // ✅ Use direct comparison instead of includes to avoid type errors
+      if (currentStatus === TICKET_STATUS_IDS.COMPLETED || currentStatus === TICKET_STATUS_IDS.CANCEL) {
+        return `ไม่สามารถลบได้ (Supporter: ไม่สามารถลบ ${statusName} ได้)`;
+      } else {
+        return `ลบ ticket (Supporter: ลบได้ทุกสถานะยกเว้น Completed และ Cancel)`;
+      }
+    }
+
+    return this.canDelete() ? 'ลบ ticket นี้' : `ไม่สามารถลบในสถานะ ${statusName} ได้`;
   }
 
   // ===== SATISFACTION UI METHODS ===== ✅
@@ -1218,7 +1510,7 @@ export class TicketDetailComponent implements OnInit {
    */
   onDownloadAttachment(attachmentId: number, path: string): void {
     const fileInfo = this.getFileInfo(attachmentId);
-    
+
     // ✅ เปิด modal แทนการดาวน์โหลดทันที
     this.currentAttachment = {
       attachment_id: attachmentId,
@@ -1226,7 +1518,7 @@ export class TicketDetailComponent implements OnInit {
       filename: fileInfo.filename,
       type: fileInfo.type
     };
-    
+
     this.showAttachmentModal = true;
     document.body.classList.add('modal-open');
   }
@@ -1245,8 +1537,8 @@ export class TicketDetailComponent implements OnInit {
    */
   isImageAttachment(): boolean {
     if (!this.currentAttachment) return false;
-    return this.currentAttachment.type === 'image' || 
-           this.isImageFile(this.currentAttachment.path, this.currentAttachment.attachment_id);
+    return this.currentAttachment.type === 'image' ||
+      this.isImageFile(this.currentAttachment.path, this.currentAttachment.attachment_id);
   }
 
   /**
@@ -1255,7 +1547,7 @@ export class TicketDetailComponent implements OnInit {
   isPdfAttachment(): boolean {
     if (!this.currentAttachment) return false;
     return this.currentAttachment.type === 'pdf' ||
-           this.currentAttachment.path.toLowerCase().endsWith('.pdf');
+      this.currentAttachment.path.toLowerCase().endsWith('.pdf');
   }
 
   /**
@@ -1270,10 +1562,10 @@ export class TicketDetailComponent implements OnInit {
    */
   downloadCurrentAttachment(): void {
     if (!this.currentAttachment) return;
-    
+
     const path = this.currentAttachment.path;
     const filename = this.currentAttachment.filename;
-    
+
     if (path.startsWith('data:')) {
       const link = document.createElement('a');
       link.href = path;
@@ -1282,7 +1574,7 @@ export class TicketDetailComponent implements OnInit {
     } else {
       window.open(path, '_blank');
     }
-    
+
     console.log(`Downloading attachment:`, this.currentAttachment);
   }
 
@@ -1291,7 +1583,7 @@ export class TicketDetailComponent implements OnInit {
    */
   getFileTypeText(): string {
     if (!this.currentAttachment) return '';
-    
+
     const type = this.currentAttachment.type;
     const typeMap: { [key: string]: string } = {
       'pdf': 'PDF Document',
@@ -1303,7 +1595,7 @@ export class TicketDetailComponent implements OnInit {
       'audio': 'Audio File',
       'file': 'File'
     };
-    
+
     return typeMap[type] || 'File';
   }
 
@@ -1351,10 +1643,10 @@ export class TicketDetailComponent implements OnInit {
   }
 
   // ✅ แก้ไข method ให้ใช้ status_id แทน
-getHistoryIcon(statusId: number): string {
-  const workflowItem = this.STATUS_WORKFLOW.find(s => s.id === statusId);
-  return workflowItem?.icon || 'bi-file-text';
-}
+  getHistoryIcon(statusId: number): string {
+    const workflowItem = this.STATUS_WORKFLOW.find(s => s.id === statusId);
+    return workflowItem?.icon || 'bi-file-text';
+  }
 
   hasHistoryDate(historyItem: HistoryDisplayItem): boolean {
     return !!historyItem.create_date && historyItem.create_date.trim() !== '';

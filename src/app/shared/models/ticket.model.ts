@@ -260,11 +260,12 @@ export function getStatusIcon(statusId: number): string {
   }
 }
 
+
 /**
- * ตรวจสอบว่าสามารถเปลี่ยนจาก status หนึ่งไปยังอีก status ได้หรือไม่
+ * ✅ ตรวจสอบว่าสามารถเปลี่ยนจาก status หนึ่งไปยังอีก status ได้หรือไม่
+ * (รองรับ role-based restrictions)
  */
 export function canChangeStatus(fromStatusId: number, toStatusId: number): boolean {
-  // Cast array เป็น number[]
   const completedOrInProgress = [TICKET_STATUS_IDS.COMPLETED, TICKET_STATUS_IDS.IN_PROGRESS] as number[];
   switch (fromStatusId) {
     case TICKET_STATUS_IDS.COMPLETED:
@@ -274,6 +275,98 @@ export function canChangeStatus(fromStatusId: number, toStatusId: number): boole
       return [TICKET_STATUS_IDS.COMPLETED, TICKET_STATUS_IDS.IN_PROGRESS].map(Number).includes(toStatusId);
     default:
       return toStatusId !== fromStatusId;
+  }
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่า User สามารถแก้ไข/ลบ ticket ตาม role และ status
+ * @param statusId - Status ID ของ ticket (ยอมรับ any number เพื่อความยืดหยุ่น)
+ * @param userRole - Role ของ user
+ * @returns boolean - สามารถแก้ไขได้หรือไม่
+ */
+export function canUserEditTicket(statusId: number, userRole: 'user' | 'admin' | 'supporter'): boolean {
+  // Convert to number explicitly to handle different number types
+  const status = Number(statusId);
+  
+  switch (userRole) {
+    case 'user':
+      // User: แก้ไขได้เฉพาะ Created (1)
+      return status === TICKET_STATUS_IDS.CREATED;
+    
+    case 'admin':
+      // Admin: แก้ไขได้เฉพาะ Created (1) และ Open Ticket (2)
+      return status === TICKET_STATUS_IDS.CREATED || status === TICKET_STATUS_IDS.OPEN_TICKET;
+    
+    case 'supporter':
+      // Supporter: แก้ไขได้ทุก status ยกเว้น Completed (5) และ Cancel (6)
+      return status !== TICKET_STATUS_IDS.COMPLETED && status !== TICKET_STATUS_IDS.CANCEL;
+    
+    default:
+      return false;
+  }
+}
+
+/**
+ * ✅ NEW: ตรวจสอบว่า User สามารถลบ ticket ตาม role และ status
+ * @param statusId - Status ID ของ ticket (ยอมรับ any number เพื่อความยืดหยุ่น)
+ * @param userRole - Role ของ user
+ * @returns boolean - สามารถลบได้หรือไม่
+ */
+export function canUserDeleteTicket(statusId: number, userRole: 'user' | 'admin' | 'supporter'): boolean {
+  // ใช้ logic เดียวกันกับ canUserEditTicket
+  return canUserEditTicket(statusId, userRole);
+}
+
+/**
+ * ✅ NEW: ได้รับข้อความอธิบายข้อจำกัดการแก้ไขตาม role
+ */
+export function getEditRestrictionMessage(userRole: 'user' | 'admin' | 'supporter'): string {
+  switch (userRole) {
+    case 'user':
+      return 'User สามารถแก้ไขได้เฉพาะในสถานะ "Created" เท่านั้น';
+    case 'admin':
+      return 'Admin สามารถแก้ไขได้จนถึงสถานะ "Open Ticket" (ก่อน In Progress)';
+    case 'supporter':
+      return 'Supporter แก้ไขได้ทุกสถานะ ยกเว้น "Completed" และ "Cancel"';
+    default:
+      return 'ไม่สามารถแก้ไขได้';
+  }
+}
+
+/**
+ * ✅ NEW: ได้รับข้อความอธิบายข้อจำกัดการลบตาม role
+ */
+export function getDeleteRestrictionMessage(userRole: 'user' | 'admin' | 'supporter'): string {
+  switch (userRole) {
+    case 'user':
+      return 'User สามารถลบได้เฉพาะในสถานะ "Created" เท่านั้น';
+    case 'admin':
+      return 'Admin สามารถลบได้จนถึงสถานะ "Open Ticket" (ก่อน In Progress)';
+    case 'supporter':
+      return 'Supporter ลบได้ทุกสถานะ ยกเว้น "Completed" และ "Cancel"';
+    default:
+      return 'ไม่สามารถลบได้';
+  }
+}
+
+/**
+ * ✅ NEW: ได้รับรายการ status ที่สามารถแก้ไข/ลบได้ตาม role
+ */
+export function getEditableStatusIds(userRole: 'user' | 'admin' | 'supporter'): number[] {
+  switch (userRole) {
+    case 'user':
+      return [TICKET_STATUS_IDS.CREATED];
+    case 'admin':
+      return [TICKET_STATUS_IDS.CREATED, TICKET_STATUS_IDS.OPEN_TICKET];
+    case 'supporter':
+      return [
+        TICKET_STATUS_IDS.CREATED,
+        TICKET_STATUS_IDS.OPEN_TICKET,
+        TICKET_STATUS_IDS.IN_PROGRESS,
+        TICKET_STATUS_IDS.RESOLVED
+      ];
+    default:
+      return [];
   }
 }
 
@@ -321,7 +414,7 @@ export function getAvailableActions(currentStatusId: number): ActionDropdownOpti
 }
 
 /**
- * ✅ Interface สำหรับ Enhanced Ticket ที่มี computed properties
+ * ✅ UPDATED: Interface สำหรับ Enhanced Ticket ที่มี role-aware computed properties
  */
 export interface EnhancedTicket extends Ticket {
   // Computed properties
@@ -332,24 +425,104 @@ export interface EnhancedTicket extends Ticket {
   canDelete: boolean;
   canEvaluate: boolean;
   availableActions: ActionDropdownOption[];
+  // ✅ NEW: Role-aware properties
+  editRestrictionMessage?: string;
+  deleteRestrictionMessage?: string;
+  editableByCurrentRole?: boolean;
+  deletableByCurrentRole?: boolean;
 }
 
 /**
- * แปลง Ticket ธรรมดาเป็น EnhancedTicket
+ * ✅ UPDATED: แปลง Ticket ธรรมดาเป็น EnhancedTicket (with role awareness)
  */
-export function enhanceTicket(ticket: Ticket, language: 'th' | 'en' = 'th'): EnhancedTicket {
+export function enhanceTicket(
+  ticket: Ticket, 
+  language: 'th' | 'en' = 'th',
+  userRole?: 'user' | 'admin' | 'supporter'
+): EnhancedTicket {
   const completedOrCancelled = [TICKET_STATUS_IDS.COMPLETED, TICKET_STATUS_IDS.CANCEL] as number[];
+  
+  // ✅ Calculate role-aware edit/delete permissions
+  const editableByRole = userRole ? canUserEditTicket(ticket.status_id, userRole) : false;
+  const deletableByRole = userRole ? canUserDeleteTicket(ticket.status_id, userRole) : false;
+  
   return {
     ...ticket,
     statusName: getStatusName(ticket.status_id, language),
     statusBadgeClass: getStatusBadgeClass(ticket.status_id),
     statusIcon: getStatusIcon(ticket.status_id),
+    // ✅ Default permissions (without role context)
     canEdit: !completedOrCancelled.includes(ticket.status_id),
     canDelete: !completedOrCancelled.includes(ticket.status_id),
     canEvaluate: ticket.status_id === TICKET_STATUS_IDS.COMPLETED,
-    availableActions: getAvailableActions(ticket.status_id)
+    availableActions: getAvailableActions(ticket.status_id),
+    // ✅ NEW: Role-aware properties
+    editableByCurrentRole: editableByRole,
+    deletableByCurrentRole: deletableByRole,
+    editRestrictionMessage: userRole ? getEditRestrictionMessage(userRole) : undefined,
+    deleteRestrictionMessage: userRole ? getDeleteRestrictionMessage(userRole) : undefined
   };
 }
+
+/**
+ * ✅ NEW: ตรวจสอบว่า status transition ถูกต้องตาม role หรือไม่
+ */
+export function isValidStatusTransitionForRole(
+  fromStatusId: number,
+  toStatusId: number,
+  userRole: 'user' | 'admin' | 'supporter'
+): boolean {
+  // ตรวจสอบว่าสามารถเปลี่ยน status พื้นฐานได้หรือไม่
+  if (!canChangeStatus(fromStatusId, toStatusId)) {
+    return false;
+  }
+
+  // ✅ Role-specific transition rules
+  switch (userRole) {
+    case 'user':
+      // User ไม่สามารถเปลี่ยน status ได้เลย (เฉพาะ supporter/admin)
+      return false;
+    
+    case 'admin':
+    case 'supporter':
+      // Admin และ Supporter สามารถเปลี่ยน status ได้ตามกฎพื้นฐาน
+      return true;
+    
+    default:
+      return false;
+  }
+}
+
+/**
+ * ✅ NEW: ได้รับข้อความ error สำหรับ invalid status transition
+ */
+export function getStatusTransitionErrorMessage(
+  fromStatusId: number,
+  toStatusId: number,
+  userRole: 'user' | 'admin' | 'supporter'
+): string {
+  const fromStatus = getStatusName(fromStatusId, 'th');
+  const toStatus = getStatusName(toStatusId, 'th');
+
+  if (userRole === 'user') {
+    return `User ไม่สามารถเปลี่ยนสถานะได้ กรุณาติดต่อ Admin หรือ Supporter`;
+  }
+
+  if (!canChangeStatus(fromStatusId, toStatusId)) {
+    if (fromStatusId === TICKET_STATUS_IDS.COMPLETED) {
+      return `ไม่สามารถเปลี่ยนสถานะจาก "${fromStatus}" ได้ เนื่องจาก ticket เสร็จสิ้นแล้ว`;
+    }
+    if (fromStatusId === TICKET_STATUS_IDS.CANCEL) {
+      return `ไม่สามารถเปลี่ยนสถานะจาก "${fromStatus}" ได้ เนื่องจาก ticket ถูกยกเลิกแล้ว`;
+    }
+    return `ไม่สามารถเปลี่ยนจาก "${fromStatus}" ไปยัง "${toStatus}" ได้`;
+  }
+
+  return `การเปลี่ยนสถานะไม่ถูกต้อง`;
+}
+
+// ✅ Export Type สำหรับ User Role
+export type UserRoleType = 'user' | 'admin' | 'supporter';
 
 // ✅ Export Type สำหรับ Status ID
 export type TicketStatusId = typeof TICKET_STATUS_IDS[keyof typeof TICKET_STATUS_IDS];

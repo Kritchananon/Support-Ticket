@@ -142,10 +142,9 @@
                 </ul>
               </div>
 
-              <!-- Delete Button -->
+              <!-- ✅ Delete Button with Enhanced Tooltip -->
               <button [class]="getDeleteButtonClass()" (click)="onDeleteTicket()"
-                [disabled]="!canDelete() || isDeleting"
-                [title]="canDelete() ? 'ลบ ticket นี้' : 'ไม่สามารถลบ ticket ในสถานะนี้ได้'">
+                [disabled]="!canDelete() || isDeleting" [title]="getDeleteButtonTooltip()">
 
                 <span *ngIf="isDeleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-trash" *ngIf="!isDeleting"></i>
@@ -153,9 +152,9 @@
                 <span *ngIf="isDeleting">Deleting...</span>
               </button>
 
-              <!-- Edit Button -->
+              <!-- ✅ Edit Button with Enhanced Tooltip -->
               <button [class]="getEditButtonClass()" (click)="onEditTicket()" [disabled]="!canEdit() || isEditing"
-                [title]="canEdit() ? 'แก้ไข ticket นี้' : 'ไม่สามารถแก้ไขในสถานะนี้ได้'">
+                [title]="getEditButtonTooltip()">
 
                 <span *ngIf="isEditing" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-pencil" *ngIf="!isEditing"></i>

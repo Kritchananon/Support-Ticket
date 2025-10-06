@@ -177,7 +177,7 @@ export class AuthService {
           // Validate และ normalize permissions
           if (response.permission) {
             userPermissions = validateAndNormalizePermissions(response.permission);
-            console.log('🔍 Validated permissions:', userPermissions);
+            // console.log('🔍 Validated permissions:', userPermissions);
           }
 
           // ✅ NEW: Handle role data from backend (could be IDs or names)
@@ -202,7 +202,7 @@ export class AuthService {
                 // Backend sent role names - validate and convert
                 userRoles = validateAndNormalizeRoles(response.roles as UserRole[]);
                 userRoleIds = convertRoleNamesToIds(userRoles);
-                console.log('🔍 Validated role names and converted to IDs:', { userRoles, userRoleIds });
+                // console.log('🔍 Validated role names and converted to IDs:', { userRoles, userRoleIds });
               } else {
                 console.warn('Unknown role format:', firstRole);
                 // Fallback to safe defaults
@@ -240,10 +240,32 @@ export class AuthService {
           }
 
           if (userRoles.length === 0) {
-            console.log('🔄 Using fallback roles');
-            userRoles = getSafeFallbackRoles();
-            userRoleIds = convertRoleNamesToIds(userRoles);
-            console.warn('⚠️ Using safe fallback roles:', { userRoles, userRoleIds });
+            console.log('🔄 No roles from backend, inferring from permissions');
+
+            // Infer role from permissions
+            const hasAdminPermissions = userPermissions.includes(15) && // ADD_USER
+              userPermissions.includes(16) && // DEL_USER
+              userPermissions.includes(17);   // MANAGE_CATEGORY
+
+            const hasSupporterPermissions = userPermissions.includes(13) && // VIEW_ALL_TICKETS
+              userPermissions.includes(5) &&  // CHANGE_STATUS
+              !hasAdminPermissions;
+
+            if (hasAdminPermissions) {
+              console.log('✅ Detected ADMIN permissions - assigning ADMIN role');
+              userRoles = [ROLES.ADMIN];
+              userRoleIds = [ROLE_IDS.ADMIN];
+            } else if (hasSupporterPermissions) {
+              console.log('✅ Detected SUPPORTER permissions - assigning SUPPORTER role');
+              userRoles = [ROLES.SUPPORTER];
+              userRoleIds = [ROLE_IDS.SUPPORTER];
+            } else {
+              console.log('🔄 Using fallback USER role');
+              userRoles = getSafeFallbackRoles();
+              userRoleIds = convertRoleNamesToIds(userRoles);
+            }
+
+            console.log('⚡ Inferred roles:', { userRoles, userRoleIds, basedOnPermissions: userPermissions });
           }
 
           // บันทึกข้อมูล
@@ -552,11 +574,31 @@ export class AuthService {
   /**
    * บันทึก user data
    */
+  // ใน auth.service.ts - แก้ไข setCurrentUser() method
+
   setCurrentUser(user: User | UserWithPermissions): void {
     try {
-      localStorage.setItem('user_data', JSON.stringify(user));
-      this.currentUserSubject.next(user);
-      console.log('👤 User data saved:', user.username);
+      // ✅ เพิ่ม roles เข้าไปใน user object ก่อนบันทึก
+      const userRoles = this.getUserRoles();
+      const userRoleIds = this.getUserRoleIds();
+      const userPermissions = this.getUserPermissions();
+
+      const userWithRoles = {
+        ...user,
+        roles: userRoles,           // ✅ เพิ่ม roles
+        role_ids: userRoleIds,      // ✅ เพิ่ม role IDs
+        permissions: userPermissions // ✅ เพิ่ม permissions
+      };
+
+      localStorage.setItem('user_data', JSON.stringify(userWithRoles));
+      this.currentUserSubject.next(userWithRoles);
+
+      console.log('👤 User data saved with roles:', {
+        username: user.username,
+        roles: userRoles,
+        roleIds: userRoleIds,
+        permissions: userPermissions
+      });
     } catch (error) {
       console.error('❌ Error saving user data:', error);
     }
@@ -565,26 +607,31 @@ export class AuthService {
   /**
    * ดึง user data
    */
-  getCurrentUser(): User | null {
-    const currentUser = this.currentUserSubject.value;
-    if (currentUser) {
-      return currentUser;
+  getCurrentUser(): any {
+    // แก้ให้อ่านจาก 'user_data' แทน 'currentUser'
+    const userStr = localStorage.getItem('user_data');
+
+    if (!userStr) {
+      console.warn('No user data in storage');
+      return null;
     }
 
-    // ลองดึงจาก localStorage
     try {
-      const userStr = localStorage.getItem('user_data');
-      if (userStr) {
-        const userData = JSON.parse(userStr);
-        this.currentUserSubject.next(userData);
-        return userData;
-      }
-    } catch (error) {
-      console.error('❌ Error loading user from storage:', error);
-      localStorage.removeItem('user_data');
-    }
+      const user = JSON.parse(userStr);
 
-    return null;
+      // console.log('getCurrentUser():', {
+      //   user,
+      //   roles: user?.roles,
+      //   rolesType: typeof user?.roles,
+      //   rolesIsArray: Array.isArray(user?.roles),
+      //   allKeys: Object.keys(user || {})
+      // });
+
+      return user;
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return null;
+    }
   }
 
   /**
@@ -669,8 +716,28 @@ export class AuthService {
    * ตรวจสอบ role เดี่ยว
    */
   hasRole(role: UserRole): boolean {
-    const roles = this.getUserRoles();
-    return roles.includes(role);
+    const currentUser = this.getCurrentUser();
+
+    if (!currentUser) {
+      console.warn('⚠️ No current user for role check');
+      return false;
+    }
+
+    // ✅ ลองหา roles จากทุก property ที่เป็นไปได้
+    const roles = currentUser.roles ||
+      currentUser.role ||
+      currentUser.userRoles ||
+      currentUser.user_roles ||
+      [];
+
+    // console.log('🎭 hasRole() check:', {
+    //   checkingFor: role,
+    //   currentRoles: roles,
+    //   normalizedRoles: validateAndNormalizeRoles(roles),
+    //   result: validateAndNormalizeRoles(roles).includes(role)
+    // });
+
+    return validateAndNormalizeRoles(roles).includes(role);
   }
 
   /**
@@ -1383,17 +1450,17 @@ export class AuthService {
    */
   debugPermissionsInStorage(): void {
     console.group('🔍 Permissions Storage Debug');
-    
+
     const permStr = localStorage.getItem('user_permissions');
     const rolesStr = localStorage.getItem('user_roles');
     const roleIdsStr = localStorage.getItem('user_role_ids');
-    
+
     console.log('Raw localStorage data:', {
       permissions: permStr,
       roles: rolesStr,
       roleIds: roleIdsStr
     });
-    
+
     if (permStr) {
       try {
         const parsedPermissions = JSON.parse(permStr);
@@ -1413,11 +1480,11 @@ export class AuthService {
         console.error('Error parsing permissions:', error);
       }
     }
-    
+
     console.log('Current getUserPermissions():', this.getUserPermissions());
     console.log('Current getUserRoles():', this.getUserRoles());
     console.log('Current getUserRoleIds():', this.getUserRoleIds());
-    
+
     console.groupEnd();
   }
 
