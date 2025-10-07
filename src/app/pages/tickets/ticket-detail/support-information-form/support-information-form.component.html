@@ -29,12 +29,12 @@
     <div id="supporterFormSection" class="supporter-form-section" *ngIf="canShowSupporterForm()">
 
         <!-- Form Data Persistence Status -->
-        <div class="alert alert-info d-flex align-items-start"
+        <div class="alert alert-success d-flex align-items-start"
             *ngIf="getFormPersistenceStatus().hasPersistedData && !isJustSaved && getFormPersistenceStatus().isValidForCurrentTicket"
             role="alert">
-            <i class="bi bi-shield-check me-2 mt-1"></i>
+            <i class="bi bi-cloud-check me-2 mt-1"></i>
             <div>
-                <strong>ข้อมูลถูกเก็บไว้อัตโนมัติ</strong>
+                <strong>🔒 ข้อมูลถูกเก็บไว้อัตโนมัติ</strong>
                 <div class="mt-1">
                     <small class="text-muted">
                         เก็บไว้เมื่อ: {{ getFormPersistenceStatus().lastSaved | date:'dd/MM/yyyy HH:mm:ss' }}
@@ -48,7 +48,7 @@
                 </div>
                 <div class="mt-1">
                     <small class="text-success">
-                        <i class="bi bi-check-circle me-1"></i>
+                        <i class="bi bi-shield-check me-1"></i>
                         ข้อมูลจะไม่หายแม้ว่าหน้าเว็บจะรีเฟรช
                     </small>
                 </div>
@@ -116,7 +116,6 @@
                         <option *ngFor="let option of actionDropdownOptions; trackBy: trackByActionOption"
                             [value]="option.statusId" [disabled]="option.disabled">
                             {{ option.label }}
-                            <span *ngIf="option.disabled"> (ไม่สามารถเลือกได้)</span>
                         </option>
                     </select>
 
@@ -134,10 +133,16 @@
                     <input type="datetime-local" id="close_estimate" class="form-control"
                         formControlName="close_estimate" [class.is-invalid]="hasFieldError('close_estimate')"
                         [disabled]="!isFormReady() || supporterFormState.isSaving">
-                    <div *ngIf="hasFieldError('close_estimate')" class="invalid-feedback">
+
+                    <!-- ✅ แสดง error เฉพาะเมื่อ dirty/touched และมี error -->
+                    <div *ngIf="supporterForm.get('close_estimate')?.dirty && hasFieldError('close_estimate')"
+                        class="invalid-feedback">
                         {{ getFieldError('close_estimate') }}
                     </div>
-                    <small class="form-text text-muted" *ngIf="!hasFieldError('close_estimate')">
+
+                    <!-- ✅ แสดง help text เมื่อไม่มี error หรือยังไม่ได้แก้ไข -->
+                    <small class="form-text text-muted"
+                        *ngIf="!supporterForm.get('close_estimate')?.dirty || !hasFieldError('close_estimate')">
                         วันเวลาที่คาดว่าจะแก้ไขเสร็จสิ้น
                     </small>
                 </div>
@@ -168,10 +173,16 @@
                     <input type="datetime-local" id="due_date" class="form-control" formControlName="due_date"
                         [class.is-invalid]="hasFieldError('due_date')"
                         [disabled]="!isFormReady() || supporterFormState.isSaving">
-                    <div *ngIf="hasFieldError('due_date')" class="invalid-feedback">
+
+                    <!-- ✅ แสดง error เฉพาะเมื่อ dirty/touched และมี error -->
+                    <div *ngIf="supporterForm.get('due_date')?.dirty && hasFieldError('due_date')"
+                        class="invalid-feedback">
                         {{ getFieldError('due_date') }}
                     </div>
-                    <small class="form-text text-muted" *ngIf="!hasFieldError('due_date')">
+
+                    <!-- ✅ แสดง help text เมื่อไม่มี error หรือยังไม่ได้แก้ไข -->
+                    <small class="form-text text-muted"
+                        *ngIf="!supporterForm.get('due_date')?.dirty || !hasFieldError('due_date')">
                         วันเวลาที่จบงานจริง (กรอกเมื่อเสร็จงาน)
                     </small>
                 </div>
@@ -224,20 +235,21 @@
 
                     <!-- Assign Dropdown -->
                     <select class="form-control select-field" [(ngModel)]="selectedAssigneeId"
-                        [ngModelOptions]="{standalone: true}"
+                        [ngModelOptions]="{standalone: true}" (change)="onAssigneeChanged()"
                         [disabled]="!isFormReady() || !isAssigneeDropdownReady() || supporterFormState.isSaving"
                         *ngIf="!isLoadingAssignees && !assigneeError">
-                        <option [ngValue]="null">เลือกผู้รับผิดชอบ</option>
-                        <option *ngFor="let user of assigneeList; trackBy: trackByUser" [ngValue]="user.id">
+                        <option [ngValue]="null">เลือกผู้รับผิดชอบใหม่</option>
+                        <option *ngFor="let user of assigneeList; trackBy: trackByUser" [ngValue]="user.id"
+                            [selected]="user.id === selectedAssigneeId">
                             {{ getUserDisplayName(user) }}
                         </option>
                     </select>
 
                     <!-- Assignee Preview -->
-                    <div *ngIf="selectedAssigneeId" class="mt-2 p-2 bg-light rounded">
+                    <div *ngIf="getSelectedAssigneeName()" class="mt-2 p-2 bg-light rounded">
                         <small class="text-success d-flex align-items-center">
                             <i class="bi bi-person-check me-1"></i>
-                            <strong>จะมอบหมายให้:</strong>
+                            <strong>มอบหมายแล้วให้:</strong>
                             <span class="ms-1">{{ getSelectedAssigneeName() }}</span>
                         </small>
                     </div>
@@ -351,70 +363,84 @@
             </div>
 
             <!-- Attachment Section -->
-<div class="form-section">
-  <div class="form-group">
-    <label>Attachment</label>
+            <div class="form-section">
+                <div class="form-group">
+                    <label>Attachment</label>
 
-    <div class="attachment-container">
-      <!-- Upload Button - อยู่หน้าสุดเสมอ -->
-      <div class="attachment-upload-card"
-        (click)="isFormReady() && selectedFiles.length < maxFiles && fileInputNew.click()"
-        [class.disabled]="!isFormReady() || supporterFormState.isSaving || selectedFiles.length >= maxFiles">
-        <i class="bi bi-plus-lg upload-icon"></i>
-        <span class="upload-label">Choose file</span>
-      </div>
+                    <div class="attachment-container" [class.dragover]="isDraggingFiles"
+                        (dragover)="onAttachmentsDragOver($event)" (dragleave)="onAttachmentsDragLeave($event)"
+                        (drop)="onAttachmentsDrop($event)">
+                        <!-- Upload Button - อยู่หน้าสุดเสมอ -->
+                        <div class="attachment-upload-card"
+                            (click)="isFormReady() && selectedFiles.length < maxFiles && fileInputNew.click()"
+                            [class.disabled]="!isFormReady() || supporterFormState.isSaving || selectedFiles.length >= maxFiles"
+                            title="คลิกเพื่อเลือกไฟล์ หรือ ลากมาวางที่นี่">
+                            <i class="bi bi-plus-lg upload-icon"></i>
+                            <span class="upload-label">Choose file</span>
+                            <small class="text-muted" *ngIf="maxFiles">
+                                ({{ selectedFiles.length }}/{{ maxFiles }})
+                            </small>
+                        </div>
 
-      <!-- Existing Attachments -->
-      <div *ngFor="let attachment of existingFixAttachments; trackBy: trackByAttachment" class="attachment-card">
-        <button type="button" class="remove-attachment-btn" 
-          title="ลบไฟล์แนบนี้" disabled>
-          <i class="bi bi-trash"></i>
-        </button>
-        
-        <div class="attachment-preview">
-          <img *ngIf="isExistingAttachmentImage(attachment)" 
-            [src]="getExistingAttachmentPreviewUrl(attachment)"
-            [alt]="getExistingAttachmentDisplayName(attachment)"
-            (error)="onExistingAttachmentImageError(attachment.attachment_id)"
-            (load)="onExistingAttachmentImageLoad(attachment.attachment_id)"
-            class="attachment-img">
-          <div *ngIf="!isExistingAttachmentImage(attachment)" class="attachment-icon-wrapper">
-            <i [class]="getExistingAttachmentIcon(attachment)" class="attachment-icon"></i>
-            <span class="file-type-label">{{ getExistingAttachmentFileInfo(attachment.attachment_id).extension.toUpperCase() }}</span>
-          </div>
-        </div>
-      </div>
+                        <!-- Existing Attachments -->
+                        <div *ngFor="let attachment of existingFixAttachments; trackBy: trackByAttachment"
+                            class="attachment-card">
+                            <button type="button" class="remove-attachment-btn" title="ลบไฟล์แนบนี้"
+                                (click)="onRemoveExistingAttachment(attachment)"
+                                [disabled]="!isFormReady() || supporterFormState.isSaving || isDeletingAttachment(attachment.attachment_id)">
+                                <span *ngIf="isDeletingAttachment(attachment.attachment_id)"
+                                    class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <i *ngIf="!isDeletingAttachment(attachment.attachment_id)" class="bi bi-trash"></i>
+                            </button>
 
-      <!-- Selected Files (New) -->
-      <div *ngFor="let file of selectedFiles; let i = index; trackBy: trackByFile" class="attachment-card new">
-        <button type="button" class="remove-attachment-btn" 
-          (click)="removeSelectedFile(i)"
-          title="ลบไฟล์นี้">
-          <i class="bi bi-trash"></i>
-        </button>
-        
-        <div class="attachment-preview">
-          <img *ngIf="ticketService.isImageFile(file)" 
-            [src]="getFilePreview(file)"
-            alt="Preview" 
-            class="attachment-img">
-          <div *ngIf="!ticketService.isImageFile(file)" class="attachment-icon-wrapper">
-            <i [class]="ticketService.getFileIcon(file.name)" class="attachment-icon"></i>
-            <span class="file-type-label">{{ getFileTypeFromExtension(file.name).toUpperCase() }}</span>
-          </div>
-        </div>
-      </div>
 
-      <input #fileInputNew type="file" id="fileInputNew" (change)="onFileSelected($event)" multiple
-        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.txt,.xlsx,.csv" style="display: none;"
-        [disabled]="!isFormReady() || supporterFormState.isSaving">
-    </div>
+                            <div class="attachment-preview">
+                                <img *ngIf="isExistingAttachmentImage(attachment)"
+                                    [src]="getExistingAttachmentPreviewUrl(attachment)"
+                                    [alt]="getExistingAttachmentDisplayName(attachment)"
+                                    (error)="onExistingAttachmentImageError(attachment.attachment_id)"
+                                    (load)="onExistingAttachmentImageLoad(attachment.attachment_id)"
+                                    class="attachment-img" />
+                                <div *ngIf="!isExistingAttachmentImage(attachment)" class="attachment-icon-wrapper">
+                                    <i [class]="getExistingAttachmentIcon(attachment)" class="attachment-icon"></i>
+                                    <span class="file-type-label">
+                                        {{
+                                        getExistingAttachmentFileInfo(attachment.attachment_id).extension.toUpperCase()
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
 
-    <small class="form-text text-muted mt-2 d-block">
-      ({{ selectedFiles.length }}/{{ maxFiles }}) ไฟล์ที่รองรับ: PDF, DOC, DOCX, JPG, PNG, GIF, TXT, XLSX, CSV
-    </small>
-  </div>
-</div>
+                        <!-- Selected Files (New) -->
+                        <div *ngFor="let file of selectedFiles; let i = index; trackBy: trackByFile"
+                            class="attachment-card new">
+                            <button type="button" class="remove-attachment-btn" (click)="removeSelectedFile(i)"
+                                title="ลบไฟล์นี้">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <div class="attachment-preview">
+                                <img *ngIf="ticketService.isImageFile(file)" [src]="getFilePreview(file)" alt="Preview"
+                                    class="attachment-img" />
+                                <div *ngIf="!ticketService.isImageFile(file)" class="attachment-icon-wrapper">
+                                    <i [class]="ticketService.getFileIcon(file.name)" class="attachment-icon"></i>
+                                    <span class="file-type-label">{{ getFileTypeFromExtension(file.name).toUpperCase()
+                                        }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input #fileInputNew type="file" id="fileInputNew" (change)="onFileSelected($event)" multiple
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.txt,.xlsx,.csv" style="display: none;"
+                            [disabled]="!isFormReady() || supporterFormState.isSaving" />
+                    </div>
+
+                    <small class="form-text text-muted mt-2 d-block">
+                        รองรับลาก‑แล้ว‑วางไฟล์ (drag & drop) หรือคลิกที่กล่องหัวมุมซ้าย — ไฟล์ที่รองรับ: PDF, DOC, DOCX,
+                        JPG, PNG, GIF, TXT, XLSX, CSV
+                    </small>
+                </div>
+            </div>
 
             <!-- Form Actions -->
             <div class="form-actions">
@@ -438,16 +464,23 @@
                     </span>
                 </button>
 
-                <!-- ปุ่ม Clear Form -->
-                <button type="button" class="btn btn-outline-secondary ms-2" (click)="clearAllFormData()"
-                    [disabled]="!isFormReady() || supporterFormState.isSaving || !hasFormData()"
-                    [title]="hasFormData() ? 'เคลียร์ข้อมูลในฟอร์มทั้งหมด รวมทั้งข้อมูลที่เก็บไว้' : 'ไม่มีข้อมูลในฟอร์ม'">
-                    <i class="bi bi-x-circle me-2"></i>
-                    Clear Form
+                <!-- 🆕 NEW: ปุ่ม Manual Save (Optional - สำหรับ testing) -->
+                <button type="button" class="btn btn-outline-info ms-2" (click)="persistAllFormData()"
+                    [disabled]="!isFormReady() || !hasFormData()" *ngIf="false"
+                    title="บันทึกข้อมูลลง LocalStorage ทันที">
+                    <i class="bi bi-cloud-arrow-up me-2"></i>
+                    Force Save
                 </button>
 
                 <!-- ข้อความแสดงสถานะฟอร์ม -->
                 <div class="form-status-info ms-auto d-flex align-items-center" *ngIf="!supporterFormState.isSaving">
+                    <!-- 🆕 แสดงสถานะ Auto-save -->
+                    <small class="text-success d-flex align-items-center me-3"
+                        *ngIf="hasFormData() && getPersistedDataInfo()">
+                        <i class="bi bi-cloud-check me-1"></i>
+                        <span>บันทึกอัตโนมัติ</span>
+                    </small>
+
                     <small class="text-muted d-flex align-items-center me-3">
                         <i class="bi me-1" [class.bi-circle-fill]="!hasFormData()"
                             [class.bi-circle-half]="hasFormData() && !canSaveAll()"
@@ -457,13 +490,6 @@
                         <span *ngIf="!hasFormData()">ฟอร์มว่าง</span>
                         <span *ngIf="hasFormData() && !canSaveAll()">มีข้อมูล</span>
                         <span *ngIf="canSaveAll()">พร้อมบันทึก</span>
-                    </small>
-
-                    <!-- แสดงสถานะการเก็บข้อมูลอัตโนมัติ -->
-                    <small class="text-success d-flex align-items-center"
-                        *ngIf="getFormPersistenceStatus().hasPersistedData && hasFormData()">
-                        <i class="bi bi-cloud-check me-1"></i>
-                        เก็บอัตโนมัติ
                     </small>
                 </div>
             </div>
@@ -479,5 +505,31 @@
             ต้องการ permission: <strong>VIEW_ALL_TICKETS</strong>, <strong>CHANGE_STATUS</strong>, หรือ
             <strong>ASSIGNEE</strong>
         </small>
+    </div>
+
+    <!-- Debug Section (ซ่อนใน production) -->
+    <div class="alert alert-warning mt-3" *ngIf="false" role="alert">
+        <strong>🐛 Debug Mode</strong>
+        <div class="mt-2">
+            <button type="button" class="btn btn-sm btn-outline-warning me-2" (click)="debugFormState()">
+                <i class="bi bi-bug me-1"></i>
+                Debug Form State
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-info me-2" (click)="updateFormWithTicketData()">
+                <i class="bi bi-arrow-clockwise me-1"></i>
+                Force Reload Form
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" (click)="loadTicketDataFromBackend()">
+                <i class="bi bi-cloud-download me-1"></i>
+                Reload from Backend
+            </button>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">
+                Form Ready: {{ isFormReady() }} |
+                Has Ticket: {{ hasTicketData() }} |
+                Has Form Data: {{ hasFormData() }}
+            </small>
+        </div>
     </div>
 </div>

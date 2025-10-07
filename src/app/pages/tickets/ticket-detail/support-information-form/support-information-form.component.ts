@@ -7,7 +7,9 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import {
   ApiService,
   StatusDDLItem,
-  StatusDDLResponse
+  StatusDDLResponse,
+  GetTicketDataRequest,    // ✅ เพิ่ม
+  GetTicketDataResponse     // ✅ เพิ่ม
 } from '../../../../shared/services/api.service';
 import { AuthService } from '../../../../shared/services/auth.service';
 import { TicketService } from '../../../../shared/services/ticket.service';
@@ -74,6 +76,24 @@ interface ExistingAttachment {
   is_image?: boolean;
   preview_url?: string;
   download_url?: string;
+}
+
+// ===== 🆕 NEW: Support Form Persistence Interface =====
+interface SupportFormPersistenceData {
+  ticket_no: string;
+  formData: {
+    action: string;
+    estimate_time: number | null;
+    due_date: string;
+    lead_time: number | null;
+    close_estimate: string;
+    fix_issue_description: string;
+    related_ticket_id: string;
+  };
+  selectedAssigneeId: number | null;
+  existingAttachments: ExistingAttachment[];
+  timestamp: number;
+  userId: number;
 }
 
 // Interfaces
@@ -149,6 +169,17 @@ interface TicketData {
 export class SupportInformationFormComponent implements OnInit, OnChanges, OnDestroy {
   estimateTime: number = 0;
   leadTime: number = 0;
+
+  // === Drag & drop state ===
+  isDraggingFiles = false;
+  private dragCounter = 0; // helps with nested dragenter/leave
+
+  // === Deletion state for existing attachments ===
+  private deletingAttachmentIds = new Set<number>();
+
+  isDeletingAttachment(id: number | null | undefined): boolean {
+    return !!id && this.deletingAttachmentIds.has(id);
+  }
 
   // Dependency Injection
   private apiService = inject(ApiService);
@@ -232,6 +263,10 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private lastFormSnapshot: any = null;
   private formChangeSubscription: any = null;
 
+  // ===== 🆕 NEW: Persistence Properties =====
+  private readonly PERSISTENCE_KEY_PREFIX = 'support_form_';
+  private currentUserId: number | null = null;
+
   // ===== Fix Issue Attachment Properties =====
   isUploadingFixAttachment = false;
   fixAttachmentUploadError = '';
@@ -281,36 +316,58 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   ngOnInit(): void {
     console.log('SupportInformationFormComponent initialized');
     console.log('Initial ticketData:', this.ticketData);
+    console.log('Initial ticket_no:', this.ticket_no);
     console.log('Initial isLoadingTicketData:', this.isLoadingTicketData);
+
+    // ✅ ดึง userId
+    this.currentUserId = this.authService.getCurrentUser()?.id || null;
+    console.log('Current user ID:', this.currentUserId);
 
     this.initializeSupporterForm();
     this.checkUserPermissions();
     this.loadActionDropdownOptions();
     this.initializeAssigneeList();
-    this.restorePersistedFormData();
+
+    // ✅ NEW: ลบการ restore persisted data ออก - ให้โหลดจาก ticket data เสมอ
+    // this.restoreAllPersistedData(); // ❌ ลบบรรทัดนี้
+
     this.setupFormPersistence();
     this.setupAutoCalculation();
+
+    // ✅ CRITICAL: ถ้ามี ticketData อยู่แล้ว ให้โหลดทันที
+    if (this.ticketData?.ticket) {
+      console.log('📋 Ticket data available, loading to form immediately');
+      this.updateFormWithTicketData();
+      this.loadExistingFixAttachments();
+    } else if (this.ticket_no) {
+      // ถ้ามีแค่ ticket_no ให้โหลดจาก backend
+      console.log('📋 Only ticket_no available, loading from backend');
+      this.loadTicketDataFromBackend();
+    }
 
     this.isComponentInitialized = true;
     console.log('Form component initialization complete');
   }
 
-  ngOnDestroy(): void {
-    // Revoke blob URLs
-    Object.values(this.filePreviewUrls).forEach(url => {
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-      }
-    });
-
-    if (this.formChangeSubscription) {
-      this.formChangeSubscription.unsubscribe();
-    }
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
     console.log('=== NgOnChanges Debug ===');
     console.log('Changes detected:', Object.keys(changes));
+
+    // ✅ เพิ่ม: ตรวจสอบการเปลี่ยนแปลงของ ticket_no
+    if (changes['ticket_no'] && this.isComponentInitialized) {
+      const ticketNoChange = changes['ticket_no'];
+      console.log('ticket_no changed:', {
+        previousValue: ticketNoChange.previousValue,
+        currentValue: ticketNoChange.currentValue,
+        isFirstChange: ticketNoChange.isFirstChange()
+      });
+
+      // ถ้า ticket_no เปลี่ยนและไม่ใช่ครั้งแรก ให้โหลดข้อมูลใหม่
+      if (!ticketNoChange.isFirstChange() && ticketNoChange.currentValue) {
+        this.loadTicketDataFromBackend();
+        return; // ออกจาก method เพื่อไม่ให้ทำงานซ้ำกับ ticketData changes
+      }
+    }
 
     if (changes['ticketData'] && this.isComponentInitialized) {
       const change = changes['ticketData'];
@@ -356,6 +413,401 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         console.log('❌ No fix_attachment found');
       }
     }, 500);
+  }
+
+  // 🆕 HostListener - บันทึกก่อนออกจากหน้า
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnloadHandler(event: Event): void {
+    if (this.hasFormData()) {
+      this.persistAllFormData();
+      console.log('💾 Form data saved before page unload');
+    }
+  }
+
+  ngOnDestroy(): void {
+    // 🆕 บันทึกข้อมูลก่อน destroy
+    if (this.hasFormData()) {
+      this.persistAllFormData();
+    }
+
+    // Revoke blob URLs
+    Object.values(this.filePreviewUrls).forEach(url => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
+
+    if (this.formChangeSubscription) {
+      this.formChangeSubscription.unsubscribe();
+    }
+  }
+
+  // ===== 🆕 NEW: Persistence Methods (Section 1) =====
+
+  /**
+   * 🆕 โหลดข้อมูลทั้งหมดที่เก็บไว้
+   */
+  private restoreAllPersistedData(): void {
+    try {
+      if (!this.ticket_no || !this.currentUserId) {
+        console.log('Cannot restore: no ticket_no or userId');
+        return;
+      }
+
+      const storageKey = this.getStorageKey();
+      const savedDataStr = localStorage.getItem(storageKey);
+
+      if (!savedDataStr) {
+        console.log('No persisted data found for ticket:', this.ticket_no);
+        return;
+      }
+
+      const savedData: SupportFormPersistenceData = JSON.parse(savedDataStr);
+
+      // ตรวจสอบความเก่าของข้อมูล
+      const age = Date.now() - savedData.timestamp;
+      const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+      if (age > maxAge) {
+        console.log('Persisted data too old, removing');
+        localStorage.removeItem(storageKey);
+        return;
+      }
+
+      // ตรวจสอบว่าเป็น ticket เดียวกันและ user เดียวกัน
+      if (savedData.ticket_no !== this.ticket_no || savedData.userId !== this.currentUserId) {
+        console.log('Persisted data for different ticket or user');
+        return;
+      }
+
+      console.log('✅ Restoring persisted support form data:', savedData);
+
+      // Restore form data
+      if (savedData.formData) {
+        this.supporterForm.patchValue(savedData.formData, { emitEvent: false });
+
+        // Restore calculated values
+        if (savedData.formData.estimate_time) {
+          this.estimateTime = savedData.formData.estimate_time;
+        }
+        if (savedData.formData.lead_time) {
+          this.leadTime = savedData.formData.lead_time;
+        }
+      }
+
+      // Restore assignee selection
+      if (savedData.selectedAssigneeId) {
+        this.selectedAssigneeId = savedData.selectedAssigneeId;
+      }
+
+      // Restore existing attachments info
+      if (savedData.existingAttachments && savedData.existingAttachments.length > 0) {
+        this.existingFixAttachments = savedData.existingAttachments;
+        // วิเคราะห์ไฟล์ที่เก็บไว้
+        setTimeout(() => {
+          this.analyzeAllExistingAttachments();
+        }, 100);
+      }
+
+      console.log('✅ Support form data restored successfully');
+
+    } catch (error) {
+      console.error('Error restoring persisted data:', error);
+      // ลบข้อมูลที่เสียหาย
+      if (this.ticket_no && this.currentUserId) {
+        localStorage.removeItem(this.getStorageKey());
+      }
+    }
+  }
+
+  /**
+ * 🆕 บันทึกข้อมูลทั้งหมดลง LocalStorage
+ * ⚠️ เปลี่ยนเป็น public เพราะถูกเรียกจาก template
+ */
+  public persistAllFormData(): void {  // ✅ เปลี่ยนจาก private เป็น public
+    try {
+      if (!this.ticket_no || !this.currentUserId) {
+        console.log('Cannot persist: no ticket_no or userId');
+        return;
+      }
+
+      if (!this.hasFormData()) {
+        // ถ้าไม่มีข้อมูลในฟอร์ม ให้ลบที่เก็บไว้
+        localStorage.removeItem(this.getStorageKey());
+        console.log('🗑️ Removed empty form data from storage');
+        return;
+      }
+
+      const dataToSave: SupportFormPersistenceData = {
+        ticket_no: this.ticket_no,
+        formData: {
+          action: this.supporterForm.value.action || '',
+          estimate_time: this.estimateTime || this.supporterForm.value.estimate_time,
+          due_date: this.supporterForm.value.due_date || '',
+          lead_time: this.leadTime || this.supporterForm.value.lead_time,
+          close_estimate: this.supporterForm.value.close_estimate || '',
+          fix_issue_description: this.supporterForm.value.fix_issue_description || '',
+          related_ticket_id: this.supporterForm.value.related_ticket_id || ''
+        },
+        selectedAssigneeId: this.selectedAssigneeId,
+        existingAttachments: this.existingFixAttachments || [],
+        timestamp: Date.now(),
+        userId: this.currentUserId
+      };
+
+      const storageKey = this.getStorageKey();
+      localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+
+      console.log('💾 Support form data persisted:', {
+        ticket_no: this.ticket_no,
+        hasFormData: true,
+        timestamp: new Date(dataToSave.timestamp).toLocaleString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error persisting form data:', error);
+      // ถ้า localStorage เต็ม ให้ลบข้อมูลเก่า
+      this.cleanupOldPersistedData();
+    }
+  }
+
+  /**
+   * 🆕 สร้าง storage key ที่ unique
+   */
+  private getStorageKey(): string {
+    return `${this.PERSISTENCE_KEY_PREFIX}${this.ticket_no}_${this.currentUserId}`;
+  }
+
+  /**
+   * 🆕 ลบข้อมูลเก่าที่ไม่ใช้แล้ว
+   */
+  private cleanupOldPersistedData(): void {
+    try {
+      const keysToRemove: string[] = [];
+      const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(this.PERSISTENCE_KEY_PREFIX)) {
+          try {
+            const dataStr = localStorage.getItem(key);
+            if (dataStr) {
+              const data: SupportFormPersistenceData = JSON.parse(dataStr);
+              const age = Date.now() - data.timestamp;
+
+              if (age > maxAge) {
+                keysToRemove.push(key);
+              }
+            }
+          } catch {
+            keysToRemove.push(key);
+          }
+        }
+      }
+
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log('🗑️ Removed old persisted data:', key);
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`✅ Cleaned up ${keysToRemove.length} old storage entries`);
+      }
+
+    } catch (error) {
+      console.error('Error cleaning up old data:', error);
+    }
+  }
+
+  /**
+   * 🆕 ตรวจสอบว่ามีข้อมูลที่บันทึกไว้สำหรับ ticket นี้หรือไม่
+   */
+  private hasPersistedDataForCurrentTicket(): boolean {
+    if (!this.ticket_no || !this.currentUserId) {
+      return false;
+    }
+
+    const storageKey = this.getStorageKey();
+    const savedDataStr = localStorage.getItem(storageKey);
+
+    if (!savedDataStr) {
+      return false;
+    }
+
+    try {
+      const savedData: SupportFormPersistenceData = JSON.parse(savedDataStr);
+      return savedData.ticket_no === this.ticket_no &&
+        savedData.userId === this.currentUserId;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+ * 🆕 ดูข้อมูลที่บันทึกไว้ทั้งหมด (สำหรับ debug)
+ * ⚠️ เป็น public เพราะถูกเรียกจาก template
+ */
+  public getPersistedDataInfo(): any {  // ✅ เปลี่ยนจาก private เป็น public (ถ้ายังไม่ได้เปลี่ยน)
+    if (!this.ticket_no || !this.currentUserId) {
+      return null;
+    }
+
+    const storageKey = this.getStorageKey();
+    const savedDataStr = localStorage.getItem(storageKey);
+
+    if (!savedDataStr) {
+      return null;
+    }
+
+    try {
+      const savedData: SupportFormPersistenceData = JSON.parse(savedDataStr);
+      return {
+        ticket_no: savedData.ticket_no,
+        userId: savedData.userId,
+        hasFormData: !!savedData.formData,
+        hasAssignee: !!savedData.selectedAssigneeId,
+        attachmentCount: savedData.existingAttachments?.length || 0,
+        timestamp: new Date(savedData.timestamp).toLocaleString(),
+        ageInMinutes: Math.floor((Date.now() - savedData.timestamp) / (1000 * 60))
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // ===== Backend Data Loading Methods (✅ ส่วนใหม่) =====
+
+  /**
+ * 🔄 โหลดข้อมูล ticket จาก backend API
+ * ⚠️ เปลี่ยนเป็น public เพื่อให้เรียกจาก debug button ได้
+ */
+  public loadTicketDataFromBackend(): void {  // ✅ เปลี่ยนจาก private เป็น public
+    if (!this.ticket_no) {
+      console.warn('No ticket_no provided');
+      return;
+    }
+
+    this.isLoadingTicketData = true;
+    this.supporterFormState.error = null;
+
+    const request: GetTicketDataRequest = {
+      ticket_no: this.ticket_no
+    };
+
+    console.log('📥 Loading ticket data from backend:', request);
+
+    this.apiService.getTicketData(request).subscribe({
+      next: (response: GetTicketDataResponse) => {
+        console.log('✅ Loaded ticket data from backend:', response);
+
+        if (response.code === 1 && response.data) {
+          this.ticketData = this.transformBackendTicketData(response.data);
+
+          console.log('📦 Transformed ticket data:', this.ticketData);
+
+          // โหลด existing fix attachments
+          this.loadExistingFixAttachments();
+
+          // 🆕 ตรวจสอบว่ามีข้อมูลที่บันทึกไว้หรือไม่
+          const hasPersistedData = this.hasPersistedDataForCurrentTicket();
+
+          if (hasPersistedData) {
+            console.log('📂 Found persisted data, restoring...');
+            this.restoreAllPersistedData();
+          } else {
+            console.log('📝 No persisted data, loading from ticket');
+            this.updateFormWithTicketData();
+          }
+
+        } else {
+          console.warn('⚠️ Backend returned error:', response.message);
+          this.supporterFormState.error = response.message || 'ไม่สามารถโหลดข้อมูล ticket ได้';
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error loading ticket data:', error);
+        this.supporterFormState.error = 'เกิดข้อผิดพลาดในการโหลดข้อมูล ticket';
+
+        // 🆕 ลองโหลดจาก persisted data
+        const hasPersistedData = this.hasPersistedDataForCurrentTicket();
+        if (hasPersistedData) {
+          console.log('📂 Loading from persisted data due to API error');
+          this.restoreAllPersistedData();
+        }
+      },
+      complete: () => {
+        this.isLoadingTicketData = false;
+        console.log('✅ Ticket data loading complete');
+      }
+    });
+  }
+
+  /**
+   * ✅ NEW: แปลงข้อมูลจาก backend API response เป็น format ของ component
+   */
+  private transformBackendTicketData(backendData: any): TicketData {
+    console.log('🔄 Transforming backend data:', backendData);
+
+    return {
+      ticket: backendData.ticket || null,
+      issue_attachment: backendData.issue_attachment || [],
+      fix_attachment: backendData.fix_attachment || [],
+      status_history: backendData.status_history || [],
+      assign: backendData.assign || []
+    };
+  }
+
+  /**
+   * ✅ NEW: รีเฟรช ticket data จาก backend
+   */
+  private refreshTicketData(): void {
+    console.log('🔄 Refreshing ticket data from backend');
+    this.loadTicketDataFromBackend();
+  }
+
+  // ===== Public Methods for Parent Component (✅ ส่วนใหม่) =====
+
+  /**
+   * ✅ NEW: โหลดข้อมูล ticket ใหม่จาก backend (เรียกจาก parent component)
+   * @param ticketNo - หมายเลข ticket ที่ต้องการโหลด
+   */
+  public loadTicket(ticketNo: string): void {
+    console.log('📥 Loading ticket:', ticketNo);
+    this.ticket_no = ticketNo;
+    this.loadTicketDataFromBackend();
+  }
+
+  /**
+   * ✅ NEW: รีเฟรช ticket data ปัจจุบัน (เรียกจาก parent component)
+   */
+  public refreshCurrentTicket(): void {
+    console.log('🔄 Refreshing current ticket');
+    if (this.ticket_no) {
+      this.refreshTicketData();
+    } else {
+      console.warn('⚠️ No ticket_no available to refresh');
+    }
+  }
+
+  /**
+   * ✅ NEW: ดึงสถานะการโหลด
+   */
+  public isLoading(): boolean {
+    return this.isLoadingTicketData;
+  }
+
+  /**
+   * ✅ NEW: ดึงข้อมูล ticket ปัจจุบัน
+   */
+  public getCurrentTicketData(): TicketData | null {
+    return this.ticketData;
+  }
+
+  /**
+   * ✅ NEW: ตรวจสอบว่ามีข้อมูล ticket หรือไม่
+   */
+  public hasTicketData(): boolean {
+    return !!this.ticketData?.ticket;
   }
 
   // ===== Fix Issue Attachment Methods =====
@@ -419,50 +871,48 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     console.log('=== Fix Attachment Data ===');
     console.log('API URL:', this.apiUrl);
+    console.log('Raw fix_attachment data:', this.ticketData.fix_attachment);
 
     this.existingFixAttachments = this.ticketData.fix_attachment.map(att => {
-      console.log('Raw attachment:', att);
+      console.log('Processing attachment:', att);
 
-      // วิธีที่ 1: เช็คจาก extension
-      const extension = att.filename ?
-        att.filename.split('.').pop()?.toLowerCase() :
-        att.path.split('.').pop()?.toLowerCase();
+      // ✅ Backend ส่ง path มาเป็น full URL หรือ relative path
+      let previewUrl: string | undefined = undefined;
+      let isImage = false;
+
+      // ตรวจสอบ extension
+      const extension = att.filename
+        ? att.filename.split('.').pop()?.toLowerCase()
+        : att.path.split('.').pop()?.toLowerCase();
 
       const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-      let isImage = imageExtensions.includes(extension || '');
+      isImage = imageExtensions.includes(extension || '');
 
-      // ✅ วิธีที่ 2: ถ้าไม่มี extension ให้เช็คจาก file_type
-      if (!isImage && att.file_type) {
-        isImage = att.file_type.toLowerCase().includes('image');
-      }
-
-      // ✅ วิธีที่ 3: ถ้า path มี /images/ ก็น่าจะเป็นรูปภาพ
-      if (!isImage && att.path) {
-        isImage = att.path.includes('/images/');
-      }
-
-      let previewUrl: string | undefined = undefined;
+      // ✅ สร้าง preview URL
       if (isImage) {
+        // ถ้า path เป็น absolute URL ใช้เลย
         if (att.path.startsWith('http://') || att.path.startsWith('https://')) {
           previewUrl = att.path;
         } else {
+          // ถ้าเป็น relative path ให้ใส่ apiUrl ข้างหน้า
           previewUrl = `${this.apiUrl}${att.path.startsWith('/') ? '' : '/'}${att.path}`;
         }
       }
 
-      const mappedAttachment = {
+      const mappedAttachment: ExistingAttachment = {
         ...att,
         is_image: isImage,
-        preview_url: previewUrl
+        preview_url: previewUrl,
+        download_url: this.getAttachmentDownloadUrl(att)
       };
 
       console.log('Mapped attachment:', mappedAttachment);
-
       return mappedAttachment;
     });
 
-    console.log('Loaded existing fix attachments:', this.existingFixAttachments);
+    console.log('✅ Loaded existing fix attachments:', this.existingFixAttachments.length, 'files');
 
+    // วิเคราะห์ไฟล์ทั้งหมด
     setTimeout(() => {
       this.analyzeAllExistingAttachments();
     }, 100);
@@ -955,6 +1405,50 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
+  async onRemoveExistingAttachment(attachment: { attachment_id: number;[k: string]: any; }): Promise<void> {
+    if (!attachment?.attachment_id) return;
+    if (!this.isFormReady() || this.supporterFormState.isSaving) return;
+
+
+    const ok = window.confirm('ยืนยันการลบไฟล์แนบนี้หรือไม่?');
+    if (!ok) return;
+
+
+    const id = attachment.attachment_id;
+    this.deletingAttachmentIds.add(id);
+
+
+    try {
+      // If you already have an ApiService.delete<T>, use it.
+      // Otherwise see the tiny addition for api.service.ts below.
+      await this.apiService
+        .delete<any>(`fix_issue/${id}`)
+        .toPromise();
+
+
+      // Remove from local list
+      this.existingFixAttachments = this.existingFixAttachments.filter(a => a.attachment_id !== id);
+
+
+      // Optional success message
+      this.supporterFormState.successMessage = 'ลบไฟล์แนบเรียบร้อย';
+      setTimeout(() => (this.supporterFormState.successMessage = ''), 2000);
+    } catch (err: any) {
+      this.supporterFormState.error = err?.message || 'ไม่สามารถลบไฟล์ได้';
+      setTimeout(() => (this.supporterFormState.error = ''), 2500);
+    } finally {
+      this.deletingAttachmentIds.delete(id);
+    }
+  }
+
+  onFileSelected(evt: Event): void {
+    const input = evt.target as HTMLInputElement;
+    if (!input?.files?.length) return;
+    this.addSelectedFiles(input.files);
+    // clear input so user can pick the same file again if needed
+    input.value = '';
+  }
+
   /**
    * ได้รับสีตามประเภทไฟล์
    */
@@ -1162,6 +1656,9 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
+  /**
+   * 🔄 ปรับปรุง setupFormPersistence - เพิ่มการบันทึกอัตโนมัติ
+   */
   private setupFormPersistence(): void {
     let saveTimeout: any = null;
 
@@ -1170,10 +1667,20 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         clearTimeout(saveTimeout);
       }
 
+      // 🆕 Auto-save หลังจาก 2 วินาที
       saveTimeout = setTimeout(() => {
-        this.persistFormData();
-      }, 1000);
+        this.persistAllFormData();
+      }, 2000);
     });
+  }
+
+  /**
+   * 🆕 เมื่อเลือก assignee
+   */
+  onAssigneeChanged(): void {
+    setTimeout(() => {
+      this.persistAllFormData();
+    }, 100);
   }
 
   private persistFormData(): void {
@@ -1301,43 +1808,34 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return true;
   }
 
+  // 9️⃣ แก้ไข onTicketDataChanged() - เพิ่มการโหลด assignee
   private onTicketDataChanged(): void {
-    console.log('🔍 onTicketDataChanged called');
-    console.log('=== OnTicketDataChanged Debug ===');
-    console.log('State:', {
-      hasTicket: !!this.ticketData?.ticket,
-      justSaved: this.justSaved,
-      hasPersistedData: !!localStorage.getItem(this.formPersistenceKey),
-      currentFormData: this.hasFormData()
-    });
+    console.log('📄 onTicketDataChanged called');
 
     this.supporterFormState.error = null;
     if (!this.justSaved) {
       this.supporterFormState.successMessage = null;
     }
 
+    // ✅ โหลด existing attachments
     this.loadExistingFixAttachments();
 
+    // ✅ Build action dropdown
     if (this.ticketData?.ticket && this.statusList.length > 0) {
       this.buildActionDropdownOptions();
     }
 
+    // ✅ Calculate real-time values
     this.calculateRealtime();
 
     if (this.ticketData?.ticket) {
       if (this.justSaved) {
+        console.log('📝 Just saved - updating form after save');
         this.updateFormAfterSave();
-      } else if (this.formStateSnapshot && !this.hasFormData()) {
-        console.log('Restoring from snapshot');
-        this.restoreFormSnapshot();
-      } else if (!this.hasFormData()) {
-        this.restorePersistedFormData();
-        if (!this.hasFormData()) {
-          console.log('Loading from ticket data');
-          this.updateFormWithTicketData();
-        }
       } else {
-        console.log('Keeping current form data');
+        // ✅ โหลดข้อมูลจาก ticket data เสมอ
+        console.log('📥 Loading data from ticket');
+        this.updateFormWithTicketData();
       }
     }
 
@@ -1374,69 +1872,197 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     this.calculateRealtime();
   }
 
-  private updateFormWithTicketData(): void {
-    if (!this.ticketData?.ticket) return;
-
-    const ticket = this.ticketData.ticket;
-    const currentFormValue = this.supporterForm.value;
-
-    console.log('Updating form with ticket data:', {
-      ticket: {
-        estimate_time: ticket.estimate_time,
-        due_date: ticket.due_date,
-        lead_time: ticket.lead_time,
-        close_estimate: ticket.close_estimate,
-        fix_issue_description: ticket.fix_issue_description,
-        related_ticket_id: ticket.related_ticket_id
-      },
-      currentForm: currentFormValue,
-      justSaved: this.justSaved
-    });
-
-    const newFormValue = {
-      action: currentFormValue.action || '',
-      estimate_time: this.parseNumberField(ticket.estimate_time),
-      due_date: this.formatDateTimeForInput(ticket.due_date),
-      lead_time: this.parseNumberField(ticket.lead_time),
-      close_estimate: this.formatDateTimeForInput(ticket.close_estimate),
-      fix_issue_description: ticket.fix_issue_description || '',
-      related_ticket_id: ticket.related_ticket_id || ''
-    };
-
-    const patchData: any = {};
-    Object.keys(newFormValue).forEach(key => {
-      if (key === 'action') {
-        return;
-      }
-
-      const currentValue = currentFormValue[key];
-      const newValue = newFormValue[key as keyof typeof newFormValue];
-
-      if (!currentValue || currentValue === '') {
-        patchData[key] = newValue;
-      }
-    });
-
-    if (Object.keys(patchData).length > 0) {
-      this.supporterForm.patchValue(patchData);
-      console.log('Patched form with:', patchData);
+  // 1️⃣ แก้ไข updateFormWithTicketData() - เพิ่มการดึง action และ assignee
+  public updateFormWithTicketData(): void {
+    if (!this.ticketData?.ticket) {
+      console.warn('No ticket data to load');
+      return;
     }
 
+    const ticket = this.ticketData.ticket;
+
+    console.log('📋 Loading ticket data into form:', {
+      ticket_no: ticket.ticket_no,
+      status_id: ticket.status_id,
+      status_name: ticket.status_name,
+      close_estimate: ticket.close_estimate,
+      due_date: ticket.due_date,
+      estimate_time: ticket.estimate_time,
+      lead_time: ticket.lead_time,
+      fix_issue_description: ticket.fix_issue_description,
+      related_ticket_id: ticket.related_ticket_id,
+      assign_data: this.ticketData.assign // ✅ เพิ่ม
+    });
+
+    // ✅ แปลง dates
+    const closeEstimateFormatted = this.formatDateTimeForInput(ticket.close_estimate);
+    const dueDateFormatted = this.formatDateTimeForInput(ticket.due_date);
+
+    // ✅ Parse numbers
+    const estimateTime = this.parseNumberField(ticket.estimate_time);
+    const leadTime = this.parseNumberField(ticket.lead_time);
+
+    // ✅ NEW: ดึง current status_id มาตั้งค่าใน action dropdown
+    const currentStatusId = ticket.status_id;
+
+    // ✅ สร้าง form value พร้อม status_id
+    const formValue = {
+      action: currentStatusId ? currentStatusId.toString() : '', // ✅ ตั้งค่า action ตาม status_id ปัจจุบัน
+      estimate_time: estimateTime,
+      due_date: dueDateFormatted,
+      lead_time: leadTime,
+      close_estimate: closeEstimateFormatted,
+      fix_issue_description: ticket.fix_issue_description || '',
+      related_ticket_id: ticket.related_ticket_id?.toString() || ''
+    };
+
+    console.log('📋 Form value to patch (with action):', formValue);
+
+    // ✅ Patch form
+    this.supporterForm.patchValue(formValue, { emitEvent: false });
+
+    // ✅ Set calculated values
+    if (estimateTime !== null && estimateTime !== undefined) {
+      this.estimateTime = estimateTime;
+    }
+    if (leadTime !== null && leadTime !== undefined) {
+      this.leadTime = leadTime;
+    }
+
+    // ✅ NEW: ดึงข้อมูล assignee จาก assign array
+    this.loadAssigneeFromTicketData();
+
+    console.log('✅ Form patched successfully:', {
+      formValue: this.supporterForm.value,
+      estimateTime: this.estimateTime,
+      leadTime: this.leadTime,
+      currentStatusId: currentStatusId,
+      assignee: this.selectedAssigneeId
+    });
+
+    // ✅ Validate form
     this.validateSupporterForm();
-    this.calculateRealtime();
   }
 
+  // 2️⃣ NEW: เพิ่ม method สำหรับดึงข้อมูล assignee
+  private loadAssigneeFromTicketData(): void {
+    if (!this.ticketData?.assign || this.ticketData.assign.length === 0) {
+      console.log('📋 No assignee data found');
+      this.selectedAssigneeId = null;
+      return;
+    }
+
+    // ✅ ดึงข้อมูล assignee ล่าสุด (อันสุดท้ายใน array)
+    const latestAssign = this.ticketData.assign[this.ticketData.assign.length - 1];
+    const assignToName = latestAssign.assignTo;
+
+    console.log('📋 Found assignee from ticket data:', {
+      assignTo: assignToName,
+      assignBy: latestAssign.assignBy,
+      ticket_no: latestAssign.ticket_no
+    });
+
+    // ✅ หา user ID จากชื่อใน assignee list
+    if (this.assigneeList && this.assigneeList.length > 0) {
+      const matchedUser = this.assigneeList.find(user => {
+        const fullName = this.getUserFullName(user);
+        return fullName === assignToName || user.username === assignToName;
+      });
+
+      if (matchedUser) {
+        this.selectedAssigneeId = matchedUser.id;
+        console.log('✅ Matched assignee:', {
+          id: matchedUser.id,
+          name: this.getUserFullName(matchedUser),
+          username: matchedUser.username
+        });
+      } else {
+        console.warn('⚠️ Could not find matching user in assignee list for:', assignToName);
+        // ✅ เก็บชื่อไว้ใน temporary variable สำหรับแสดง
+        this.tempAssigneeName = assignToName;
+      }
+    } else {
+      console.log('⏳ Assignee list not loaded yet, will retry later');
+      // ✅ เก็บชื่อไว้ใน temporary variable
+      this.tempAssigneeName = assignToName;
+
+      // ✅ ลองโหลด assignee list อีกครั้ง
+      this.retryLoadAssignee();
+    }
+  }
+
+  // 3️⃣ NEW: เพิ่ม property สำหรับเก็บชื่อ assignee ชั่วคระ
+  private tempAssigneeName: string | null = null;
+
+  // 4️⃣ NEW: Helper method สำหรับดึงชื่อเต็มของ user
+  private getUserFullName(user: any): string {
+    // ลองดึงจาก full_name ก่อน
+    if (user.full_name) {
+      return user.full_name;
+    }
+
+    // ลองดึงจาก name (สำหรับ Role9User)
+    if (user.name) {
+      return user.name;
+    }
+
+    // สร้างจาก firstname + lastname
+    const parts: string[] = [];
+    if (user.firstname) parts.push(user.firstname);
+    if (user.lastname) parts.push(user.lastname);
+
+    if (parts.length > 0) {
+      return parts.join(' ');
+    }
+
+    // Fallback ไปที่ username หรือ ID
+    return user.username || `User ${user.id}`;
+  }
+
+  // 5️⃣ NEW: Retry logic สำหรับโหลด assignee
+  private retryLoadAssignee(): void {
+    // ✅ รอให้ assignee list โหลดเสร็จก่อน
+    setTimeout(() => {
+      if (this.assigneeList && this.assigneeList.length > 0 && this.tempAssigneeName) {
+        console.log('🔄 Retrying assignee matching with loaded list');
+        this.loadAssigneeFromTicketData();
+      }
+    }, 500);
+  }
+
+  /**
+ * ✅ Parse number field จาก backend
+ */
   private parseNumberField(value: any): number | null {
+    // ✅ Handle null, undefined, empty string
     if (value === null || value === undefined || value === '' || value === 'null') {
+      console.log('Empty number field:', value);
       return null;
     }
 
-    const parsed = typeof value === 'string' ? parseInt(value) : Number(value);
-    return isNaN(parsed) ? null : parsed;
+    // ✅ Parse เป็น number
+    const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+
+    if (isNaN(parsed)) {
+      console.warn('Invalid number:', value);
+      return null;
+    }
+
+    console.log('Parsed number:', {
+      input: value,
+      output: parsed
+    });
+
+    return parsed;
   }
 
+  /**
+ * 🔄 ปรับปรุง: แปลง date string จาก backend เป็น format สำหรับ input[type="datetime-local"]
+ * Format ที่ต้องการ: YYYY-MM-DDTHH:mm
+ */
   private formatDateTimeForInput(dateString: string | null | undefined): string {
     if (!dateString || dateString === 'null' || dateString === 'undefined') {
+      console.log('Empty date string:', dateString);
       return '';
     }
 
@@ -1444,26 +2070,37 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       let date: Date;
 
       if (typeof dateString === 'string') {
+        // ✅ รองรับทั้ง ISO format และ format ที่มี space
         const normalizedDateString = dateString.replace(' ', 'T');
         date = new Date(normalizedDateString);
       } else {
         date = new Date(dateString);
       }
 
+      // ✅ ตรวจสอบว่า date ถูกต้อง
       if (isNaN(date.getTime())) {
         console.warn('Invalid date string:', dateString);
         return '';
       }
 
+      // ✅ แปลงเป็น local time zone
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
 
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+      console.log('Formatted date:', {
+        input: dateString,
+        output: formatted
+      });
+
+      return formatted;
+
     } catch (error) {
-      console.warn('Error formatting date for input:', dateString, error);
+      console.error('Error formatting date for input:', dateString, error);
       return '';
     }
   }
@@ -1484,41 +2121,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       this.selectedFiles.length > 0 ||
       this.selectedAssigneeId
     );
-  }
-
-  clearAllFormData(): void {
-    console.log('Clearing all form data');
-
-    localStorage.removeItem(this.formPersistenceKey);
-
-    this.justSaved = false;
-    this.formDataBeforeRefresh = null;
-    this.formStateSnapshot = null;
-    this.isRefreshing = false;
-    this.lastFormSnapshot = null;
-
-    this.supporterForm.reset();
-    this.selectedFiles = [];
-    this.fileUploadProgress = [];
-    this.selectedAssigneeId = null;
-
-    this.estimateTime = 0;
-    this.leadTime = 0;
-
-    this.supporterFormState.error = null;
-    this.supporterFormState.successMessage = null;
-
-    this.supporterFormValidation = {
-      estimate_time: { isValid: true },
-      due_date: { isValid: true },
-      lead_time: { isValid: true },
-      close_estimate: { isValid: true },
-      fix_issue_description: { isValid: true },
-      related_ticket_id: { isValid: true },
-      attachments: { isValid: true }
-    };
-
-    console.log('Form cleared completely including persisted data');
   }
 
   refreshForm(): void {
@@ -1728,6 +2330,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
+  // 8️⃣ แก้ไข buildActionDropdownOptions() - แสดง current status ด้วย
   private buildActionDropdownOptions(): void {
     if (!this.statusList || this.statusList.length === 0) {
       this.buildDefaultActionOptions();
@@ -1737,20 +2340,29 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     const currentStatusId = this.getCurrentStatusId();
     console.log('Building action options for current status:', currentStatusId);
 
+    // ✅ FIXED: เพิ่ม current status เข้าไปใน options ด้วย (แต่ disabled)
+    const currentStatus = this.statusList.find(s => s.id === currentStatusId);
+
     this.actionDropdownOptions = this.statusList
       .filter(status => {
-        const canChange = canChangeStatus(currentStatusId, status.id);
-        const isNotCurrent = status.id !== currentStatusId;
-        return canChange && isNotCurrent;
+        // ✅ แสดงทุก status แต่ disable ตัวที่ไม่สามารถเปลี่ยนได้
+        return true;
       })
-      .map(status => ({
-        value: status.id.toString(),
-        label: status.name,
-        statusId: status.id,
-        disabled: false
-      }));
+      .map(status => {
+        const canChange = canChangeStatus(currentStatusId, status.id);
+        const isCurrent = status.id === currentStatusId;
+
+        return {
+          value: status.id.toString(),
+          label: status.name + (isCurrent ? ' (ปัจจุบัน)' : ''),
+          statusId: status.id,
+          disabled: !canChange || isCurrent // ✅ disable current status และ status ที่เปลี่ยนไม่ได้
+        };
+      });
 
     this.sortActionOptions();
+
+    console.log('✅ Action dropdown built with options:', this.actionDropdownOptions);
   }
 
   private buildDefaultActionOptions(): void {
@@ -1830,9 +2442,50 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
+  // 6️⃣ แก้ไข initializeAssigneeList() - เรียก loadAssigneeFromTicketData หลังโหลดเสร็จ
   private initializeAssigneeList(): void {
     if (this.canAssignTicket()) {
-      this.refreshAssigneeList();
+      console.log('📋 Initializing assignee list...');
+
+      this.isLoadingAssignees = true;
+      this.assigneeError = '';
+      this.assigneeList = [];
+
+      this.apiService.getRole9Users().subscribe({
+        next: (response: Role9UsersResponse) => {
+          if (response && response.users && Array.isArray(response.users)) {
+            this.assigneeList = response.users.map(user => ({
+              id: user.id,
+              username: user.username || user.name || `user_${user.id}`,
+              firstname: user.firstname || '',
+              lastname: user.lastname || '',
+              email: user.email || '',
+              isenabled: true,
+              full_name: user.name || this.getUserFullName(user)
+            }));
+
+            console.log('✅ Assignee list loaded:', this.assigneeList.length, 'users');
+
+            // ✅ NEW: หลังโหลด assignee list เสร็จ ให้ลองจับคู่กับ ticket data อีกครั้ง
+            if (this.ticketData?.assign && this.ticketData.assign.length > 0) {
+              this.loadAssigneeFromTicketData();
+            }
+
+            if (this.assigneeList.length === 0) {
+              this.assigneeError = 'ไม่พบรายชื่อผู้รับมอบหมาย';
+            }
+          } else {
+            this.assigneeError = 'รูปแบบข้อมูลจาก API ไม่ถูกต้อง';
+          }
+        },
+        error: (error) => {
+          console.error('Error loading assignees:', error);
+          this.assigneeError = 'เกิดข้อผิดพลาดในการโหลดรายชื่อผู้รับมอบหมาย';
+        },
+        complete: () => {
+          this.isLoadingAssignees = false;
+        }
+      });
     }
   }
 
@@ -1884,73 +2537,150 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return `${getUserFullName(user)} (${user.id})`;
   }
 
+  // 7️⃣ แก้ไข getSelectedAssigneeName() - รองรับ temp name
   getSelectedAssigneeName(): string {
-    if (!this.selectedAssigneeId) return '';
-    const selectedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
-    return selectedUser ? getUserFullName(selectedUser) : '';
+    if (!this.selectedAssigneeId && !this.tempAssigneeName) {
+      return '';
+    }
+
+    // ✅ ถ้ามี selectedAssigneeId ให้ใช้จาก assignee list
+    if (this.selectedAssigneeId) {
+      const selectedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
+      return selectedUser ? this.getUserFullName(selectedUser) : '';
+    }
+
+    // ✅ ถ้าไม่มี ID แต่มี temp name ให้ใช้ temp name
+    return this.tempAssigneeName || '';
   }
 
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
+  // onFileSelected(event: Event): void {
+  //   const input = event.target as HTMLInputElement;
+  //   if (!input.files) return;
 
-    const files = Array.from(input.files);
-    const validation = this.ticketService.validateFiles(files, this.maxFiles);
+  //   const files = Array.from(input.files);
+  //   const validation = this.ticketService.validateFiles(files, this.maxFiles);
 
-    if (!validation.isValid) {
-      this.supporterFormState.error = validation.errors.join(', ');
-      input.value = '';
-      return;
+  //   if (!validation.isValid) {
+  //     this.supporterFormState.error = validation.errors.join(', ');
+  //     input.value = '';
+  //     return;
+  //   }
+
+  //   // ตรวจสอบจำนวนไฟล์รวม
+  //   if (this.selectedFiles.length + validation.validFiles.length > this.maxFiles) {
+  //     this.supporterFormState.error = `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`;
+  //     input.value = '';
+  //     return;
+  //   }
+
+  //   // Clear previous states for these files
+  //   validation.validFiles.forEach(file => {
+  //     if (this.filePreviewUrls[file.name] && this.filePreviewUrls[file.name].startsWith('blob:')) {
+  //       URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+  //     }
+  //   });
+
+  //   // สร้าง preview สำหรับไฟล์รูปภาพ
+  //   const imagePromises = validation.validFiles
+  //     .filter(file => this.ticketService.isImageFile(file))
+  //     .map(file =>
+  //       new Promise<void>((resolve) => {
+  //         const reader = new FileReader();
+  //         reader.onload = (e) => {
+  //           if (e.target?.result) {
+  //             this.filePreviewUrls[file.name] = e.target.result as string;
+  //           }
+  //           resolve();
+  //         };
+  //         reader.onerror = () => resolve();
+  //         reader.readAsDataURL(file);
+  //       })
+  //     );
+
+  //   Promise.all(imagePromises).then(() => {
+  //     this.selectedFiles = [...this.selectedFiles, ...validation.validFiles];
+  //     this.supporterFormState.error = null;
+
+  //     this.fileUploadProgress = this.selectedFiles.map(file => ({
+  //       filename: file.name,
+  //       progress: 0,
+  //       status: 'pending'
+  //     }));
+
+  //     console.log('Files selected with previews:', this.selectedFiles.length);
+  //   }).catch(error => {
+  //     console.error('Error processing file selection:', error);
+  //     this.supporterFormState.error = 'เกิดข้อผิดพลาดในการเลือกไฟล์';
+  //   });
+
+  //   input.value = '';
+  // }
+
+  /** Handle drag over */
+  onAttachmentsDragOver(evt: DragEvent): void {
+    evt.preventDefault();
+    evt.stopPropagation();
+    this.dragCounter++;
+    this.isDraggingFiles = true;
+  }
+
+  /** Handle drag leave */
+  onAttachmentsDragLeave(evt: DragEvent): void {
+    evt.preventDefault();
+    evt.stopPropagation();
+    this.dragCounter = Math.max(0, this.dragCounter - 1);
+    if (this.dragCounter === 0) {
+      this.isDraggingFiles = false;
     }
+  }
 
-    // ตรวจสอบจำนวนไฟล์รวม
-    if (this.selectedFiles.length + validation.validFiles.length > this.maxFiles) {
-      this.supporterFormState.error = `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`;
-      input.value = '';
-      return;
-    }
+  /** Handle drop */
+  onAttachmentsDrop(evt: DragEvent): void {
+    evt.preventDefault();
+    evt.stopPropagation();
+    this.dragCounter = 0;
+    this.isDraggingFiles = false;
 
-    // Clear previous states for these files
-    validation.validFiles.forEach(file => {
-      if (this.filePreviewUrls[file.name] && this.filePreviewUrls[file.name].startsWith('blob:')) {
-        URL.revokeObjectURL(this.filePreviewUrls[file.name]);
+
+    if (!this.isFormReady() || this.supporterFormState.isSaving) return;
+    if (!evt.dataTransfer || !evt.dataTransfer.files?.length) return;
+
+
+    const files = Array.from(evt.dataTransfer.files);
+    this.addSelectedFiles(files);
+  }
+
+  /** Add files to selectedFiles with basic validation and maxFiles guard */
+  private addSelectedFiles(files: File[] | FileList): void {
+    const list = Array.isArray(files) ? files : Array.from(files);
+
+
+    const allowedExt = [
+      'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'xlsx', 'csv'
+    ];
+
+
+    for (const file of list) {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!allowedExt.includes(ext)) {
+        // keep UX simple: we just skip invalid ones; you can surface a toast if you want
+        continue;
       }
-    });
 
-    // สร้าง preview สำหรับไฟล์รูปภาพ
-    const imagePromises = validation.validFiles
-      .filter(file => this.ticketService.isImageFile(file))
-      .map(file =>
-        new Promise<void>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            if (e.target?.result) {
-              this.filePreviewUrls[file.name] = e.target.result as string;
-            }
-            resolve();
-          };
-          reader.onerror = () => resolve();
-          reader.readAsDataURL(file);
-        })
-      );
 
-    Promise.all(imagePromises).then(() => {
-      this.selectedFiles = [...this.selectedFiles, ...validation.validFiles];
-      this.supporterFormState.error = null;
+      if (this.maxFiles && this.selectedFiles.length >= this.maxFiles) {
+        break; // reached the limit
+      }
 
-      this.fileUploadProgress = this.selectedFiles.map(file => ({
-        filename: file.name,
-        progress: 0,
-        status: 'pending'
-      }));
 
-      console.log('Files selected with previews:', this.selectedFiles.length);
-    }).catch(error => {
-      console.error('Error processing file selection:', error);
-      this.supporterFormState.error = 'เกิดข้อผิดพลาดในการเลือกไฟล์';
-    });
+      // avoid obvious duplicates (same name+size)
+      if (this.selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+        continue;
+      }
 
-    input.value = '';
+
+      this.selectedFiles.push(file);
+    }
   }
 
   removeSelectedFile(index: number): void {
@@ -1975,37 +2705,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private validateSupporterForm(): void {
     const formValue = this.supporterForm.value;
 
-    this.supporterFormValidation = {
-      estimate_time: { isValid: true },
-      due_date: { isValid: true },
-      lead_time: { isValid: true },
-      close_estimate: { isValid: true },
-      fix_issue_description: { isValid: true },
-      related_ticket_id: { isValid: true },
-      attachments: { isValid: true }
-    };
-
-    if (formValue.estimate_time !== null && formValue.estimate_time !== '') {
-      const estimateTime = parseInt(formValue.estimate_time);
-      if (isNaN(estimateTime) || estimateTime < 0 || estimateTime > 1000) {
-        this.supporterFormValidation.estimate_time = {
-          isValid: false,
-          error: 'เวลาประมาณการต้องอยู่ระหว่าง 0-1000 ชั่วโมง'
-        };
-      }
-    }
-
-    if (formValue.lead_time !== null && formValue.lead_time !== '') {
-      const leadTime = parseInt(formValue.lead_time);
-      if (isNaN(leadTime) || leadTime < 0 || leadTime > 10000) {
-        this.supporterFormValidation.lead_time = {
-          isValid: false,
-          error: 'เวลาที่ใช้จริงต้องอยู่ระหว่าง 0-10000 ชั่วโมง'
-        };
-      }
-    }
-
-    if (formValue.due_date) {
+    // ✅ Due date validation - เฉพาะเมื่อ dirty/touched
+    if (formValue.due_date && this.supporterForm.get('due_date')?.dirty) {
       const dueDate = new Date(formValue.due_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -2015,10 +2716,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
           isValid: false,
           error: 'วันครบกำหนดต้องไม่เป็นวันที่ผ่านมาแล้ว'
         };
+      } else {
+        this.supporterFormValidation.due_date = { isValid: true };
       }
+    } else {
+      this.supporterFormValidation.due_date = { isValid: true };
     }
 
-    if (formValue.close_estimate) {
+    // ✅ Close estimate validation - เฉพาะเมื่อ dirty/touched
+    if (formValue.close_estimate && this.supporterForm.get('close_estimate')?.dirty) {
       const closeDate = new Date(formValue.close_estimate);
       const now = new Date();
 
@@ -2027,21 +2733,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
           isValid: false,
           error: 'เวลาประมาณการปิดต้องไม่เป็นเวลาที่ผ่านมาแล้ว'
         };
+      } else {
+        this.supporterFormValidation.close_estimate = { isValid: true };
       }
-    }
-
-    if (formValue.fix_issue_description && formValue.fix_issue_description.length > 5000) {
-      this.supporterFormValidation.fix_issue_description = {
-        isValid: false,
-        error: 'รายละเอียดการแก้ไขต้องไม่เกิน 5000 ตัวอักษร'
-      };
-    }
-
-    if (this.selectedFiles.length > this.maxFiles) {
-      this.supporterFormValidation.attachments = {
-        isValid: false,
-        error: `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`
-      };
+    } else {
+      this.supporterFormValidation.close_estimate = { isValid: true };
     }
   }
 
@@ -2227,6 +2923,9 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     });
   }
 
+  /**
+   * 🔄 ปรับปรุง handleUnifiedSaveResult - ลบ persisted data เมื่อบันทึกสำเร็จ
+   */
   private handleUnifiedSaveResult(
     supporterSuccess: boolean,
     assignSuccess: boolean,
@@ -2236,7 +2935,14 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     const allSuccess = (!hadSupporterChanges || supporterSuccess) && (!hadAssigneeSelected || assignSuccess);
 
     if (allSuccess) {
-      console.log('Save successful - preserving form data');
+      console.log('✅ Save successful - refreshing form data');
+
+      // ✅ NEW: ลบข้อมูลที่บันทึกไว้เมื่อบันทึกสำเร็จ
+      if (this.ticket_no && this.currentUserId) {
+        const storageKey = this.getStorageKey();
+        localStorage.removeItem(storageKey);
+        console.log('🗑️ Cleared persisted data after successful save');
+      }
 
       localStorage.removeItem(this.formPersistenceKey);
       this.lastFormSnapshot = null;
@@ -2250,6 +2956,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
       this.supporterForm.patchValue({ action: '' });
 
+      // ✅ CRITICAL: รีเฟรชข้อมูล ticket หลังบันทึก
       this.refreshRequired.emit();
 
       this.supporterFormState.successMessage = 'บันทึกข้อมูลสำเร็จแล้ว';
@@ -2430,17 +3137,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return this.ticketData?.ticket?.status_id || 1;
   }
 
-  @HostListener('window:beforeunload', ['$event'])
-  unloadNotification($event: any): void {
-    if (this.hasFormData()) {
-      this.persistFormData();
-
-      if (!this.justSaved) {
-        $event.returnValue = 'คุณมีข้อมูลที่ยังไม่ได้บันทึก ระบบจะเก็บข้อมูลไว้ให้คุณเมื่อกลับมา';
-      }
-    }
-  }
-
   getFormDebugInfo() {
     const persistenceStatus = this.getFormPersistenceStatus();
 
@@ -2457,5 +3153,21 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       leadTime: this.leadTime,
       openTicketDate: this.getOpenTicketDate()
     };
+  }
+
+  /**
+ * 🆕 เพิ่ม method สำหรับ debug form state
+ */
+  public debugFormState(): void {
+    console.log('=== FORM STATE DEBUG ===');
+    console.log('Ticket Data:', this.ticketData);
+    console.log('Form Value:', this.supporterForm?.value);
+    console.log('Form Valid:', this.supporterForm?.valid);
+    console.log('Form Errors:', this.supporterForm?.errors);
+    console.log('Estimate Time:', this.estimateTime);
+    console.log('Lead Time:', this.leadTime);
+    console.log('Selected Assignee:', this.selectedAssigneeId);
+    console.log('Has Persisted Data:', this.hasPersistedDataForCurrentTicket());
+    console.log('======================');
   }
 }
