@@ -194,11 +194,18 @@ export interface GetAllTicketRequest {
 
 export interface GetAllTicketResponse {
   success: boolean;
-  data?: AllTicketData[];
   message?: string;
+  pagination: {
+    totalRows: number,
+    totalPages: number,
+    currentPage: number,
+    perPage: number
+  };
+  data?: AllTicketData[];
   debug?: {
     userId: number;
-    ticketCount: number;
+    currentPage: number;
+    totalTicket: number
   };
 }
 
@@ -1641,20 +1648,14 @@ export class ApiService {
    * เรียก API getAllTicket เพื่อดึงข้อมูล tickets ทั้งหมดของ user ปัจจุบัน
    * userId จะถูกดึงจาก JWT token อัตโนมัติ
    */
-  getAllTickets(): Observable<GetAllTicketResponse> {
-    console.log('Calling getAllTicket API');
+  getAllTickets(params: { page?: number; perPage?: number }): Observable<any> {
+    console.log('📡 Calling backend with GET params:', params);
 
-    const requestBody: GetAllTicketRequest = {};
-
-    return this.http.post<GetAllTicketResponse>(`${this.apiUrl}/getAllTicket`, requestBody, {
-      headers: this.getAuthHeaders()
+    return this.http.get(`${this.apiUrl}/getAllTicket`, {
+      params,
+      headers: this.getAuthHeaders(),
     }).pipe(
-      tap(response => {
-        console.log('getAllTicket API response:', response);
-        if (response.debug) {
-          console.log('Debug info:', response.debug);
-        }
-      }),
+      tap(res => console.log('✅ Response from backend:', res)),
       catchError(this.handleError)
     );
   }
@@ -1687,11 +1688,20 @@ export class ApiService {
   /**
    * ✅ ENHANCED: Fallback method ที่ใช้ข้อมูลจาก master filter มาช่วยเติมข้อมูล
    */
-  getAllTicketsWithDetails(): Observable<AllTicketData[]> {
-    return this.getAllTickets().pipe(
+  getAllTicketsWithDetails(params?: any): Observable<any> {
+    return this.getAllTickets(params).pipe( // ✅ ส่ง params เข้าฟังก์ชัน getAllTickets()
       switchMap(ticketResponse => {
         if (!ticketResponse.success || !ticketResponse.data) {
-          return of([]);
+          return of({
+            success: false,
+            data: [],
+            pagination: ticketResponse.pagination || {
+              currentPage: 1,
+              perPage: params?.perPage || 25,
+              totalRows: 0,
+              totalPages: 1
+            }
+          });
         }
 
         return this.getAllMasterFilter().pipe(
@@ -1699,46 +1709,86 @@ export class ApiService {
             const categories = masterResponse.data?.data?.categories || [];
             const projects = masterResponse.data?.data?.projects || [];
 
-            const enrichedTickets = ticketResponse.data!.map(ticket => ({
+            const enrichedTickets = (ticketResponse.data ?? []).map((ticket: any) => ({
               ...ticket,
-              categories_name: categories.find(c => String(c.id) === String(ticket.categories_id))?.name
-                || ticket.categories_name
-                || 'Unknown Category',
-              project_name: projects.find(p => String(p.id) === String(ticket.project_id))?.name
-                || ticket.project_name
-                || 'Unknown Project',
+              categories_name:
+                categories.find(c => String(c.id) === String(ticket.categories_id))?.name ||
+                ticket.categories_name ||
+                'Unknown Category',
+              project_name:
+                projects.find(p => String(p.id) === String(ticket.project_id))?.name ||
+                ticket.project_name ||
+                'Unknown Project',
               user_name: 'Current User',
               priority: ticket.priority || this.generateRandomPriority(),
               status_name: this.getCachedStatusName(ticket.status_id)
             }));
 
-
             this.cacheTickets(enrichedTickets);
-            return enrichedTickets;
+
+            return {
+              success: true,
+              data: enrichedTickets,
+              pagination: ticketResponse.pagination || {
+                currentPage: 1,
+                perPage: params?.perPage || 25,
+                totalRows: enrichedTickets.length,
+                totalPages: 1
+              }
+            };
           }),
           catchError(error => {
-            console.warn('Error loading master filter, using basic ticket data:', error);
-            const basicTickets = this.processTicketData(ticketResponse.data || []); // fallback []
+            console.warn('⚠️ Error loading master filter, using basic ticket data:', error);
+            const basicTickets = this.processTicketData(ticketResponse.data || []);
             this.cacheTickets(basicTickets);
-            return of(basicTickets);
+            return of({
+              success: true,
+              data: basicTickets,
+              pagination: ticketResponse.pagination || {
+                currentPage: 1,
+                perPage: params?.perPage || 25,
+                totalRows: basicTickets.length,
+                totalPages: 1
+              }
+            });
           })
         );
       }),
       catchError(error => {
-        console.error('Error in getAllTicketsWithDetails:', error);
+        console.error('❌ Error in getAllTicketsWithDetails:', error);
         const cachedTickets = this.getCachedTickets();
         if (cachedTickets) {
           console.log('📱 Using cached tickets as fallback');
-          this.addNotificationViaPWA('cache-used',
+          this.addNotificationViaPWA(
+            'cache-used',
             'ใช้ข้อมูลที่เก็บไว้',
-            'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้');
-          return of(cachedTickets);
+            'ไม่สามารถดึงข้อมูลใหม่ได้ กำลังใช้ข้อมูลที่เก็บไว้'
+          );
+          return of({
+            success: true,
+            data: cachedTickets,
+            pagination: {
+              currentPage: 1,
+              perPage: params?.perPage || 25,
+              totalRows: cachedTickets.length,
+              totalPages: 1
+            }
+          });
         }
-        return of([]);
+
+        return of({
+          success: false,
+          data: [],
+          pagination: {
+            currentPage: 1,
+            perPage: params?.perPage || 25,
+            totalRows: 0,
+            totalPages: 1
+          }
+        });
       })
     );
   }
-
 
   // ===== Get All Master Filter API ===== ✅
   /**
@@ -1872,7 +1922,7 @@ export class ApiService {
     formData.append('type', 'reporter');
 
     return this.http.patch<UpdateAttachmentResponse>(
-      `${this.apiUrl}/update_attachment/${data.ticket_id}`,
+      `${this.apiUrl}/updateAttachment`,
       formData,
       { headers: this.getMultipartHeaders() }
     ).pipe(
@@ -2428,5 +2478,18 @@ export class ApiService {
         });
       })
     );
+  }
+
+  // ✅ Export Excel (POST)
+  exportTicketsExcel(filter: any) {
+    const token = localStorage.getItem('access_token'); // ✅ ดึง token จาก localStorage
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`,
+    });
+
+    return this.http.post(`${environment.apiUrl}/export-excel`, filter, {
+      headers,
+      responseType: 'blob',
+    });
   }
 }

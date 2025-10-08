@@ -12,6 +12,8 @@ import { UserWithPermissions } from '../../../shared/models/user.model';
 // ✅ Import Permission Directives
 import { HasPermissionDirective, HasRoleDirective } from '../../../shared/directives/permission.directive';
 
+import { saveAs } from 'file-saver'; // ✅ ต้องติดตั้ง: npm i file-saver
+
 @Component({
   selector: 'app-ticket-list',
   standalone: true,
@@ -25,6 +27,9 @@ import { HasPermissionDirective, HasRoleDirective } from '../../../shared/direct
   styleUrls: ['./ticket-list.component.css']
 })
 export class TicketListComponent implements OnInit {
+
+  statuses: { id: number; name: string }[] = [];
+
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -52,6 +57,14 @@ export class TicketListComponent implements OnInit {
   isLoading = false;
   ticketsError = '';
   noTicketsFound = false;
+
+  // ✅ Pagination state
+pagination = {
+  currentPage: 1,
+  perPage: 10,
+  totalRows: 0,
+  totalPages: 1
+};
 
   // ✅ Filter Data
   categories: MasterFilterCategory[] = [];
@@ -83,6 +96,17 @@ export class TicketListComponent implements OnInit {
   ];
 
   // ✅ Status Options
+  private loadStatuses(): void {
+    this.statuses = [
+      { id: 1, name: 'Pending' },
+      { id: 2, name: 'In Progress' },
+      { id: 3, name: 'Hold' },
+      { id: 4, name: 'Resolved' },
+      { id: 5, name: 'Complete' },
+      { id: 6, name: 'Cancel' }
+    ];
+  }
+
   statusOptions = [
     { value: '', label: 'All Status' },
     { value: '1', label: 'Pending' },
@@ -95,6 +119,9 @@ export class TicketListComponent implements OnInit {
 
   ngOnInit(): void {
     console.log('🎫 TicketListComponent initialized');
+
+    //  load status
+    this.loadStatuses();
 
     // ✅ Load user data and permissions
     this.loadUserData();
@@ -274,53 +301,83 @@ export class TicketListComponent implements OnInit {
     });
   }
 
-  private loadTickets(): void {
-    console.log(`=== Loading Tickets (${this.viewMode} mode) ===`);
-    this.isLoading = true;
-    this.ticketsError = '';
-    this.noTicketsFound = false;
+  // ✅ แทนที่ฟังก์ชันเดิมทั้งหมด
+private loadTickets(page: number = 1): void {
+  console.log(`=== Loading Tickets (page=${page}) ===`);
+  this.isLoading = true;
+  this.ticketsError = '';
+  this.noTicketsFound = false;
 
-    // ✅ Use different methods based on view mode
-    const ticketObservable = this.viewMode === 'all'
-      ? this.apiService.getAllTicketsWithDetails()
-      : this.apiService.getAllTicketsWithDetails(); // TODO: Implement getOwnTickets() if needed
+  const params = { page, perPage: 25 };
 
-    ticketObservable.subscribe({
-      next: (tickets) => {
-        console.log('✅ Tickets loaded successfully:', tickets.length);
+  this.apiService.getAllTickets(params).subscribe({
+    next: (res: any) => {
+      console.log('✅ Response from backend:', res);
 
-        // ✅ Filter tickets based on view mode and permissions
-        const filteredTickets = this.filterTicketsByPermission(tickets);
+      // ✅ ตรวจว่าข้อมูลมาจริงไหม
+      if (res?.success && Array.isArray(res.data)) {
+        this.tickets = [...res.data];
+        this.filteredTickets = [...res.data];
+        this.pagination = {...res.pagination};
+        this.noTicketsFound = res.data.length === 0;
 
-        if (filteredTickets.length === 0) {
-          this.noTicketsFound = true;
-          this.tickets = [];
-          this.filteredTickets = [];
-        } else {
-          this.tickets = filteredTickets;
-          this.filteredTickets = [...this.tickets];
-          this.applyFilters();
-          this.noTicketsFound = false;
-        }
-
-        this.isLoading = false;
-
-        console.log('📊 Ticket loading summary:', {
-          totalLoaded: tickets.length,
-          afterPermissionFilter: filteredTickets.length,
-          viewMode: this.viewMode,
-          userCanViewAll: this.canViewAllTickets,
-          userCanViewOwn: this.canViewOwnTickets
-        });
-      },
-      error: (error) => {
-        console.error('❌ Error loading tickets:', error);
-        this.ticketsError = typeof error === 'string' ? error : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
-        this.isLoading = false;
+        console.log('📦 Loaded tickets:', this.tickets.length);
+        console.log('📊 Pagination:', this.pagination);
+      } else {
+        this.tickets = [];
+        this.filteredTickets = [];
         this.noTicketsFound = true;
+        console.warn('⚠️ Invalid response structure:', res);
       }
-    });
+
+      this.isLoading = false;
+    },
+    error: (error) => {
+      console.error('❌ Error loading tickets:', error);
+      this.ticketsError = typeof error === 'string'
+        ? error
+        : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
+      this.isLoading = false;
+      this.noTicketsFound = true;
+    }
+  });
+}
+
+changePage(page: number): void {
+  if (!this.pagination) return;
+  if (page < 1 || page > this.pagination.totalPages) return;
+
+  if (page === this.pagination.currentPage) {
+    console.log('⚠️ Already on current page:', page);
+    return;
   }
+
+  console.log('➡️ Changing to page:', page);
+  this.loadTickets(page);
+}
+
+getDisplayedPages(): (number | string)[] {
+  const total = this.pagination?.totalPages || 1;
+  const current = this.pagination?.currentPage || 1;
+  const delta = 2;
+  const range: (number | string)[] = [];
+  const pages: (number | string)[] = [];
+
+  for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+    range.push(i);
+  }
+
+  if (current - delta > 2) pages.push(1, '...');
+  else for (let i = 1; i < Math.max(2, current - delta); i++) pages.push(i);
+
+  pages.push(...range);
+
+  if (current + delta < total - 1) pages.push('...', total);
+  else for (let i = Math.min(total - 1, current + delta) + 1; i <= total; i++) pages.push(i);
+
+  return pages;
+}
+
 
   private filterTicketsByPermission(tickets: AllTicketData[]): AllTicketData[] {
     if (this.viewMode === 'all' && this.canViewAllTickets) {
@@ -366,6 +423,43 @@ export class TicketListComponent implements OnInit {
           : 'เกิดข้อผิดพลาดในการโหลดข้อมูล filter';
         this.loadingFilters = false;
       }
+    });
+  }
+
+  /** 🔎 ไม่ให้ trigger ตอนพิมพ์ */
+  onSearchInput(event: any) {
+    this.searchText = event.target.value;
+  }
+
+  /** ✅ กด Enter หรือปุ่ม "ค้นหา" เท่านั้นถึงจะโหลด */
+  applyFilters(): void {
+    const filter = {
+      search: this.searchText?.trim() || '',
+      priority: this.selectedPriority || '',
+      status: this.selectedStatus || '',
+      category: this.selectedCategory || '',
+      project: this.selectedProject || '',
+    };
+
+    this.loadTickets(1);
+  }
+
+  /** ✅ Export Excel ตาม filter ปัจจุบัน */
+  exportExcel(): void {
+    const filter = {
+      search: this.searchText?.trim() || '',
+      priority: this.selectedPriority || '',
+      status: this.selectedStatus || '',
+      category: this.selectedCategory || '',
+      project: this.selectedProject || ''
+    };
+
+    this.apiService.exportTicketsExcel(filter).subscribe({
+      next: (blob: Blob) => {
+        const fileName = `Helpdesk_Tickets_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        saveAs(blob, fileName);
+      },
+      error: (err) => console.error('Export Excel failed:', err)
     });
   }
 
@@ -427,12 +521,12 @@ export class TicketListComponent implements OnInit {
     }, 300);
   }
 
-  onSearchInput(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    this.searchText = target.value;
-    console.log('📝 Search input changed:', this.searchText);
-    this.onSearchChange();
-  }
+  // onSearchInput(event: Event): void {
+  //   const target = event.target as HTMLInputElement;
+  //   this.searchText = target.value;
+  //   console.log('📝 Search input changed:', this.searchText);
+  //   this.onSearchChange();
+  // }
 
   clearSearch(): void {
     this.searchText = '';
@@ -466,89 +560,89 @@ export class TicketListComponent implements OnInit {
     this.applyFilters();
   }
 
-  applyFilters(): void {
-    console.log('🎯 Applying filters:', {
-      searchText: this.searchText,
-      selectedPriority: this.selectedPriority,
-      selectedStatus: this.selectedStatus,
-      selectedProject: this.selectedProject,
-      selectedCategory: this.selectedCategory,
-      totalTickets: this.tickets.length
-    });
+  // applyFilters(): void {
+  //   console.log('🎯 Applying filters:', {
+  //     searchText: this.searchText,
+  //     selectedPriority: this.selectedPriority,
+  //     selectedStatus: this.selectedStatus,
+  //     selectedProject: this.selectedProject,
+  //     selectedCategory: this.selectedCategory,
+  //     totalTickets: this.tickets.length
+  //   });
 
-    let filtered = [...this.tickets];
+  //   let filtered = [...this.tickets];
 
-    // Search filter with better null checks
-    if (this.searchText && this.searchText.trim()) {
-      const searchLower = this.searchText.trim().toLowerCase();
-      console.log('🔍 Applying search filter:', searchLower);
-      
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(ticket => {
-        const matchTicketNo = ticket.ticket_no?.toLowerCase().includes(searchLower) || false;
-        const matchDescription = ticket.issue_description?.toLowerCase().includes(searchLower) || false;
-        const matchProject = ticket.project_name?.toLowerCase().includes(searchLower) || false;
-        const matchUser = ticket.user_name?.toLowerCase().includes(searchLower) || false;
-        const matchCategory = ticket.categories_name?.toLowerCase().includes(searchLower) || false;
+  //   // Search filter with better null checks
+  //   if (this.searchText && this.searchText.trim()) {
+  //     const searchLower = this.searchText.trim().toLowerCase();
+  //     console.log('🔍 Applying search filter:', searchLower);
 
-        const isMatch = matchTicketNo || matchDescription || matchProject || matchUser || matchCategory;
-        
-        // Log first few matches for debugging
-        if (isMatch && beforeCount === this.tickets.length) {
-          console.log('✅ Search match found:', {
-            ticketNo: ticket.ticket_no,
-            matchTicketNo,
-            matchDescription,
-            matchProject,
-            matchUser,
-            matchCategory
-          });
-        }
+  //     const beforeCount = filtered.length;
+  //     filtered = filtered.filter(ticket => {
+  //       const matchTicketNo = ticket.ticket_no?.toLowerCase().includes(searchLower) || false;
+  //       const matchDescription = ticket.issue_description?.toLowerCase().includes(searchLower) || false;
+  //       const matchProject = ticket.project_name?.toLowerCase().includes(searchLower) || false;
+  //       const matchUser = ticket.user_name?.toLowerCase().includes(searchLower) || false;
+  //       const matchCategory = ticket.categories_name?.toLowerCase().includes(searchLower) || false;
 
-        return isMatch;
-      });
-      console.log(`🔍 Search results: ${filtered.length} of ${beforeCount} tickets`);
-    }
+  //       const isMatch = matchTicketNo || matchDescription || matchProject || matchUser || matchCategory;
 
-    // Priority filter
-    if (this.selectedPriority && this.selectedPriority.trim()) {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(ticket => 
-        ticket.priority?.toLowerCase() === this.selectedPriority.toLowerCase()
-      );
-      console.log(`🎯 Priority filter: ${filtered.length} of ${beforeCount} tickets`);
-    }
+  //       // Log first few matches for debugging
+  //       if (isMatch && beforeCount === this.tickets.length) {
+  //         console.log('✅ Search match found:', {
+  //           ticketNo: ticket.ticket_no,
+  //           matchTicketNo,
+  //           matchDescription,
+  //           matchProject,
+  //           matchUser,
+  //           matchCategory
+  //         });
+  //       }
 
-    // Status filter
-    if (this.selectedStatus && this.selectedStatus.trim()) {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(ticket => 
-        ticket.status_id?.toString() === this.selectedStatus
-      );
-      console.log(`📊 Status filter: ${filtered.length} of ${beforeCount} tickets`);
-    }
+  //       return isMatch;
+  //     });
+  //     console.log(`🔍 Search results: ${filtered.length} of ${beforeCount} tickets`);
+  //   }
 
-    // Project filter
-    if (this.selectedProject && this.selectedProject.trim()) {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(ticket => 
-        ticket.project_id?.toString() === this.selectedProject
-      );
-      console.log(`📁 Project filter: ${filtered.length} of ${beforeCount} tickets`);
-    }
+  //   // Priority filter
+  //   if (this.selectedPriority && this.selectedPriority.trim()) {
+  //     const beforeCount = filtered.length;
+  //     filtered = filtered.filter(ticket => 
+  //       ticket.priority?.toLowerCase() === this.selectedPriority.toLowerCase()
+  //     );
+  //     console.log(`🎯 Priority filter: ${filtered.length} of ${beforeCount} tickets`);
+  //   }
 
-    // Category filter
-    if (this.selectedCategory && this.selectedCategory.trim()) {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(ticket => 
-        ticket.categories_id?.toString() === this.selectedCategory
-      );
-      console.log(`🏷️ Category filter: ${filtered.length} of ${beforeCount} tickets`);
-    }
+  //   // Status filter
+  //   if (this.selectedStatus && this.selectedStatus.trim()) {
+  //     const beforeCount = filtered.length;
+  //     filtered = filtered.filter(ticket => 
+  //       ticket.status_id?.toString() === this.selectedStatus
+  //     );
+  //     console.log(`📊 Status filter: ${filtered.length} of ${beforeCount} tickets`);
+  //   }
 
-    this.filteredTickets = filtered;
-    console.log('✅ Final filtered tickets:', this.filteredTickets.length);
-  }
+  //   // Project filter
+  //   if (this.selectedProject && this.selectedProject.trim()) {
+  //     const beforeCount = filtered.length;
+  //     filtered = filtered.filter(ticket => 
+  //       ticket.project_id?.toString() === this.selectedProject
+  //     );
+  //     console.log(`📁 Project filter: ${filtered.length} of ${beforeCount} tickets`);
+  //   }
+
+  //   // Category filter
+  //   if (this.selectedCategory && this.selectedCategory.trim()) {
+  //     const beforeCount = filtered.length;
+  //     filtered = filtered.filter(ticket => 
+  //       ticket.categories_id?.toString() === this.selectedCategory
+  //     );
+  //     console.log(`🏷️ Category filter: ${filtered.length} of ${beforeCount} tickets`);
+  //   }
+
+  //   this.filteredTickets = filtered;
+  //   console.log('✅ Final filtered tickets:', this.filteredTickets.length);
+  // }
 
   clearFilters(): void {
     console.log('🧹 Clearing all filters');
@@ -568,7 +662,7 @@ export class TicketListComponent implements OnInit {
     console.log('Total tickets:', this.tickets.length);
     console.log('Current search:', this.searchText);
     console.log('Filtered tickets:', this.filteredTickets.length);
-    
+
     if (this.tickets.length > 0) {
       console.log('Sample ticket data:', {
         ticket_no: this.tickets[0].ticket_no,

@@ -40,86 +40,71 @@
 
   <!-- Filter Section -->
   <div class="filter-section">
-    <!-- ✅ IMPROVED: Search Bar with Clear Button -->
-    <div class="filter-item search-item">
-      <label class="filter-label">Search</label>
-      <div class="search-input-wrapper" [class.has-value]="searchText && searchText.trim()">
-        <i class="bi bi-search search-icon"></i>
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Search for ticket"
-          [(ngModel)]="searchText"
-          (input)="onSearchInput($event)"
-          (keyup.enter)="applyFilters()"
-          [value]="searchText">
-        
-        <!-- Clear search button -->
-        <button 
-          type="button" 
-          class="clear-search-btn" 
-          *ngIf="searchText && searchText.trim()"
-          (click)="clearSearch()"
-          title="Clear search">
-          <i class="bi bi-x-circle-fill"></i>
-        </button>
-      </div>
-    </div>
 
     <!-- Priority Filter -->
     <div class="filter-item priority-item">
       <label class="filter-label">Priority</label>
       <select class="filter-select" [value]="selectedPriority" (change)="onPriorityChange($event)">
-        <option *ngFor="let option of priorityOptions" [value]="option.value">
-          {{ option.label }}
-        </option>
+        <option *ngFor="let option of priorityOptions" [value]="option.value">{{ option.label }}</option>
       </select>
     </div>
 
     <!-- ✅ UPDATED: Status Filter - ใช้ข้อมูลจาก status cache -->
     <div class="filter-item status-item">
       <label class="filter-label">Status</label>
-      <select class="filter-select" [value]="selectedStatus" (change)="onStatusChange($event)"
-        [disabled]="isLoadingStatuses">
-
-        <!-- Option แรกคงเดิม -->
+      <select class="filter-select" [value]="selectedStatus" (change)="onStatusChange($event)">
         <option value="">All Status</option>
-
-        <!-- ✅ NEW: แสดง loading เมื่อกำลังโหลด status -->
-        <option value="" *ngIf="isLoadingStatuses" disabled>Loading statuses...</option>
-
-        <!-- ✅ UPDATED: ใช้ข้อมูลจาก status cache แทน hardcode -->
-        <option value="1">{{ getStatusText(1) }}</option>
-        <option value="2">{{ getStatusText(2) }}</option>
-        <option value="3">{{ getStatusText(3) }}</option>
-        <option value="4">{{ getStatusText(4) }}</option>
-        <option value="5">{{ getStatusText(5) }}</option>
-        <option value="6">{{ getStatusText(6) }}</option>
+        <option *ngFor="let s of statuses" [value]="s.id">{{ s.name }}</option>
       </select>
     </div>
 
     <!-- Categories Filter -->
     <div class="filter-item category-item">
       <label class="filter-label">Categories</label>
-      <select class="filter-select" [value]="selectedCategory" (change)="onCategoryChange($event)"
-        [disabled]="loadingFilters">
+      <select class="filter-select" [value]="selectedCategory" (change)="onCategoryChange($event)">
         <option value="">All Categories</option>
-        <option *ngFor="let category of categories" [value]="category.id">
-          {{ category.name }}
-        </option>
+        <option *ngFor="let c of categories" [value]="c.id">{{ c.name }}</option>
       </select>
     </div>
 
     <!-- Project Filter -->
     <div class="filter-item project-item">
       <label class="filter-label">Project</label>
-      <select class="filter-select" [value]="selectedProject" (change)="onProjectChange($event)"
-        [disabled]="loadingFilters">
+      <select class="filter-select" [value]="selectedProject" (change)="onProjectChange($event)">
         <option value="">All Projects</option>
-        <option *ngFor="let project of projects" [value]="project.id">
-          {{ project.name }}
-        </option>
+        <option *ngFor="let p of projects" [value]="p.id">{{ p.name }}</option>
       </select>
+    </div>
+
+    <!-- Search -->
+    <div class="filter-item search-item">
+      <label class="filter-label">Search</label>
+      <div class="search-input-wrapper search-with-button">
+        <i class="bi bi-search search-icon"></i>
+
+        <!-- Input -->
+        <input type="text" class="search-input" placeholder="Search for ticket..." [(ngModel)]="searchText"
+          (keyup.enter)="applyFilters()" />
+
+        <!-- Clear -->
+        <button type="button" class="clear-search-btn" *ngIf="searchText && searchText.trim()" (click)="clearSearch()"
+          title="Clear search">
+          <i class="bi bi-x-circle-fill"></i>
+        </button>
+
+        <!-- Search button -->
+        <button type="button" class="btn search-btn-modern" (click)="applyFilters()" title="Search">
+          <i class="bi bi-search me-1"></i> ค้นหา
+        </button>
+      </div>
+    </div>
+
+    <!-- ✅ Export Button แยกออกจาก Search -->
+    <div class="filter-item export-item">
+      <label class="filter-label">&nbsp;</label>
+      <button type="button" class="btn btn-success export-btn" (click)="exportExcel()">
+        <i class="bi bi-file-earmark-excel"></i> Export Excel
+      </button>
     </div>
   </div>
 
@@ -279,6 +264,36 @@
         </span>
       </p>
     </div>
+
+    <!-- ✅ Pagination -->
+    <div class="pagination-container" *ngIf="pagination.totalPages > 1">
+      <nav aria-label="Ticket pagination">
+        <ul class="pagination justify-content-center">
+          <!-- ปุ่มก่อนหน้า -->
+          <li class="page-item" [class.disabled]="pagination.currentPage === 1">
+            <button class="page-link" (click)="changePage(pagination.currentPage - 1)">‹</button>
+          </li>
+
+          <!-- แสดงเลขหน้า -->
+          <li *ngFor="let p of getDisplayedPages()" class="page-item" [class.active]="p === pagination.currentPage"
+            [class.disabled]="p === '...'">
+            <button class="page-link" *ngIf="p !== '...'" (click)="changePage(+p)">{{ p }}</button>
+            <span class="page-link" *ngIf="p === '...'">...</span>
+          </li>
+
+          <!-- ปุ่มถัดไป -->
+          <li class="page-item" [class.disabled]="pagination.currentPage === pagination.totalPages">
+            <button class="page-link" (click)="changePage(pagination.currentPage + 1)">›</button>
+          </li>
+        </ul>
+      </nav>
+
+      <p class="pagination-info text-center mt-2">
+        พบข้อมูลจำนวน {{ pagination.totalRows }} รายการ
+        แสดงหน้า {{ pagination.currentPage }}/{{ pagination.totalPages }}
+      </p>
+    </div>
+
   </div>
 
   <!-- Floating Action Button -->
