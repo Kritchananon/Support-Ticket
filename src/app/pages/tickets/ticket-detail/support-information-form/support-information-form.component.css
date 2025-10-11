@@ -283,14 +283,53 @@
 /* Attachment Container - Horizontal Layout */
 .attachment-container {
   display: flex;
-  align-items: center;
-  gap: 16px;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
   padding: 16px;
   background: #FAFAFA;
   border: 1px solid #E0E0E0;
   border-radius: 8px;
   min-height: 120px;
+}
+
+/* ✅ ปรับให้ไฟล์เก่าใน app-file-list มีขนาดเท่ากับไฟล์ใหม่ */
+app-file-list .attachment-item,
+app-file-list .attachment-preview,
+app-file-list img {
+  width: 120px !important;
+  height: 120px !important;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* ✅ เพิ่มปุ่มลบไฟล์เก่าให้สไตล์เหมือนกัน */
+app-file-list .remove-attachment-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(220, 53, 69, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+app-file-list .attachment-item:hover .remove-attachment-btn {
+  opacity: 1;
+}
+
+app-file-list .remove-attachment-btn:hover {
+  background: #DC3545;
+  transform: scale(1.1);
 }
 
 /* Attachment Card */

@@ -74,13 +74,13 @@
     </nav>
   </div>
 
-  <!-- ===== LAYOUT CONTAINER ===== ✅ -->
+  <!-- ===== LAYOUT CONTAINER ===== -->
   <div class="layout-container">
 
-    <!-- ===== MAIN CONTENT AREA ===== ✅ -->
+    <!-- ===== MAIN CONTENT AREA ===== -->
     <div class="main-content-area">
 
-      <!-- ===== TICKET INFORMATION CARD ===== ✅ -->
+      <!-- ===== TICKET INFORMATION CARD ===== -->
       <div class="ticket-card" [attr.data-updating]="isUpdating">
 
         <!-- Ticket Header -->
@@ -222,70 +222,9 @@
         </div>
 
         <!-- Attachments Section -->
-        <div class="attachments-section">
-          <div class="attachment-label">
-            <i class="bi bi-paperclip me-1"></i>
-            Original Issue Attachments:
-            <small class="text-muted">(ไฟล์ที่แนบมาตอนสร้าง ticket)</small>
-          </div>
-          <div class="attachment-grid">
-
-            <!-- Attachment Items -->
-            <div *ngFor="let attachment of ticketData.issue_attachment" class="attachment-item"
-              (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)">
-
-              <!-- Loading State -->
-              <div class="attachment-loading" *ngIf="getFileInfo(attachment.attachment_id).isLoading">
-                <i class="bi bi-hourglass-split"></i>
-                <div class="loading-text">Analyzing...</div>
-              </div>
-
-              <!-- Image Preview -->
-              <div class="attachment-preview"
-                *ngIf="isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
-                <img [src]="attachment.path" [alt]="getDisplayFileName(attachment.path, attachment.attachment_id)"
-                  (error)="onImageError(attachment.attachment_id)" (load)="onImageLoad(attachment.attachment_id)"
-                  loading="lazy" style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
-
-                <div class="file-info-overlay">
-                  <div class="file-name-small">{{ getDisplayFileName(attachment.path, attachment.attachment_id) }}</div>
-                  <div class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</div>
-                </div>
-              </div>
-
-              <!-- File Icon -->
-              <div class="attachment-file"
-                *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && !getFileInfo(attachment.attachment_id).isLoading">
-
-                <div class="file-icon-container">
-                  <i [class]="getFileIcon(attachment.path, attachment.attachment_id)"
-                    [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
-                </div>
-
-                <div class="file-details">
-                  <div class="file-name" [title]="getDisplayFileName(attachment.path, attachment.attachment_id)">
-                    {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
-                  </div>
-
-                  <div class="file-meta">
-                    <span class="file-type">{{ getFileInfo(attachment.attachment_id).type.toUpperCase() }}</span>
-                    <span class="file-size" *ngIf="getFileSize(attachment)">{{ getFileSize(attachment) }}</span>
-                  </div>
-                </div>
-
-                <div class="download-indicator">
-                  <i class="bi bi-download"></i>
-                </div>
-              </div>
-            </div>
-
-            <!-- No attachments -->
-            <div *ngIf="ticketData.issue_attachment.length === 0" class="no-attachments">
-              <i class="bi bi-paperclip"></i>
-              <span class="text-muted">No original attachments</span>
-            </div>
-          </div>
-        </div>
+        <app-file-list [attachments]="ticketData?.issue_attachment || []" [title]="'Original Issue Attachments'"
+          [showTitle]="true" [allowDelete]="false" (fileClick)="onAttachmentClick($event)">
+        </app-file-list>
 
         <!-- Ticket Footer -->
         <div class="ticket-footer">
@@ -338,6 +277,7 @@
             </div>
           </div>
         </div>
+
       </div>
 
       <!-- ===== ✅ SUPPORT INFORMATION SECTION - ใช้ Components แยก ===== -->
@@ -525,57 +465,11 @@
       </div>
 
     </div>
+
   </div>
 </div>
 
-<!-- ===== 🆕 วางโค้ด ATTACHMENT PREVIEW MODAL ตรงนี้ ===== -->
-<div class="modal fade" [class.show]="showAttachmentModal" [style.display]="showAttachmentModal ? 'block' : 'none'"
-  [style.z-index]="showAttachmentModal ? '99999' : 'auto'" tabindex="-1" role="dialog" *ngIf="showAttachmentModal">
-  <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
-    <div class="modal-content attachment-modal">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="bi bi-file-earmark me-2"></i>
-          {{ currentAttachment?.filename || 'Attachment Preview' }}
-        </h5>
-        <button type="button" class="btn-close" (click)="closeAttachmentModal()"></button>
-      </div>
-      <div class="modal-body text-center">
-        <!-- Image Preview -->
-        <img *ngIf="isImageAttachment()" [src]="currentAttachment?.path" [alt]="currentAttachment?.filename"
-          class="img-fluid attachment-preview-image">
-
-        <!-- PDF Preview -->
-        <iframe *ngIf="isPdfAttachment()" [src]="sanitizeUrl(currentAttachment?.path)"
-          class="attachment-preview-iframe">
-        </iframe>
-
-        <!-- Other Files -->
-        <div *ngIf="!isImageAttachment() && !isPdfAttachment()" class="attachment-preview-other">
-          <i [class]="getFileIcon(currentAttachment?.path || '', currentAttachment?.attachment_id)"
-            class="attachment-preview-icon"></i>
-          <h4>{{ currentAttachment?.filename }}</h4>
-          <p class="text-muted">{{ getFileTypeText() }}</p>
-          <button class="btn btn-primary" (click)="downloadCurrentAttachment()">
-            <i class="bi bi-download me-2"></i>
-            Download File
-          </button>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="closeAttachmentModal()">
-          Close
-        </button>
-        <button type="button" class="btn btn-primary" (click)="downloadCurrentAttachment()">
-          <i class="bi bi-download me-2"></i>
-          Download
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Backdrop -->
-<div class="modal-backdrop fade" [class.show]="showAttachmentModal"
-  [style.z-index]="showAttachmentModal ? '99998' : 'auto'" *ngIf="showAttachmentModal" (click)="closeAttachmentModal()">
-</div>
+<!-- Preview Modal -->
+<app-file-preview-modal [show]="showAttachmentModal" [attachment]="currentAttachment" (close)="closeAttachmentModal()"
+  (download)="downloadAttachment($event)">
+</app-file-preview-modal>

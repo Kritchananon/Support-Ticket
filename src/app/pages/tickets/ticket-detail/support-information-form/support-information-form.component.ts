@@ -1,4 +1,4 @@
-import { Component, OnInit, Input, Output, EventEmitter, inject, OnChanges, SimpleChanges, HostListener, OnDestroy } from '@angular/core';
+import { Component, OnInit, Input, Output, EventEmitter, inject, OnChanges, SimpleChanges, HostListener, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -43,6 +43,10 @@ import {
 
 // Environment
 import { environment } from '../../../../../environments/environment';
+
+// import preview and list
+import { FileListComponent } from '../../../../shared/components/file-list/file-list.component';
+import { FilePreviewModalComponent } from '../../../../shared/components/file-preview-modal/file-preview-modal.component';
 
 // ===== Fix Issue Attachment Interfaces =====
 interface UploadFixIssueAttachmentResponse {
@@ -162,6 +166,8 @@ interface TicketData {
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
+    FileListComponent,
+    FilePreviewModalComponent
   ],
   templateUrl: './support-information-form.component.html',
   styleUrls: ['./support-information-form.component.css'],
@@ -1441,14 +1447,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
-  onFileSelected(evt: Event): void {
-    const input = evt.target as HTMLInputElement;
-    if (!input?.files?.length) return;
-    this.addSelectedFiles(input.files);
-    // clear input so user can pick the same file again if needed
-    input.value = '';
-  }
-
   /**
    * ได้รับสีตามประเภทไฟล์
    */
@@ -2553,68 +2551,62 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     return this.tempAssigneeName || '';
   }
 
-  // onFileSelected(event: Event): void {
-  //   const input = event.target as HTMLInputElement;
-  //   if (!input.files) return;
+  onFileSelected(evt: Event): void {
+    const input = evt.target as HTMLInputElement;
+    if (!input?.files?.length) return;
 
-  //   const files = Array.from(input.files);
-  //   const validation = this.ticketService.validateFiles(files, this.maxFiles);
+    const newFiles = Array.from(input.files);
 
-  //   if (!validation.isValid) {
-  //     this.supporterFormState.error = validation.errors.join(', ');
-  //     input.value = '';
-  //     return;
-  //   }
+    // ✅ ตรวจจำนวนรวมก่อนเพิ่ม
+    const totalFiles = this.existingFixAttachments.length + this.selectedFiles.length + newFiles.length;
+    if (totalFiles > this.maxFiles) {
+      const availableSlots = this.maxFiles - (this.existingFixAttachments.length + this.selectedFiles.length);
+      if (availableSlots <= 0) {
+        console.warn('⚠️ จำนวนไฟล์แนบถึงขีดจำกัดแล้ว');
+        return;
+      }
+      // ✅ ถ้าเกิน ให้ตัดเฉพาะจำนวนที่เหลือ
+      this.addSelectedFiles(newFiles.slice(0, availableSlots));
+    } else {
+      this.addSelectedFiles(newFiles);
+    }
 
-  //   // ตรวจสอบจำนวนไฟล์รวม
-  //   if (this.selectedFiles.length + validation.validFiles.length > this.maxFiles) {
-  //     this.supporterFormState.error = `สามารถแนบไฟล์ได้สูงสุด ${this.maxFiles} ไฟล์`;
-  //     input.value = '';
-  //     return;
-  //   }
+    // ✅ clear input เพื่อให้เลือกไฟล์ซ้ำได้
+    input.value = '';
+  }
 
-  //   // Clear previous states for these files
-  //   validation.validFiles.forEach(file => {
-  //     if (this.filePreviewUrls[file.name] && this.filePreviewUrls[file.name].startsWith('blob:')) {
-  //       URL.revokeObjectURL(this.filePreviewUrls[file.name]);
-  //     }
-  //   });
+  onAttachmentsDrop(evt: DragEvent): void {
+    evt.preventDefault();
+    evt.stopPropagation();
+    this.dragCounter = 0;
+    this.isDraggingFiles = false;
 
-  //   // สร้าง preview สำหรับไฟล์รูปภาพ
-  //   const imagePromises = validation.validFiles
-  //     .filter(file => this.ticketService.isImageFile(file))
-  //     .map(file =>
-  //       new Promise<void>((resolve) => {
-  //         const reader = new FileReader();
-  //         reader.onload = (e) => {
-  //           if (e.target?.result) {
-  //             this.filePreviewUrls[file.name] = e.target.result as string;
-  //           }
-  //           resolve();
-  //         };
-  //         reader.onerror = () => resolve();
-  //         reader.readAsDataURL(file);
-  //       })
-  //     );
+    if (!this.isFormReady() || this.supporterFormState.isSaving) return;
+    if (!evt.dataTransfer || !evt.dataTransfer.files?.length) return;
 
-  //   Promise.all(imagePromises).then(() => {
-  //     this.selectedFiles = [...this.selectedFiles, ...validation.validFiles];
-  //     this.supporterFormState.error = null;
+    const droppedFiles = Array.from(evt.dataTransfer.files);
 
-  //     this.fileUploadProgress = this.selectedFiles.map(file => ({
-  //       filename: file.name,
-  //       progress: 0,
-  //       status: 'pending'
-  //     }));
+    // ✅ ตรวจจำนวนรวมก่อนเพิ่ม
+    const totalFiles = this.existingFixAttachments.length + this.selectedFiles.length + droppedFiles.length;
+    if (totalFiles > this.maxFiles) {
+      const availableSlots = this.maxFiles - (this.existingFixAttachments.length + this.selectedFiles.length);
+      if (availableSlots <= 0) {
+        console.warn('⚠️ จำนวนไฟล์แนบถึงขีดจำกัดแล้ว');
+        return;
+      }
+      this.addSelectedFiles(droppedFiles.slice(0, availableSlots));
+    } else {
+      this.addSelectedFiles(droppedFiles);
+    }
+  }
 
-  //     console.log('Files selected with previews:', this.selectedFiles.length);
-  //   }).catch(error => {
-  //     console.error('Error processing file selection:', error);
-  //     this.supporterFormState.error = 'เกิดข้อผิดพลาดในการเลือกไฟล์';
-  //   });
-
-  //   input.value = '';
-  // }
+  /**
+ * ✅ ตรวจว่าจำนวนไฟล์รวมถึงขีดจำกัดแล้วหรือยัง
+ */
+  isFileLimitReached(): boolean {
+    const total = (this.existingFixAttachments?.length || 0) + (this.selectedFiles?.length || 0);
+    return total >= this.maxFiles;
+  }
 
   /** Handle drag over */
   onAttachmentsDragOver(evt: DragEvent): void {
@@ -2632,22 +2624,6 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (this.dragCounter === 0) {
       this.isDraggingFiles = false;
     }
-  }
-
-  /** Handle drop */
-  onAttachmentsDrop(evt: DragEvent): void {
-    evt.preventDefault();
-    evt.stopPropagation();
-    this.dragCounter = 0;
-    this.isDraggingFiles = false;
-
-
-    if (!this.isFormReady() || this.supporterFormState.isSaving) return;
-    if (!evt.dataTransfer || !evt.dataTransfer.files?.length) return;
-
-
-    const files = Array.from(evt.dataTransfer.files);
-    this.addSelectedFiles(files);
   }
 
   /** Add files to selectedFiles with basic validation and maxFiles guard */
@@ -2770,7 +2746,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       return;
     }
 
-    this.supporterFormState.isSaving = true;
+    this.supporterFormState.isSaving = false;
     this.supporterFormState.error = null;
 
     this.executeSaveSequence(hasSupporterChanges, hasAssigneeSelected);
@@ -3153,6 +3129,52 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       leadTime: this.leadTime,
       openTicketDate: this.getOpenTicketDate()
     };
+  }
+
+  // ✅ สำหรับระบบพรีวิวไฟล์
+  selectedAttachment: any = null;
+  showFileModal = false;
+
+  onAttachmentClick(file: any) {
+    console.log('📎 เปิดพรีวิวไฟล์แนบจาก supporter form:', file);
+    this.selectedAttachment = file;
+    this.showFileModal = true;
+  }
+
+  // support-information-form.component.ts
+  onExistingAttachmentDelete(file: any): void {
+    console.log('📩 EVENT มาถึง parent แล้ว:', file);
+
+    const fileId = file.attachment_id || file.id;
+    if (!fileId) {
+      console.warn('⚠️ ไม่มี id หรือ attachment_id:', file);
+      return;
+    }
+
+    const confirmDelete = confirm('ต้องการลบไฟล์นี้หรือไม่?');
+    if (!confirmDelete) return;
+
+    this.ticketService.deleteFixIssueAttachment(fileId).subscribe({
+      next: () => {
+        const updatedList = this.existingFixAttachments.filter(
+          (f) => f.attachment_id !== fileId
+        );
+
+        // ✅ บังคับ Angular ให้ refresh UI ทันที
+        this.existingFixAttachments = [...updatedList];
+
+        console.log('✅ ลบไฟล์สำเร็จ:', fileId);
+      },
+      error: (err) => {
+        console.error('❌ ลบไฟล์ไม่สำเร็จ:', err);
+      },
+    });
+  }
+
+  // ปิด modal แสดงไฟล์แนบ
+  closeModal(): void {
+    this.showFileModal = false;
+    this.selectedAttachment = null;
   }
 
   /**

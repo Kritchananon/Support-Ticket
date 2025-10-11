@@ -12,7 +12,11 @@
       [class.loading]="item.isLoading" (click)="!item.isLoading && onFileClick(item)">
 
       <!-- ปุ่มลบไฟล์ -->
-      <button type="button" class="remove-attachment-btn" (click)="onDeleteClick(item, $event)" title="ลบไฟล์นี้">
+      <button type="button" 
+              class="remove-attachment-btn" 
+              *ngIf="allowDelete"
+              (click)="onDeleteClick(item, $event)" 
+              title="ลบไฟล์นี้">
         <i class="bi bi-trash"></i>
       </button>
 

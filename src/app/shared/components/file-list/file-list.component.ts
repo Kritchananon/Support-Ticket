@@ -22,6 +22,10 @@ export class FileListComponent implements OnInit {
   @Input() attachments: any[] = [];
   @Input() title = 'Attachments';
   @Input() showTitle = true;
+
+  // ✅ เพิ่ม Input นี้เพื่อควบคุมการแสดงปุ่มลบ
+  @Input() allowDelete = true;  // default เป็น true เพื่อไม่ทำลาย behavior เดิม
+  
   @Output() fileClick = new EventEmitter<any>();
   @Output() fileDelete = new EventEmitter<any>();
 
@@ -37,10 +41,15 @@ export class FileListComponent implements OnInit {
   }
 
   async ngOnChanges() {
-    // ✅ ตรวจสอบใหม่เมื่อ attachments เปลี่ยน
-    if (this.attachments && this.attachments.length > 0) {
-      await this.detectAllFileTypes();
+    console.log('🔄 ngOnChanges triggered:', this.attachments);
+
+    if (!this.attachments || this.attachments.length === 0) {
+      console.log('⚪ ไม่มีไฟล์เหลือ เคลียร์ list ทั้งหมด');
+      this.attachmentsWithInfo = []; // ✅ เคลียร์ list
+      return;
     }
+
+    await this.detectAllFileTypes();
   }
 
   /**
@@ -105,6 +114,10 @@ export class FileListComponent implements OnInit {
     return item.fileInfo?.type === 'image';
   }
 
+  getFileUrl(file: any): string {
+    return file.path ? file.path : URL.createObjectURL(file);
+  }
+
   getFileIcon(item: AttachmentWithInfo): string {
     if (item.isLoading) return 'bi-hourglass-split';
     return item.fileInfo?.icon || 'bi-file-earmark-fill';
@@ -138,9 +151,14 @@ export class FileListComponent implements OnInit {
   }
 
   onDeleteClick(item: any, event: MouseEvent): void {
-    event.stopPropagation();
+    event.stopPropagation(); // ป้องกันไม่ให้เปิด preview
+
+    // 🧩 ตรวจว่าเป็น object ซ้อนหรือไม่
     const emittedFile = item.attachment || item;
+
     console.log('🗑️ Emit ลบไฟล์:', emittedFile);
+
+    // ✅ ส่งเฉพาะ object ที่มี attachment_id/id ออกไป
     this.fileDelete.emit(emittedFile);
   }
 

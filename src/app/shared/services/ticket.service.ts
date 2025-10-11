@@ -525,6 +525,15 @@ export class TicketService {
     );
   }
 
+  deleteFixIssueAttachment(attachmentId: number): Observable<ApiResponse<any>> {
+    return this.http.delete<ApiResponse<any>>(
+      `${this.apiUrl}/fix_issue/${attachmentId}`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      catchError(this.handleError)
+    );
+  }
+
   /**
    * ดาวน์โหลดไฟล์แนบ
    * @param attachmentId ไอดีของไฟล์แนบ

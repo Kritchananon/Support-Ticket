@@ -302,24 +302,38 @@
   border-radius: 2px;
 }
 
-/* ✅ ปุ่มลบไฟล์ (เหมือนของ Support Form) */
+/* ✅ ปรับขนาดรูปและไฟล์ให้เท่ากัน */
+.attachment-item {
+  width: 120px !important;
+  height: 120px !important;
+  position: relative;
+}
+
+.attachment-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* ✅ ปุ่มลบไฟล์ */
 .remove-attachment-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   width: 28px;
   height: 28px;
-  background: rgba(220, 53, 69, 0.9);
   border: none;
   border-radius: 50%;
+  background: rgba(220, 53, 69, 0.9);
   color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
   opacity: 0;
   transition: all 0.2s ease;
+  z-index: 10;
 }
 
 .attachment-item:hover .remove-attachment-btn {
@@ -327,6 +341,6 @@
 }
 
 .remove-attachment-btn:hover {
-  background: #DC3545;
+  background: #dc3545;
   transform: scale(1.1);
 }

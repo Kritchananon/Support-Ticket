@@ -123,6 +123,7 @@
                     <small class="form-text text-muted" *ngIf="supporterForm.get('action')?.value">
                         การเลือก Action นี้จะเปลี่ยนสถานะ ticket
                     </small>
+
                 </div>
             </div>
 
@@ -370,77 +371,60 @@
                     <div class="attachment-container" [class.dragover]="isDraggingFiles"
                         (dragover)="onAttachmentsDragOver($event)" (dragleave)="onAttachmentsDragLeave($event)"
                         (drop)="onAttachmentsDrop($event)">
-                        <!-- Upload Button - อยู่หน้าสุดเสมอ -->
+
+                        <!-- ปุ่ม Upload -->
                         <div class="attachment-upload-card"
                             (click)="isFormReady() && selectedFiles.length < maxFiles && fileInputNew.click()"
-                            [class.disabled]="!isFormReady() || supporterFormState.isSaving || selectedFiles.length >= maxFiles"
+                            [class.disabled]="!isFormReady() || supporterFormState.isSaving || (existingFixAttachments.length + selectedFiles.length) >= maxFiles"
                             title="คลิกเพื่อเลือกไฟล์ หรือ ลากมาวางที่นี่">
                             <i class="bi bi-plus-lg upload-icon"></i>
                             <span class="upload-label">Choose file</span>
                             <small class="text-muted" *ngIf="maxFiles">
-                                ({{ selectedFiles.length }}/{{ maxFiles }})
+                                ({{ existingFixAttachments.length + selectedFiles.length }}/{{ maxFiles }})
                             </small>
                         </div>
 
-                        <!-- Existing Attachments -->
-                        <div *ngFor="let attachment of existingFixAttachments; trackBy: trackByAttachment"
-                            class="attachment-card">
-                            <button type="button" class="remove-attachment-btn" title="ลบไฟล์แนบนี้"
-                                (click)="onRemoveExistingAttachment(attachment)"
-                                [disabled]="!isFormReady() || supporterFormState.isSaving || isDeletingAttachment(attachment.attachment_id)">
-                                <span *ngIf="isDeletingAttachment(attachment.attachment_id)"
-                                    class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                <i *ngIf="!isDeletingAttachment(attachment.attachment_id)" class="bi bi-trash"></i>
-                            </button>
+                        <!-- ✅ รวมทั้งไฟล์เก่าและไฟล์ใหม่ไว้ใน container เดียว -->
+                        <ng-container>
+                            <!-- ไฟล์เก่าที่มีอยู่ -->
+                            <app-file-list [attachments]="existingFixAttachments" [title]="'Support Attachments'"
+                                [showTitle]="false" (fileClick)="onAttachmentClick($event)"
+                                (fileDelete)="onExistingAttachmentDelete($event)">
+                            </app-file-list>
 
-
-                            <div class="attachment-preview">
-                                <img *ngIf="isExistingAttachmentImage(attachment)"
-                                    [src]="getExistingAttachmentPreviewUrl(attachment)"
-                                    [alt]="getExistingAttachmentDisplayName(attachment)"
-                                    (error)="onExistingAttachmentImageError(attachment.attachment_id)"
-                                    (load)="onExistingAttachmentImageLoad(attachment.attachment_id)"
-                                    class="attachment-img" />
-                                <div *ngIf="!isExistingAttachmentImage(attachment)" class="attachment-icon-wrapper">
-                                    <i [class]="getExistingAttachmentIcon(attachment)" class="attachment-icon"></i>
-                                    <span class="file-type-label">
-                                        {{
-                                        getExistingAttachmentFileInfo(attachment.attachment_id).extension.toUpperCase()
-                                        }}
-                                    </span>
+                            <!-- ไฟล์ใหม่ที่กำลังอัปโหลด -->
+                            <div *ngFor="let file of selectedFiles; let i = index; trackBy: trackByFile"
+                                class="attachment-card new">
+                                <button type="button" class="remove-attachment-btn" (click)="removeSelectedFile(i)"
+                                    title="ลบไฟล์นี้">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <div class="attachment-preview">
+                                    <img *ngIf="ticketService.isImageFile(file)" [src]="getFilePreview(file)"
+                                        alt="Preview" class="attachment-img" />
+                                    <div *ngIf="!ticketService.isImageFile(file)" class="attachment-icon-wrapper">
+                                        <i [class]="ticketService.getFileIcon(file.name)" class="attachment-icon"></i>
+                                        <span class="file-type-label">
+                                            {{ getFileTypeFromExtension(file.name).toUpperCase() }}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </ng-container>
 
-                        <!-- Selected Files (New) -->
-                        <div *ngFor="let file of selectedFiles; let i = index; trackBy: trackByFile"
-                            class="attachment-card new">
-                            <button type="button" class="remove-attachment-btn" (click)="removeSelectedFile(i)"
-                                title="ลบไฟล์นี้">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                            <div class="attachment-preview">
-                                <img *ngIf="ticketService.isImageFile(file)" [src]="getFilePreview(file)" alt="Preview"
-                                    class="attachment-img" />
-                                <div *ngIf="!ticketService.isImageFile(file)" class="attachment-icon-wrapper">
-                                    <i [class]="ticketService.getFileIcon(file.name)" class="attachment-icon"></i>
-                                    <span class="file-type-label">{{ getFileTypeFromExtension(file.name).toUpperCase()
-                                        }}</span>
-                                </div>
-                            </div>
-                        </div>
-
+                        <!-- Input File Hidden -->
                         <input #fileInputNew type="file" id="fileInputNew" (change)="onFileSelected($event)" multiple
                             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.txt,.xlsx,.csv" style="display: none;"
-                            [disabled]="!isFormReady() || supporterFormState.isSaving" />
+                            [disabled]="isFileLimitReached()" />
                     </div>
 
                     <small class="form-text text-muted mt-2 d-block">
-                        รองรับลาก‑แล้ว‑วางไฟล์ (drag & drop) หรือคลิกที่กล่องหัวมุมซ้าย — ไฟล์ที่รองรับ: PDF, DOC, DOCX,
-                        JPG, PNG, GIF, TXT, XLSX, CSV
+                        รองรับลาก-แล้ว-วางไฟล์ (drag & drop) หรือคลิกที่กล่องหัวมุมซ้าย —
+                        ไฟล์ที่รองรับ: PDF, DOC, DOCX, JPG, PNG, GIF, TXT, XLSX, CSV
                     </small>
                 </div>
             </div>
+
 
             <!-- Form Actions -->
             <div class="form-actions">
@@ -532,4 +516,9 @@
             </small>
         </div>
     </div>
+
+    <!-- ✅ File Preview Modal (ใช้ร่วมกับ Ticket Detail) -->
+    <app-file-preview-modal [attachment]="selectedAttachment" [show]="showFileModal" (close)="closeModal()">
+    </app-file-preview-modal>
+
 </div>

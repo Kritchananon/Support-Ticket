@@ -6,7 +6,7 @@
             <div class="support-title-row">
                 <h2 class="support-title">Support Information</h2>
             </div>
-            
+
             <!-- Progress Bar -->
             <div class="support-progress-section">
                 <div class="support-progress-fill"></div>
@@ -76,96 +76,33 @@
                 </div>
 
                 <!-- Fix Description -->
-                <div class="support-item fix-description" *ngIf="ticket.fix_issue_description">
+                <div class="support-item fix-description">
                     <div class="support-label">Fix Description:</div>
-                    <div class="support-value">{{ ticket.fix_issue_description }}</div>
-                </div>
-                <div class="support-item fix-description" *ngIf="!ticket.fix_issue_description">
-                    <div class="support-label">Fix Description:</div>
-                    <div class="support-value">-</div>
+                    <div class="support-value">
+                        {{ ticket.fix_issue_description || '-' }}
+                    </div>
                 </div>
 
-                <!-- ✅ Attachment Section - แสดงแบบ Grid เหมือน ticket-detail -->
+                <!-- ✅ Attachment Section - ใช้ app-file-list แต่แสดงแบบ inline -->
                 <div class="support-item attachment">
                     <div class="support-label">Attachment:</div>
-                    
-                    <!-- ✅ แสดงเป็น Grid สำหรับรูปภาพและไฟล์ -->
-                    <div class="attachment-grid" *ngIf="hasFixAttachments(); else noAttachments">
-                        
-                        <!-- Attachment Items -->
-                        <div *ngFor="let attachment of ticketData!.fix_attachment" 
-                             class="attachment-item"
-                             (click)="onDownloadAttachment(attachment.attachment_id, attachment.path)"
-                             [title]="getAttachmentTooltip(attachment)">
+                    <div class="support-value">
+                        <!-- ✅ ใช้ app-file-list component -->
 
-                            <!-- Loading State -->
-                            <div class="attachment-loading" 
-                                 *ngIf="getFileInfo(attachment.attachment_id).isLoading">
-                                <i class="bi bi-hourglass-split"></i>
-                                <div class="loading-text">Analyzing...</div>
-                            </div>
+                        <!-- มีไฟล์ -->
+                        <ng-container *ngIf="(ticketData?.fix_attachment || []).length > 0; else noAttachments">
+                            <app-file-list [attachments]="ticketData?.fix_attachment || []"
+                                [title]="'Fix Issue Attachments'" [showTitle]="true" [allowDelete]="false"
+                                (fileClick)="onAttachmentClick($event)">
+                            </app-file-list>
+                        </ng-container>
 
-                            <!-- Image Preview -->
-                            <div class="attachment-preview"
-                                 *ngIf="isImageFile(attachment.path, attachment.attachment_id) && 
-                                        !getFileInfo(attachment.attachment_id).isLoading">
-                                <img [src]="attachment.path" 
-                                     [alt]="getDisplayFileName(attachment.path, attachment.attachment_id)"
-                                     (error)="onImageError(attachment.attachment_id)"
-                                     (load)="onImageLoad(attachment.attachment_id)"
-                                     loading="lazy"
-                                     style="max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px;">
+                        <!-- ไม่มีไฟล์ -->
+                        <ng-template #noAttachments>
+                            <span class="no-attachments-text">-</span>
+                        </ng-template>
 
-                                <div class="file-info-overlay">
-                                    <div class="file-name-small">
-                                        {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
-                                    </div>
-                                    <div class="file-size" *ngIf="getFileSize(attachment)">
-                                        {{ getFileSize(attachment) }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- File Icon Display -->
-                            <div class="attachment-file"
-                                 *ngIf="!isImageFile(attachment.path, attachment.attachment_id) && 
-                                        !getFileInfo(attachment.attachment_id).isLoading">
-
-                                <div class="file-icon-container">
-                                    <i [class]="getAttachmentIcon(attachment.path, attachment.file_type)"
-                                       [ngClass]="'file-icon-' + getFileInfo(attachment.attachment_id).type"></i>
-                                </div>
-
-                                <div class="file-details">
-                                    <div class="file-name" 
-                                         [title]="getDisplayFileName(attachment.path, attachment.attachment_id)">
-                                        {{ getDisplayFileName(attachment.path, attachment.attachment_id) }}
-                                    </div>
-
-                                    <div class="file-meta">
-                                        <span class="file-type">
-                                            {{ getFileInfo(attachment.attachment_id).type.toUpperCase() }}
-                                        </span>
-                                        <span class="file-size" *ngIf="getFileSize(attachment)">
-                                            {{ getFileSize(attachment) }}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="download-indicator">
-                                    <i class="bi bi-download"></i>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-
-                    <!-- No attachments -->
-                    <ng-template #noAttachments>
-                        <div class="no-attachments">
-                            <i class="bi bi-paperclip"></i>
-                            <span class="text-muted">No fix attachments</span>
-                        </div>
-                    </ng-template>
                 </div>
             </div>
         </div>
@@ -177,4 +114,9 @@
             <small>กำลังโหลดข้อมูล ticket...</small>
         </div>
     </div>
+
+    <!-- ✅ File Preview Modal -->
+    <app-file-preview-modal [attachment]="selectedAttachment" [show]="showFileModal" (close)="closeModal()">
+    </app-file-preview-modal>
+
 </div>
