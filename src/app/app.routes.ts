@@ -275,7 +275,7 @@ export const routes: Routes = [
             title: 'Customers Management - Support Ticket System'
           },
           
-          // ===== Customer for Project Routes =====
+          // ===== Customer for Project Routes - UPDATED =====
           {
             path: 'customer-for-project',
             canActivate: [adminGuard],
@@ -286,6 +286,18 @@ export const routes: Routes = [
               requireAllPermissions: true
             },
             title: 'Customer for Project - Support Ticket System'
+          },
+          // ===== NEW: Project Customer Detail Route =====
+          {
+            path: 'customer-for-project/:id',
+            canActivate: [adminGuard],
+            loadComponent: () => import('./pages/settings/project-customer-detail/project-customer-detail.component')
+              .then(m => m.ProjectCustomerDetailComponent),
+            data: {
+              permissions: [permissionEnum.MANAGE_PROJECT],
+              requireAllPermissions: true
+            },
+            title: 'Project Customer Detail - Support Ticket System'
           }
         ]
       },
@@ -413,6 +425,7 @@ export const ROUTE_PERMISSIONS = {
     CATEGORIES: [permissionEnum.MANAGE_CATEGORY],
     CUSTOMERS: [permissionEnum.MANAGE_PROJECT],
     CUSTOMER_PROJECT: [permissionEnum.MANAGE_PROJECT],
+    CUSTOMER_PROJECT_DETAIL: [permissionEnum.MANAGE_PROJECT], // NEW: Added for detail page
     STATUS: [permissionEnum.MANAGE_STATUS]
   },
   ADMIN: {
@@ -435,6 +448,7 @@ export interface NavigationItem {
   permissions: number[];
   icon?: string;
   children?: NavigationItem[];
+  hidden?: boolean; // NEW: Flag to hide from navigation menu
 }
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
@@ -547,9 +561,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
       },
       {
         path: '/settings/customer-for-project',
-        title: 'Customer for Project',
+        title: 'Project Customers',
         permissions: [permissionEnum.MANAGE_PROJECT]
       }
+      // NOTE: Project Customer Detail is not in navigation menu
+      // It's accessed by clicking on a project card
     ]
   }
 ];
@@ -559,6 +575,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
  */
 export function getAccessibleNavigation(userPermissions: number[]): NavigationItem[] {
   return NAVIGATION_ITEMS.filter(item => {
+    // Skip hidden items
+    if (item.hidden) {
+      return false;
+    }
+    
     // FIXED: If no permissions required, always allow
     const hasParentAccess = item.permissions.length === 0 || 
       item.permissions.some(p => userPermissions.includes(p));
@@ -569,8 +590,10 @@ export function getAccessibleNavigation(userPermissions: number[]): NavigationIt
     
     if (item.children) {
       const accessibleChildren = item.children.filter(child => 
-        child.permissions.length === 0 || 
-        child.permissions.some(p => userPermissions.includes(p))
+        !child.hidden && (
+          child.permissions.length === 0 || 
+          child.permissions.some(p => userPermissions.includes(p))
+        )
       );
       
       // FIXED: Show parent if it has accessible children OR if parent itself has no permission requirements
@@ -581,8 +604,29 @@ export function getAccessibleNavigation(userPermissions: number[]): NavigationIt
   }).map(item => ({
     ...item,
     children: item.children?.filter(child => 
-      child.permissions.length === 0 || 
-      child.permissions.some(p => userPermissions.includes(p))
+      !child.hidden && (
+        child.permissions.length === 0 || 
+        child.permissions.some(p => userPermissions.includes(p))
+      )
     )
   }));
+}
+
+/**
+ * Check if user can access a specific route
+ */
+export function canAccessRoute(route: string, userPermissions: number[]): boolean {
+  // Find the route in ROUTE_PERMISSIONS
+  const routeParts = route.split('/').filter(p => p);
+  
+  // Special handling for dynamic routes
+  if (routeParts.includes('customer-for-project') && routeParts.length > 2) {
+    // This is the detail page
+    return ROUTE_PERMISSIONS.SETTINGS.CUSTOMER_PROJECT_DETAIL.some(p => 
+      userPermissions.includes(p)
+    );
+  }
+  
+  // Check other routes normally
+  return true;
 }
