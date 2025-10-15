@@ -473,7 +473,7 @@
 .priority-warning:hover .priority-tooltip {
   visibility: visible;
   opacity: 1;
-  transform: translateY(-5px);
+  /* transform: translateY(-5px); */
 }
 
 .priority-tooltip {

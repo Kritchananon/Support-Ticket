@@ -221,7 +221,7 @@ export interface AllTicketData {
   categories_name?: string;
   project_name?: string;
   user_name?: string;
-  priority?: string;
+  priority_id?: string;
   status_name?: string; // ✅ เพิ่มสำหรับ status name จาก API
 }
 
@@ -1669,7 +1669,7 @@ export class ApiService {
     return tickets.map(ticket => ({
       ...ticket,
       // เพิ่ม priority default ถ้าไม่มี
-      priority: ticket.priority || this.generateRandomPriority(),
+      priority: ticket.priority_id || this.generateRandomPriority(),
       // Format date ถ้าต้องการ
       create_date: ticket.create_date || new Date().toISOString(),
       // ✅ เพิ่ม status_name จาก cache

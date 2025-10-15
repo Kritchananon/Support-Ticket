@@ -1,117 +1,95 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService, MasterFilterCategory, MasterFilterProject, AllTicketData } from '../../../shared/services/api.service';
 import { AuthService } from '../../../shared/services/auth.service';
-
-// ✅ Import Permission Models
 import { permissionEnum, UserRole, ROLES } from '../../../shared/models/permission.model';
 import { UserWithPermissions } from '../../../shared/models/user.model';
-
-// ✅ Import Permission Directives
 import { HasPermissionDirective, HasRoleDirective } from '../../../shared/directives/permission.directive';
-
-import { saveAs } from 'file-saver'; // ✅ ต้องติดตั้ง: npm i file-saver
+import { saveAs } from 'file-saver';
 
 @Component({
   selector: 'app-ticket-list',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    // HasPermissionDirective,  // ✅ Import permission directives
-    // HasRoleDirective
-  ],
+  imports: [CommonModule, FormsModule],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css']
 })
-export class TicketListComponent implements OnInit {
-
-  statuses: { id: number; name: string }[] = [];
+export class TicketListComponent implements OnInit, OnDestroy {
 
   private apiService = inject(ApiService);
   private authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
-  // ✅ Permission Enums (for template usage)
+  // Permission Enums
   readonly permissionEnum = permissionEnum;
   readonly ROLES = ROLES;
 
-  // ✅ User and Permission Data
+  // User and Permission Data
   currentUser: UserWithPermissions | null = null;
   userPermissions: permissionEnum[] = [];
   userRoles: UserRole[] = [];
 
-  // ✅ View Mode Configuration
+  // View Mode Configuration
   viewMode: 'all' | 'own-only' = 'all';
   canViewAllTickets = false;
   canViewOwnTickets = false;
   canCreateTickets = false;
   canManageTickets = false;
 
-  // ✅ Ticket Data
+  // Ticket Data
   tickets: AllTicketData[] = [];
   filteredTickets: AllTicketData[] = [];
   isLoading = false;
   ticketsError = '';
   noTicketsFound = false;
 
-  // ✅ Pagination state
-pagination = {
-  currentPage: 1,
-  perPage: 10,
-  totalRows: 0,
-  totalPages: 1
-};
+  // Pagination state
+  pagination = {
+    currentPage: 1,
+    perPage: 25, // ✅ เปลี่ยนจาก 10 เป็น 25 ให้ตรงกับ Backend
+    totalRows: 0,
+    totalPages: 1
+  };
 
-  // ✅ Filter Data
+  // Filter Data
   categories: MasterFilterCategory[] = [];
   projects: MasterFilterProject[] = [];
+  statuses: { id: number; name: string }[] = [];
   loadingFilters = false;
   filterError = '';
 
-  // ✅ Status Management
+  // Status Management
   statusCacheLoaded = false;
   isLoadingStatuses = false;
   statusError = '';
 
-  // ✅ Filter States
-  searchText = '';
-  selectedPriority = '';
-  selectedStatus = '';
-  selectedProject = '';
-  selectedCategory = '';
+  // Filter Values
+  selectedPriority: string = '';
+  selectedStatus: string = '';
+  selectedCategory: string = '';
+  selectedProject: string = '';
+  searchText: string = '';
 
-  // ✅ Search timeout for debouncing
+  // Search timeout for debouncing
   private searchTimeout: any = null;
 
-  // ✅ Priority Options
+  // Priority Options - ✅ แก้ให้ถูกต้อง: 1=Low, 2=Medium, 3=High
   priorityOptions = [
     { value: '', label: 'All Priority' },
-    { value: 'high', label: 'High' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'low', label: 'Low' }
+    { value: '3', label: 'High' },
+    { value: '2', label: 'Medium' },
+    { value: '1', label: 'Low' }
   ];
 
-  // ✅ Status Options
-  private loadStatuses(): void {
-    this.statuses = [
-      { id: 1, name: 'Pending' },
-      { id: 2, name: 'In Progress' },
-      { id: 3, name: 'Hold' },
-      { id: 4, name: 'Resolved' },
-      { id: 5, name: 'Complete' },
-      { id: 6, name: 'Cancel' }
-    ];
-  }
-
+  // Status Options
   statusOptions = [
     { value: '', label: 'All Status' },
     { value: '1', label: 'Pending' },
-    { value: '2', label: 'In Progress' },
-    { value: '3', label: 'Hold' },
+    { value: '2', label: 'Open Ticket' },
+    { value: '3', label: 'In Progress' },
     { value: '4', label: 'Resolved' },
     { value: '5', label: 'Complete' },
     { value: '6', label: 'Cancel' }
@@ -120,25 +98,22 @@ pagination = {
   ngOnInit(): void {
     console.log('🎫 TicketListComponent initialized');
 
-    //  load status
     this.loadStatuses();
-
-    // ✅ Load user data and permissions
     this.loadUserData();
-
-    // ✅ Determine view mode from route data
     this.determineViewMode();
-
-    // ✅ Check permissions
     this.checkPermissions();
-
-    // ✅ Load data
     this.loadStatusCache();
     this.loadMasterFilters();
     this.loadTickets();
   }
 
-  // ===== USER DATA & PERMISSIONS ===== ✅
+  ngOnDestroy(): void {
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
+  }
+
+  // ===== USER DATA & PERMISSIONS =====
 
   private loadUserData(): void {
     this.currentUser = this.authService.getCurrentUserWithPermissions();
@@ -154,13 +129,11 @@ pagination = {
   }
 
   private determineViewMode(): void {
-    // ✅ Check route data for view mode
     const routeViewMode = this.route.snapshot.data['viewMode'];
     if (routeViewMode === 'own-only') {
       this.viewMode = 'own-only';
       console.log('📋 View mode set to: own-only (from route data)');
     } else {
-      // ✅ Auto-determine based on permissions
       if (this.authService.hasPermission(permissionEnum.VIEW_ALL_TICKETS)) {
         this.viewMode = 'all';
         console.log('📋 View mode set to: all (has VIEW_ALL_TICKETS permission)');
@@ -169,7 +142,7 @@ pagination = {
         console.log('📋 View mode set to: own-only (has VIEW_OWN_TICKETS permission only)');
       } else {
         console.warn('⚠️ User has no ticket viewing permissions');
-        this.viewMode = 'own-only'; // Default fallback
+        this.viewMode = 'own-only';
       }
     }
   }
@@ -188,7 +161,6 @@ pagination = {
       viewMode: this.viewMode
     });
 
-    // ✅ Redirect if no permissions
     if (!this.canViewAllTickets && !this.canViewOwnTickets) {
       console.error('❌ User has no ticket viewing permissions, redirecting to dashboard');
       this.router.navigate(['/dashboard']);
@@ -196,7 +168,7 @@ pagination = {
     }
   }
 
-  // ===== PERMISSION HELPER METHODS ===== ✅
+  // ===== PERMISSION HELPER METHODS =====
 
   hasPermission(permission: permissionEnum): boolean {
     return this.authService.hasPermission(permission);
@@ -211,13 +183,11 @@ pagination = {
   }
 
   canEditTicket(ticket: AllTicketData): boolean {
-    // ✅ Admin/Supporter can edit any ticket
     if (this.hasAnyRole([ROLES.ADMIN, ROLES.SUPPORTER])) {
       return this.hasPermission(permissionEnum.EDIT_TICKET) ||
         this.hasPermission(permissionEnum.CHANGE_STATUS);
     }
 
-    // ✅ Users can edit their own tickets
     if (this.hasRole(ROLES.USER)) {
       return this.hasPermission(permissionEnum.EDIT_TICKET) &&
         ticket.create_by === this.currentUser?.id;
@@ -227,16 +197,14 @@ pagination = {
   }
 
   canDeleteTicket(ticket: AllTicketData): boolean {
-    // ✅ Admin can delete any ticket
     if (this.hasRole(ROLES.ADMIN)) {
       return this.hasPermission(permissionEnum.DELETE_TICKET);
     }
 
-    // ✅ Users can delete their own tickets (if not in progress)
     if (this.hasRole(ROLES.USER)) {
       return this.hasPermission(permissionEnum.DELETE_TICKET) &&
         ticket.create_by === this.currentUser?.id &&
-        ticket.status_id === 1; // Only if status is "Created"
+        ticket.status_id === 1;
     }
 
     return false;
@@ -265,10 +233,10 @@ pagination = {
   canRateSatisfaction(ticket: AllTicketData): boolean {
     return this.hasPermission(permissionEnum.SATISFACTION) &&
       ticket.create_by === this.currentUser?.id &&
-      ticket.status_id === 5; // Completed status
+      ticket.status_id === 5;
   }
 
-  // ===== DATA LOADING ===== ✅
+  // ===== DATA LOADING =====
 
   private loadStatusCache(): void {
     console.log('=== Loading Status Cache ===');
@@ -301,93 +269,224 @@ pagination = {
     });
   }
 
-  // ✅ แทนที่ฟังก์ชันเดิมทั้งหมด
-private loadTickets(page: number = 1): void {
-  console.log(`=== Loading Tickets (page=${page}) ===`);
-  this.isLoading = true;
-  this.ticketsError = '';
-  this.noTicketsFound = false;
+  private loadStatuses(): void {
+    this.statuses = [
+      { id: 1, name: 'Pending' },
+      { id: 2, name: 'Open Ticket' },
+      { id: 3, name: 'In Progress' },
+      { id: 4, name: 'Resolved' },
+      { id: 5, name: 'Complete' },
+      { id: 6, name: 'Cancel' }
+    ];
+  }
 
-  const params = { page, perPage: 25 };
+  private loadTickets(page: number = 1): void {
+    console.log(`=== Loading Tickets (page=${page}) ===`);
+    console.log('🎯 Current filters:', {
+      searchText: this.searchText,
+      selectedPriority: this.selectedPriority,
+      selectedStatus: this.selectedStatus,
+      selectedProject: this.selectedProject,
+      selectedCategory: this.selectedCategory
+    });
 
-  this.apiService.getAllTickets(params).subscribe({
-    next: (res: any) => {
-      console.log('✅ Response from backend:', res);
+    this.isLoading = true;
+    this.ticketsError = '';
+    this.noTicketsFound = false;
 
-      // ✅ ตรวจว่าข้อมูลมาจริงไหม
-      if (res?.success && Array.isArray(res.data)) {
-        this.tickets = [...res.data];
-        this.filteredTickets = [...res.data];
-        this.pagination = {...res.pagination};
-        this.noTicketsFound = res.data.length === 0;
+    const params: any = {
+      page,
+      perPage: 25
+    };
 
-        console.log('📦 Loaded tickets:', this.tickets.length);
-        console.log('📊 Pagination:', this.pagination);
-      } else {
-        this.tickets = [];
-        this.filteredTickets = [];
-        this.noTicketsFound = true;
-        console.warn('⚠️ Invalid response structure:', res);
-      }
-
-      this.isLoading = false;
-    },
-    error: (error) => {
-      console.error('❌ Error loading tickets:', error);
-      this.ticketsError = typeof error === 'string'
-        ? error
-        : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
-      this.isLoading = false;
-      this.noTicketsFound = true;
+    if (this.searchText && this.searchText.trim()) {
+      params.search = this.searchText.trim();
     }
-  });
-}
+    if (this.selectedPriority) {
+      params.priority = Number(this.selectedPriority);
+    }
+    if (this.selectedStatus) {
+      params.status_id = Number(this.selectedStatus);
+    }
+    if (this.selectedCategory) {
+      params.category_id = Number(this.selectedCategory);
+      params.categories_id = Number(this.selectedCategory);
+    }
+    if (this.selectedProject) {
+      params.project_id = Number(this.selectedProject);
+    }
 
-changePage(page: number): void {
-  if (!this.pagination) return;
-  if (page < 1 || page > this.pagination.totalPages) return;
+    console.log('📤 Sending params to API:', params);
 
-  if (page === this.pagination.currentPage) {
-    console.log('⚠️ Already on current page:', page);
-    return;
+    this.apiService.getAllTickets(params).subscribe({
+      next: (res: any) => {
+        console.log('✅ Response from backend:', res);
+
+        if (res?.success && Array.isArray(res.data)) {
+          // ✅ ใช้ข้อมูลจาก Backend โดยตรง (Backend filter แล้ว)
+          const allTickets = [...res.data];
+
+          this.tickets = allTickets;
+          this.filteredTickets = allTickets;
+
+          // ✅ ใช้ pagination จาก Backend เสมอ
+          // Backend รู้จำนวนข้อมูลทั้งหมดที่ตรงกับ filter
+          this.pagination = res.pagination ? {
+            currentPage: res.pagination.currentPage || page,
+            perPage: res.pagination.perPage || 25,
+            totalRows: res.pagination.totalRows || allTickets.length,
+            totalPages: res.pagination.totalPages || 1
+          } : {
+            currentPage: page,
+            perPage: 25,
+            totalRows: allTickets.length,
+            totalPages: Math.ceil(allTickets.length / 25)
+          };
+
+          this.noTicketsFound = allTickets.length === 0 && this.pagination.totalRows === 0;
+
+          console.log('📦 Final tickets:', allTickets.length);
+          console.log('📊 Pagination:', this.pagination);
+          console.log('📍 Total rows:', this.pagination.totalRows);
+          console.log('📄 Total pages:', this.pagination.totalPages);
+        } else {
+          this.tickets = [];
+          this.filteredTickets = [];
+          this.noTicketsFound = true;
+          console.warn('⚠️ Invalid response structure:', res);
+        }
+
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading tickets:', error);
+        this.ticketsError = typeof error === 'string'
+          ? error
+          : 'เกิดข้อผิดพลาดในการโหลดตั๋ว';
+        this.isLoading = false;
+        this.noTicketsFound = true;
+      }
+    });
   }
 
-  console.log('➡️ Changing to page:', page);
-  this.loadTickets(page);
-}
+  private filterTicketsLocally(tickets: AllTicketData[]): AllTicketData[] {
+    let filtered = [...tickets];
 
-getDisplayedPages(): (number | string)[] {
-  const total = this.pagination?.totalPages || 1;
-  const current = this.pagination?.currentPage || 1;
-  const delta = 2;
-  const range: (number | string)[] = [];
-  const pages: (number | string)[] = [];
+    console.log('🔍 Filtering tickets locally...');
+    console.log('Before filter:', filtered.length);
 
-  for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
-    range.push(i);
+    // ✅ เช็คว่ามี filter อะไรบ้าง
+    const hasFilters = this.selectedPriority || this.selectedStatus ||
+      this.selectedCategory || this.selectedProject ||
+      this.searchText?.trim();
+
+    if (!hasFilters) {
+      console.log('⚠️ No filters applied, returning all tickets');
+      return filtered;
+    }
+
+    if (this.selectedPriority && this.selectedPriority.trim()) {
+      const beforeCount = filtered.length;
+      const selectedPriorityNum = Number(this.selectedPriority);
+
+      filtered = filtered.filter(ticket => {
+        const ticketPriorityNum = Number(ticket.priority_id);
+        return ticketPriorityNum === selectedPriorityNum;
+      });
+
+      console.log(`🎯 Priority filter (${this.selectedPriority}): ${filtered.length} of ${beforeCount}`);
+    }
+
+    if (this.selectedStatus && this.selectedStatus.trim()) {
+      const beforeCount = filtered.length;
+      const statusId = Number(this.selectedStatus);
+      filtered = filtered.filter(ticket => ticket.status_id === statusId);
+      console.log(`📊 Status filter (${statusId}): ${filtered.length} of ${beforeCount}`);
+    }
+
+    if (this.selectedCategory && this.selectedCategory.trim()) {
+      const beforeCount = filtered.length;
+      const categoryId = Number(this.selectedCategory);
+      filtered = filtered.filter(ticket => ticket.categories_id === categoryId);
+      console.log(`🏷️ Category filter (${categoryId}): ${filtered.length} of ${beforeCount}`);
+    }
+
+    if (this.selectedProject && this.selectedProject.trim()) {
+      const beforeCount = filtered.length;
+      const projectId = Number(this.selectedProject);
+      filtered = filtered.filter(ticket => ticket.project_id === projectId);
+      console.log(`📁 Project filter (${projectId}): ${filtered.length} of ${beforeCount}`);
+    }
+
+    if (this.searchText && this.searchText.trim()) {
+      const beforeCount = filtered.length;
+      const searchLower = this.searchText.trim().toLowerCase();
+      filtered = filtered.filter(ticket => {
+        const anyTicket = ticket as any;
+        const matchTicketNo = ticket.ticket_no?.toLowerCase().includes(searchLower) || false;
+        const matchDescription = ticket.issue_description?.toLowerCase().includes(searchLower) || false;
+        const matchProject = ticket.project_name?.toLowerCase().includes(searchLower) || false;
+        const matchCategory = ticket.categories_name?.toLowerCase().includes(searchLower) || false;
+        // ✅ ค้นหาจาก field "name" ด้วย
+        const matchUserName = anyTicket.name?.toLowerCase().includes(searchLower) || false;
+        const matchUser = ticket.user_name?.toLowerCase().includes(searchLower) || false;
+
+        return matchTicketNo || matchDescription || matchProject || matchUserName || matchUser || matchCategory;
+      });
+      console.log(`🔍 Search filter ("${searchLower}"): ${filtered.length} of ${beforeCount}`);
+    }
+
+    console.log('After all filters:', filtered.length);
+    return filtered;
   }
 
-  if (current - delta > 2) pages.push(1, '...');
-  else for (let i = 1; i < Math.max(2, current - delta); i++) pages.push(i);
+  changePage(page: number): void {
+    if (!this.pagination) return;
+    if (page < 1 || page > this.pagination.totalPages) return;
+    if (page === this.pagination.currentPage) return;
 
-  pages.push(...range);
+    console.log('➡️ Changing to page:', page);
+    this.loadTickets(page);
+  }
 
-  if (current + delta < total - 1) pages.push('...', total);
-  else for (let i = Math.min(total - 1, current + delta) + 1; i <= total; i++) pages.push(i);
+  getDisplayedPages(): (number | string)[] {
+    const total = this.pagination?.totalPages || 1;
+    const current = this.pagination?.currentPage || 1;
+    const delta = 2;
+    const range: (number | string)[] = [];
+    const pages: (number | string)[] = [];
 
-  return pages;
-}
+    for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+      range.push(i);
+    }
 
+    if (current - delta > 2) {
+      pages.push(1, '...');
+    } else {
+      for (let i = 1; i < Math.max(2, current - delta); i++) {
+        pages.push(i);
+      }
+    }
+
+    pages.push(...range);
+
+    if (current + delta < total - 1) {
+      pages.push('...', total);
+    } else {
+      for (let i = Math.min(total - 1, current + delta) + 1; i <= total; i++) {
+        pages.push(i);
+      }
+    }
+
+    return pages;
+  }
 
   private filterTicketsByPermission(tickets: AllTicketData[]): AllTicketData[] {
     if (this.viewMode === 'all' && this.canViewAllTickets) {
-      // ✅ Can view all tickets
       return tickets;
     } else if (this.canViewOwnTickets && this.currentUser) {
-      // ✅ Can only view own tickets
       return tickets.filter(ticket => ticket.create_by === this.currentUser!.id);
     } else {
-      // ✅ No permission to view any tickets
       console.warn('⚠️ User has no permission to view tickets');
       return [];
     }
@@ -409,7 +508,6 @@ getDisplayedPages(): (number | string)[] {
 
           console.log('Categories loaded:', this.categories.length);
           console.log('Projects loaded:', this.projects.length);
-          console.log('Statuses loaded:', resData.status?.length ?? 0);
         } else {
           this.filterError = response.data?.message || 'ไม่สามารถโหลดข้อมูล filter ได้';
         }
@@ -426,107 +524,56 @@ getDisplayedPages(): (number | string)[] {
     });
   }
 
-  /** 🔎 ไม่ให้ trigger ตอนพิมพ์ */
-  onSearchInput(event: any) {
-    this.searchText = event.target.value;
+  // ===== SEARCH & FILTER METHODS =====
+
+  onPriorityChangeModel(value: string): void {
+    console.log('🎯 Priority changed via ngModel:', value);
+    this.applyFilters();
   }
 
-  /** ✅ กด Enter หรือปุ่ม "ค้นหา" เท่านั้นถึงจะโหลด */
+  onStatusChangeModel(value: string): void {
+    console.log('📊 Status changed via ngModel:', value);
+    this.applyFilters();
+  }
+
+  onCategoryChangeModel(value: string): void {
+    console.log('🏷️ Category changed via ngModel:', value);
+    this.applyFilters();
+  }
+
+  onProjectChangeModel(value: string): void {
+    console.log('📁 Project changed via ngModel:', value);
+    this.applyFilters();
+  }
+
   applyFilters(): void {
-    const filter = {
-      search: this.searchText?.trim() || '',
-      priority: this.selectedPriority || '',
-      status: this.selectedStatus || '',
-      category: this.selectedCategory || '',
-      project: this.selectedProject || '',
-    };
+    console.log('🎯 Applying filters - reloading from API');
+    console.log('Current filter values:', {
+      searchText: this.searchText,
+      selectedPriority: this.selectedPriority,
+      selectedStatus: this.selectedStatus,
+      selectedProject: this.selectedProject,
+      selectedCategory: this.selectedCategory
+    });
 
     this.loadTickets(1);
   }
 
-  /** ✅ Export Excel ตาม filter ปัจจุบัน */
-  exportExcel(): void {
-    const filter = {
-      search: this.searchText?.trim() || '',
-      priority: this.selectedPriority || '',
-      status: this.selectedStatus || '',
-      category: this.selectedCategory || '',
-      project: this.selectedProject || ''
-    };
-
-    this.apiService.exportTicketsExcel(filter).subscribe({
-      next: (blob: Blob) => {
-        const fileName = `Helpdesk_Tickets_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        saveAs(blob, fileName);
-      },
-      error: (err) => console.error('Export Excel failed:', err)
-    });
+  onSearchInput(event: any): void {
+    this.searchText = event.target.value;
+    console.log('🔍 Search input changed:', this.searchText);
   }
-
-  // ===== STATUS MANAGEMENT ===== ✅
-
-  getStatusText(statusId: number): string {
-    if (this.statusCacheLoaded) {
-      return this.apiService.getCachedStatusName(statusId);
-    }
-
-    // Fallback ถ้า cache ยังไม่โหลด
-    switch (statusId) {
-      case 1: return 'Created';
-      case 2: return 'Open Ticket';
-      case 3: return 'In Progress';
-      case 4: return 'Resolved';
-      case 5: return 'Completed';
-      case 6: return 'Cancel';
-      default: return 'Unknown';
-    }
-  }
-
-  getStatusBadgeClass(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'badge-pending';
-      case 2: return 'badge-in-progress';
-      case 3: return 'badge-hold';
-      case 4: return 'badge-resolved';
-      case 5: return 'badge-complete';
-      case 6: return 'badge-cancel';
-      default: return 'badge-pending';
-    }
-  }
-
-  getStatusIcon(statusId: number): string {
-    switch (statusId) {
-      case 1: return 'bi-plus-circle';      // Created
-      case 2: return 'bi-clock';            // Open Ticket
-      case 3: return 'bi-play-circle';      // In Progress
-      case 4: return 'bi-clipboard-check';  // Resolved
-      case 5: return 'bi-check-circle';     // Completed
-      case 6: return 'bi-x-circle';         // Cancel
-      default: return 'bi-clock';
-    }
-  }
-
-  // ===== SEARCH & FILTER METHODS ===== ✅ IMPROVED
 
   onSearchChange(): void {
-    // Clear previous timeout
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
     }
 
-    // Set new timeout for debounced search
     this.searchTimeout = setTimeout(() => {
-      console.log('🔍 Search triggered:', this.searchText);
+      console.log('🔍 Search triggered (debounced):', this.searchText);
       this.applyFilters();
     }, 300);
   }
-
-  // onSearchInput(event: Event): void {
-  //   const target = event.target as HTMLInputElement;
-  //   this.searchText = target.value;
-  //   console.log('📝 Search input changed:', this.searchText);
-  //   this.onSearchChange();
-  // }
 
   clearSearch(): void {
     this.searchText = '';
@@ -536,113 +583,51 @@ getDisplayedPages(): (number | string)[] {
 
   onPriorityChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
-    this.selectedPriority = target.value;
-    this.applyFilters();
+    const newValue = target.value;
+    console.log('🎯 Priority changing from:', this.selectedPriority, 'to:', newValue);
+    this.selectedPriority = newValue;
+
+    setTimeout(() => {
+      console.log('🎯 Priority value after update:', this.selectedPriority);
+      this.applyFilters();
+    }, 0);
   }
 
   onStatusChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
-    this.selectedStatus = target.value;
-    this.applyFilters();
+    const newValue = target.value;
+    console.log('📊 Status changing from:', this.selectedStatus, 'to:', newValue);
+    this.selectedStatus = newValue;
+
+    setTimeout(() => {
+      console.log('📊 Status value after update:', this.selectedStatus);
+      this.applyFilters();
+    }, 0);
   }
 
   onProjectChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
-    this.selectedProject = target.value;
-    console.log('Project changed to:', this.selectedProject);
-    this.applyFilters();
+    const newValue = target.value;
+    console.log('📁 Project changing from:', this.selectedProject, 'to:', newValue);
+    this.selectedProject = newValue;
+
+    setTimeout(() => {
+      console.log('📁 Project value after update:', this.selectedProject);
+      this.applyFilters();
+    }, 0);
   }
 
   onCategoryChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
-    this.selectedCategory = target.value;
-    console.log('Category changed to:', this.selectedCategory);
-    this.applyFilters();
+    const newValue = target.value;
+    console.log('🏷️ Category changing from:', this.selectedCategory, 'to:', newValue);
+    this.selectedCategory = newValue;
+
+    setTimeout(() => {
+      console.log('🏷️ Category value after update:', this.selectedCategory);
+      this.applyFilters();
+    }, 0);
   }
-
-  // applyFilters(): void {
-  //   console.log('🎯 Applying filters:', {
-  //     searchText: this.searchText,
-  //     selectedPriority: this.selectedPriority,
-  //     selectedStatus: this.selectedStatus,
-  //     selectedProject: this.selectedProject,
-  //     selectedCategory: this.selectedCategory,
-  //     totalTickets: this.tickets.length
-  //   });
-
-  //   let filtered = [...this.tickets];
-
-  //   // Search filter with better null checks
-  //   if (this.searchText && this.searchText.trim()) {
-  //     const searchLower = this.searchText.trim().toLowerCase();
-  //     console.log('🔍 Applying search filter:', searchLower);
-
-  //     const beforeCount = filtered.length;
-  //     filtered = filtered.filter(ticket => {
-  //       const matchTicketNo = ticket.ticket_no?.toLowerCase().includes(searchLower) || false;
-  //       const matchDescription = ticket.issue_description?.toLowerCase().includes(searchLower) || false;
-  //       const matchProject = ticket.project_name?.toLowerCase().includes(searchLower) || false;
-  //       const matchUser = ticket.user_name?.toLowerCase().includes(searchLower) || false;
-  //       const matchCategory = ticket.categories_name?.toLowerCase().includes(searchLower) || false;
-
-  //       const isMatch = matchTicketNo || matchDescription || matchProject || matchUser || matchCategory;
-
-  //       // Log first few matches for debugging
-  //       if (isMatch && beforeCount === this.tickets.length) {
-  //         console.log('✅ Search match found:', {
-  //           ticketNo: ticket.ticket_no,
-  //           matchTicketNo,
-  //           matchDescription,
-  //           matchProject,
-  //           matchUser,
-  //           matchCategory
-  //         });
-  //       }
-
-  //       return isMatch;
-  //     });
-  //     console.log(`🔍 Search results: ${filtered.length} of ${beforeCount} tickets`);
-  //   }
-
-  //   // Priority filter
-  //   if (this.selectedPriority && this.selectedPriority.trim()) {
-  //     const beforeCount = filtered.length;
-  //     filtered = filtered.filter(ticket => 
-  //       ticket.priority?.toLowerCase() === this.selectedPriority.toLowerCase()
-  //     );
-  //     console.log(`🎯 Priority filter: ${filtered.length} of ${beforeCount} tickets`);
-  //   }
-
-  //   // Status filter
-  //   if (this.selectedStatus && this.selectedStatus.trim()) {
-  //     const beforeCount = filtered.length;
-  //     filtered = filtered.filter(ticket => 
-  //       ticket.status_id?.toString() === this.selectedStatus
-  //     );
-  //     console.log(`📊 Status filter: ${filtered.length} of ${beforeCount} tickets`);
-  //   }
-
-  //   // Project filter
-  //   if (this.selectedProject && this.selectedProject.trim()) {
-  //     const beforeCount = filtered.length;
-  //     filtered = filtered.filter(ticket => 
-  //       ticket.project_id?.toString() === this.selectedProject
-  //     );
-  //     console.log(`📁 Project filter: ${filtered.length} of ${beforeCount} tickets`);
-  //   }
-
-  //   // Category filter
-  //   if (this.selectedCategory && this.selectedCategory.trim()) {
-  //     const beforeCount = filtered.length;
-  //     filtered = filtered.filter(ticket => 
-  //       ticket.categories_id?.toString() === this.selectedCategory
-  //     );
-  //     console.log(`🏷️ Category filter: ${filtered.length} of ${beforeCount} tickets`);
-  //   }
-
-  //   this.filteredTickets = filtered;
-  //   console.log('✅ Final filtered tickets:', this.filteredTickets.length);
-  // }
 
   clearFilters(): void {
     console.log('🧹 Clearing all filters');
@@ -651,14 +636,108 @@ getDisplayedPages(): (number | string)[] {
     this.selectedStatus = '';
     this.selectedProject = '';
     this.selectedCategory = '';
-    this.filteredTickets = [...this.tickets];
-    console.log('✅ All filters cleared, showing all tickets:', this.filteredTickets.length);
+
+    this.loadTickets(1);
   }
 
-  // ===== DEBUG METHODS ===== ✅
+  exportExcel(): void {
+    console.log('📊 Exporting Excel with current filters');
+
+    const filter = {
+      search: this.searchText?.trim() || '',
+      priority: this.selectedPriority || '',
+      status: this.selectedStatus || '',
+      category: this.selectedCategory || '',
+      project: this.selectedProject || ''
+    };
+
+    console.log('Export filter:', filter);
+
+    this.apiService.exportTicketsExcel(filter).subscribe({
+      next: (blob: Blob) => {
+        const fileName = `Helpdesk_Tickets_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        saveAs(blob, fileName);
+        console.log('✅ Excel exported successfully:', fileName);
+      },
+      error: (err) => {
+        console.error('❌ Export Excel failed:', err);
+        alert('เกิดข้อผิดพลาดในการ Export Excel');
+      }
+    });
+  }
+
+  // ===== STATUS MANAGEMENT =====
+
+  // ✅ เพิ่ม helper function สำหรับ normalize status name
+  private normalizeStatusName(statusName: string): string {
+    const normalized = statusName.toLowerCase().trim();
+
+    // Map status names ที่อาจแตกต่างกัน
+    const statusMap: { [key: string]: string } = {
+      'created': 'Pending',
+      'pending': 'Pending',
+      'open': 'Open Ticket',
+      'open ticket': 'Open Ticket',
+      'in progress': 'In Progress',
+      'progress': 'In Progress',
+      'resolved': 'Resolved',
+      'complete': 'Complete',
+      'completed': 'Complete',
+      'cancel': 'Cancel',
+      'cancelled': 'Cancel',
+      'canceled': 'Cancel'
+    };
+
+    return statusMap[normalized] || statusName;
+  }
+
+  getStatusText(statusId: number): string {
+    // ✅ ใช้ข้อมูลจาก cache ก่อนถ้ามี
+    if (this.statusCacheLoaded) {
+      const cachedName = this.apiService.getCachedStatusName(statusId);
+      return this.normalizeStatusName(cachedName);
+    }
+
+    // ✅ Fallback ถ้า cache ยังไม่โหลด
+    switch (statusId) {
+      case 1: return 'Pending';
+      case 2: return 'Open Ticket';
+      case 3: return 'In Progress';
+      case 4: return 'Resolved';
+      case 5: return 'Complete';
+      case 6: return 'Cancel';
+      default: return 'Unknown';
+    }
+  }
+
+  getStatusBadgeClass(statusId: number): string {
+    switch (statusId) {
+      case 1: return 'badge-pending';        // Pending - สีเหลือง
+      case 2: return 'badge-in-progress';    // Open Ticket - สีฟ้าอ่อน
+      case 3: return 'badge-hold';           // In Progress - สีเทา
+      case 4: return 'badge-resolved';       // Resolved - สีเขียวอ่อน
+      case 5: return 'badge-complete';       // Complete - สีเขียวเข้ม
+      case 6: return 'badge-cancel';         // Cancel - สีแดง
+      default: return 'badge-pending';
+    }
+  }
+
+  getStatusIcon(statusId: number): string {
+    switch (statusId) {
+      case 1: return 'bi-clock';                // Pending - นาฬิกา
+      case 2: return 'bi-folder2-open';         // Open Ticket - โฟลเดอร์เปิด
+      case 3: return 'bi-chat-dots';            // In Progress - ไอคอนแชท (ตามรูป)
+      case 4: return 'bi-clipboard-check';      // Resolved - คลิปบอร์ดติ๊ก
+      case 5: return 'bi-check-circle';         // Complete - วงกลมติ๊ก
+      case 6: return 'bi-x-circle';             // Cancel - วงกลมX
+      default: return 'bi-clock';
+    }
+  }
+
+  // ===== DEBUG METHODS =====
 
   debugSearchData(): void {
-    console.log('🐛 Debug Search Data:');
+    console.log('🛠 Debug Search Data:');
     console.log('Total tickets:', this.tickets.length);
     console.log('Current search:', this.searchText);
     console.log('Filtered tickets:', this.filteredTickets.length);
@@ -674,10 +753,118 @@ getDisplayedPages(): (number | string)[] {
     }
   }
 
-  // ===== STYLING METHODS ===== ✅
+  testApiCall(): void {
+    console.log('🧪 Testing API Call with different parameter formats...');
 
-  getPriorityBadgeClass(priority: string): string {
-    switch (priority?.toLowerCase()) {
+    const params1 = {
+      page: 1,
+      perPage: 10,
+      status_id: 2,
+      category_id: 20,
+      project_id: 2,
+      priority: 'medium'
+    };
+
+    console.log('Test 1 - With _id suffix:', params1);
+    this.apiService.getAllTickets(params1).subscribe({
+      next: (res) => console.log('✅ Test 1 Response:', res),
+      error: (err) => console.error('❌ Test 1 Error:', err)
+    });
+
+    const params2 = {
+      page: 1,
+      perPage: 10,
+      status: 2,
+      category: 20,
+      project: 2,
+      priority: 'medium'
+    };
+
+    console.log('Test 2 - Without _id suffix:', params2);
+    this.apiService.getAllTickets(params2).subscribe({
+      next: (res) => console.log('✅ Test 2 Response:', res),
+      error: (err) => console.error('❌ Test 2 Error:', err)
+    });
+  }
+
+  // ===== STYLING METHODS =====
+
+  // ✅ Helper method สำหรับแสดงชื่อผู้ใช้
+  getUserDisplayName(ticket: AllTicketData): string {
+    // ลำดับความสำคัญในการแสดงชื่อ:
+    // 1. name (ชื่อจริงจาก Backend) ✅
+    // 2. user_name (ถ้ามี)
+    // 3. username (ถ้ามี)  
+    // 4. email (ถ้ามี)
+    // 5. User ID
+    // 6. Unknown User (ถ้าไม่มีข้อมูลเลย)
+
+    const anyTicket = ticket as any;
+
+    // ✅ ลำดับแรก: ชื่อจาก field "name"
+    if (anyTicket.name && anyTicket.name.trim()) {
+      return anyTicket.name;
+    }
+
+    if (ticket.user_name && ticket.user_name.trim()) {
+      return ticket.user_name;
+    }
+
+    if (anyTicket.username && anyTicket.username.trim()) {
+      return anyTicket.username;
+    }
+
+    if (anyTicket.user_email && anyTicket.user_email.trim()) {
+      return anyTicket.user_email;
+    }
+
+    if (anyTicket.creator_name && anyTicket.creator_name.trim()) {
+      return anyTicket.creator_name;
+    }
+
+    if (anyTicket.created_by_name && anyTicket.created_by_name.trim()) {
+      return anyTicket.created_by_name;
+    }
+
+    // ถ้าไม่มีชื่อ แสดง User ID แทน
+    if (ticket.create_by) {
+      return `User #${ticket.create_by}`;
+    }
+
+    return 'Unknown User';
+  }
+
+  // ✅ แปลง priority number เป็น string (แก้ไขให้ถูกต้อง)
+  getPriorityLevel(priority: any): string {
+    const priorityNum = Number(priority);
+    switch (priorityNum) {
+      case 3: return 'high';      // ✅ 3 = High
+      case 2: return 'medium';    // ✅ 2 = Medium
+      case 1: return 'low';       // ✅ 1 = Low
+      default: return 'medium';
+    }
+  }
+
+  // ✅ แปลง priority number เป็น label (แก้ไขให้ถูกต้อง)
+  getPriorityLabel(priority: any): string {
+    const priorityNum = Number(priority);
+    switch (priorityNum) {
+      case 3: return 'High';      // ✅ 3 = High
+      case 2: return 'Medium';    // ✅ 2 = Medium
+      case 1: return 'Low';       // ✅ 1 = Low
+      default: return 'Medium';
+    }
+  }
+
+  // ✅ เช็คว่า ticket เป็น High Priority หรือไม่
+  isHighPriority(ticket: AllTicketData): boolean {
+    const priorityNum = Number(ticket.priority_id);
+    return priorityNum === 3;
+  }
+
+  getPriorityBadgeClass(priority: any): string {
+    const level = this.getPriorityLevel(priority);
+    switch (level) {
       case 'high': return 'badge-priority-high';
       case 'medium': return 'badge-priority-medium';
       case 'low': return 'badge-priority-low';
@@ -700,7 +887,7 @@ getDisplayedPages(): (number | string)[] {
     }
   }
 
-  // ===== NAVIGATION METHODS ===== ✅
+  // ===== NAVIGATION METHODS =====
 
   viewTicket(ticket: AllTicketData): void {
     console.log('Viewing ticket:', ticket.ticket_no);
@@ -727,7 +914,7 @@ getDisplayedPages(): (number | string)[] {
     this.router.navigate(['/tickets/new']);
   }
 
-  // ===== TICKET ACTIONS ===== ✅
+  // ===== TICKET ACTIONS =====
 
   deleteTicket(ticket: AllTicketData): void {
     if (!this.canDeleteTicket(ticket)) {
@@ -746,7 +933,6 @@ getDisplayedPages(): (number | string)[] {
         next: (response) => {
           if (response.code === 1) {
             console.log('✅ Ticket deleted successfully');
-            // Reload tickets
             this.loadTickets();
           } else {
             console.error('❌ Failed to delete ticket:', response.message);
@@ -775,7 +961,6 @@ getDisplayedPages(): (number | string)[] {
       next: (response) => {
         if (response.code === 1) {
           console.log('✅ Ticket status changed successfully');
-          // Update local ticket data
           ticket.status_id = newStatusId;
         } else {
           console.error('❌ Failed to change ticket status:', response.message);
@@ -795,12 +980,11 @@ getDisplayedPages(): (number | string)[] {
       return;
     }
 
-    // TODO: Implement ticket assignment logic
     console.log('Assigning ticket:', ticket.ticket_no);
     alert('ฟีเจอร์การมอบหมายตั๋วยังไม่พร้อมใช้งาน');
   }
 
-  // ===== UTILITY METHODS ===== ✅
+  // ===== UTILITY METHODS =====
 
   reloadTickets(): void {
     console.log('🔄 Reloading tickets');
@@ -843,7 +1027,7 @@ getDisplayedPages(): (number | string)[] {
     };
   }
 
-  // ===== VIEW MODE METHODS ===== ✅
+  // ===== VIEW MODE METHODS =====
 
   getViewModeTitle(): string {
     return this.viewMode === 'all' ? 'All Tickets' : 'My Tickets';
@@ -870,13 +1054,6 @@ getDisplayedPages(): (number | string)[] {
   switchToMyTickets(): void {
     if (this.canViewOwnTickets) {
       this.router.navigate(['/tickets/my-tickets']);
-    }
-  }
-
-  ngOnDestroy(): void {
-    // Clear search timeout when component is destroyed
-    if (this.searchTimeout) {
-      clearTimeout(this.searchTimeout);
     }
   }
 }
