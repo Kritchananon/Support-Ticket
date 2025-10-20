@@ -54,7 +54,7 @@ interface HtmlToPdfDto {
   reportDate: string;
   status: string;
   reporter: string;
-  priority: string;
+  priority_id: string | number;  // ✅ แก้ไขตรงนี้ - รองรับทั้ง string และ number
   category: string;
   project: string;
   issueTitle: string;
@@ -87,7 +87,8 @@ interface HistoryDisplayItem {
   is_skipped?: boolean; // ✅ เพิ่ม property ใหม่
 }
 
-interface TicketData {
+// ✅ เพิ่ม export เพื่อให้ component อื่นใช้ได้
+export interface TicketData {
   ticket: {
     id: number;
     ticket_no: string;
@@ -110,7 +111,7 @@ interface TicketData {
     update_date: string;
     update_by: string;
     isenabled: boolean;
-    priority?: string;
+    priority_id?: string | number;  // ✅ แก้ไขตรงนี้
   };
   issue_attachment: Array<{
     attachment_id: number;
@@ -232,6 +233,19 @@ export class TicketDetailComponent implements OnInit {
     { id: 6, name: 'Cancel', icon: 'bi-x-circle' }
   ];
 
+  // ===== ✅ เพิ่มตรงนี้ - PRIORITY CONSTANTS ===== 
+  private readonly PRIORITY_MAP: { [key: number]: string } = {
+    1: 'Low',
+    2: 'Medium',
+    3: 'High'
+  };
+
+  private readonly PRIORITY_CLASS_MAP: { [key: number]: string } = {
+    1: 'priority-low',
+    2: 'priority-medium',
+    3: 'priority-high'
+  };
+
   // ===== PDF EXPORT METHODS ===== ✅
 
   /**
@@ -294,7 +308,7 @@ export class TicketDetailComponent implements OnInit {
       reportDate: this.formatDateForPdf(new Date().toISOString()),
       status: this.getCurrentStatusName() || '',
       reporter: ticket.create_by || '',
-      priority: ticket.priority || 'Medium',
+      priority_id: this.getPriorityText(ticket.priority_id),  // ✅ ใช้ helper method แปลงเป็น text เลย
       category: ticket.categories_name || '',
       project: ticket.project_name || '',
       issueTitle: `Ticket ${ticket.ticket_no}`,
@@ -880,130 +894,130 @@ export class TicketDetailComponent implements OnInit {
   /**
  * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with role-based status restrictions)
  */
-canEdit(): boolean {
-  if (!this.ticketData?.ticket) {
-    console.log('❌ canEdit: No ticket data');
-    return false;
-  }
+  canEdit(): boolean {
+    if (!this.ticketData?.ticket) {
+      console.log('❌ canEdit: No ticket data');
+      return false;
+    }
 
-  const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-    this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+    const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
+      this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
 
-  console.log('🔍 Edit Permission Check:', {
-    hasEditPermission,
-    hasEditTicketPermission: this.authService.hasPermission(permissionEnum.EDIT_TICKET),
-    hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
-    hasSupporterRole: this.authService.hasRole(ROLES.SUPPORTER),
-    userRoles: this.authService.getUserRoles(),
-    userRoleIds: this.authService.getUserRoleIds()  // ✅ เพิ่ม debug
-  });
+    console.log('🔍 Edit Permission Check:', {
+      hasEditPermission,
+      hasEditTicketPermission: this.authService.hasPermission(permissionEnum.EDIT_TICKET),
+      hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
+      hasSupporterRole: this.authService.hasRole(ROLES.SUPPORTER),
+      userRoles: this.authService.getUserRoles(),
+      userRoleIds: this.authService.getUserRoleIds()  // ✅ เพิ่ม debug
+    });
 
-  if (!hasEditPermission) {
-    console.log('❌ canEdit: No edit permission');
-    return false;
-  }
+    if (!hasEditPermission) {
+      console.log('❌ canEdit: No edit permission');
+      return false;
+    }
 
-  const currentStatus = Number(this.getCurrentStatusId());
-  
-  console.log('📊 Status Check:', {
-    currentStatus,
-    currentStatusName: this.getCurrentStatusName(),
-    CREATED: TICKET_STATUS_IDS.CREATED,
-    OPEN_TICKET: TICKET_STATUS_IDS.OPEN_TICKET,
-    isCreated: currentStatus === TICKET_STATUS_IDS.CREATED,
-    isOpenTicket: currentStatus === TICKET_STATUS_IDS.OPEN_TICKET
-  });
+    const currentStatus = Number(this.getCurrentStatusId());
 
-  // ✅ เช็ค Admin ก่อน (priority สูงสุด)
-  const isAdmin = this.authService.hasRole(ROLES.ADMIN) || 
-                  this.authService.hasRoleId(ROLE_IDS.ADMIN);  // ✅ เพิ่มการเช็ค Role ID
-  
-  const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) || 
-                      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
-  
-  const isUser = this.authService.hasRole(ROLES.USER) || 
-                 this.authService.hasRoleId(ROLE_IDS.USER);
-
-  console.log('👤 Role Checks (Enhanced):', {
-    isAdmin,
-    isSupporter,
-    isUser,
-    hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
-    hasAdminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
-    userRoles: this.authService.getUserRoles(),
-    userRoleIds: this.authService.getUserRoleIds()
-  });
-
-  // ✅ Admin - แก้ไขได้จนถึง Open Ticket
-  if (isAdmin) {
-    const result = currentStatus === TICKET_STATUS_IDS.CREATED ||
-                   currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
-    console.log('👑 ADMIN can edit:', result, {
+    console.log('📊 Status Check:', {
       currentStatus,
       currentStatusName: this.getCurrentStatusName(),
-      canEditStatuses: ['Created', 'Open Ticket']
+      CREATED: TICKET_STATUS_IDS.CREATED,
+      OPEN_TICKET: TICKET_STATUS_IDS.OPEN_TICKET,
+      isCreated: currentStatus === TICKET_STATUS_IDS.CREATED,
+      isOpenTicket: currentStatus === TICKET_STATUS_IDS.OPEN_TICKET
     });
-    return result;
-  }
 
-  // ✅ Supporter - แก้ไขได้ทุก status ยกเว้น Completed และ Cancel
-  if (isSupporter) {
-    const result = currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
-                   currentStatus !== TICKET_STATUS_IDS.CANCEL;
-    console.log('🔧 SUPPORTER can edit:', result);
-    return result;
-  }
+    // ✅ เช็ค Admin ก่อน (priority สูงสุด)
+    const isAdmin = this.authService.hasRole(ROLES.ADMIN) ||
+      this.authService.hasRoleId(ROLE_IDS.ADMIN);  // ✅ เพิ่มการเช็ค Role ID
 
-  // ✅ User - แก้ไขได้เฉพาะ Created
-  if (isUser) {
-    const result = currentStatus === TICKET_STATUS_IDS.CREATED;
-    console.log('👨 USER can edit:', result);
-    return result;
-  }
+    const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) ||
+      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
 
-  console.log('❌ canEdit: No matching role');
-  return false;
-}
+    const isUser = this.authService.hasRole(ROLES.USER) ||
+      this.authService.hasRoleId(ROLE_IDS.USER);
+
+    console.log('👤 Role Checks (Enhanced):', {
+      isAdmin,
+      isSupporter,
+      isUser,
+      hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
+      hasAdminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
+      userRoles: this.authService.getUserRoles(),
+      userRoleIds: this.authService.getUserRoleIds()
+    });
+
+    // ✅ Admin - แก้ไขได้จนถึง Open Ticket
+    if (isAdmin) {
+      const result = currentStatus === TICKET_STATUS_IDS.CREATED ||
+        currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
+      console.log('👑 ADMIN can edit:', result, {
+        currentStatus,
+        currentStatusName: this.getCurrentStatusName(),
+        canEditStatuses: ['Created', 'Open Ticket']
+      });
+      return result;
+    }
+
+    // ✅ Supporter - แก้ไขได้ทุก status ยกเว้น Completed และ Cancel
+    if (isSupporter) {
+      const result = currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
+        currentStatus !== TICKET_STATUS_IDS.CANCEL;
+      console.log('🔧 SUPPORTER can edit:', result);
+      return result;
+    }
+
+    // ✅ User - แก้ไขได้เฉพาะ Created
+    if (isUser) {
+      const result = currentStatus === TICKET_STATUS_IDS.CREATED;
+      console.log('👨 USER can edit:', result);
+      return result;
+    }
+
+    console.log('❌ canEdit: No matching role');
+    return false;
+  }
 
   /**
    * ✅ ตรวจสอบว่าสามารถลบได้หรือไม่ (with role-based status restrictions)
    */
   canDelete(): boolean {
-  if (!this.ticketData?.ticket) return false;
+    if (!this.ticketData?.ticket) return false;
 
-  const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
-    this.authService.isAdmin();
+    const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
+      this.authService.isAdmin();
 
-  if (!hasDeletePermission) return false;
+    if (!hasDeletePermission) return false;
 
-  const currentStatus: number = this.getCurrentStatusId();
+    const currentStatus: number = this.getCurrentStatusId();
 
-  // ✅ เช็คทั้ง role name และ role ID
-  const isAdmin = this.authService.hasRole(ROLES.ADMIN) || 
-                  this.authService.hasRoleId(ROLE_IDS.ADMIN);
-  
-  const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) || 
-                      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
-  
-  const isUser = this.authService.hasRole(ROLES.USER) || 
-                 this.authService.hasRoleId(ROLE_IDS.USER);
+    // ✅ เช็คทั้ง role name และ role ID
+    const isAdmin = this.authService.hasRole(ROLES.ADMIN) ||
+      this.authService.hasRoleId(ROLE_IDS.ADMIN);
 
-  if (isUser && !isAdmin && !isSupporter) {
-    return currentStatus === TICKET_STATUS_IDS.CREATED;
+    const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) ||
+      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
+
+    const isUser = this.authService.hasRole(ROLES.USER) ||
+      this.authService.hasRoleId(ROLE_IDS.USER);
+
+    if (isUser && !isAdmin && !isSupporter) {
+      return currentStatus === TICKET_STATUS_IDS.CREATED;
+    }
+
+    if (isAdmin) {
+      return currentStatus === TICKET_STATUS_IDS.CREATED ||
+        currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
+    }
+
+    if (isSupporter) {
+      return currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
+        currentStatus !== TICKET_STATUS_IDS.CANCEL;
+    }
+
+    return false;
   }
-
-  if (isAdmin) {
-    return currentStatus === TICKET_STATUS_IDS.CREATED ||
-           currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
-  }
-
-  if (isSupporter) {
-    return currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
-           currentStatus !== TICKET_STATUS_IDS.CANCEL;
-  }
-
-  return false;
-}
 
   /**
    * ✅ ได้รับข้อความปุ่ม Edit (with role-aware status messages)
@@ -1314,6 +1328,45 @@ canEdit(): boolean {
     return 'กรุณาประเมินความพึงพอใจ';
   }
 
+  // ===== ✅ เพิ่มตรงนี้ - PRIORITY HELPER METHODS ===== 
+
+  /**
+ * ✅ แปลง priority ID เป็น text ที่อ่านง่าย - แสดง "-" เมื่อเป็น null
+ */
+  getPriorityText(priority_id?: number | string): string {
+    // ✅ ตรวจสอบว่าเป็น null, undefined, หรือค่าว่าง
+    if (priority_id === null || priority_id === undefined || priority_id === '') {
+      return '-';
+    }
+
+    const id = typeof priority_id === 'string' ? parseInt(priority_id, 10) : priority_id;
+
+    // ✅ ตรวจสอบว่า parse ได้หรือไม่
+    if (isNaN(id)) {
+      return '-';
+    }
+
+    return this.PRIORITY_MAP[id] || '-';
+  }
+
+  /**
+ * ✅ ได้รับ CSS class สำหรับ priority - ไม่มี style เมื่อเป็น null
+ */
+  getPriorityClass(priority_id?: number | string): string {
+    // ✅ ถ้าเป็น null ให้ใช้ class ว่าง (ไม่ใส่สี)
+    if (priority_id === null || priority_id === undefined || priority_id === '') {
+      return 'priority-none';
+    }
+
+    const id = typeof priority_id === 'string' ? parseInt(priority_id, 10) : priority_id;
+
+    if (isNaN(id)) {
+      return 'priority-none';
+    }
+
+    return this.PRIORITY_CLASS_MAP[id] || 'priority-none';
+  }
+
   /**
    * ปิด Success Modal + จัดการ body class + รีเซ็ตสถานะ
    */
@@ -1387,32 +1440,32 @@ canEdit(): boolean {
   /**
  * ✅ เปลี่ยนชื่อและลดโค้ด - เดิมชื่อ onDownloadAttachment
  */
-onAttachmentClick(attachment: any): void {
-  this.currentAttachment = attachment;
-  this.showAttachmentModal = true;
-  document.body.classList.add('modal-open');
-}
+  onAttachmentClick(attachment: any): void {
+    this.currentAttachment = attachment;
+    this.showAttachmentModal = true;
+    document.body.classList.add('modal-open');
+  }
 
-/**
- * ✅ เก็บไว้ - ไม่เปลี่ยนแปลง
- */
-closeAttachmentModal(): void {
-  this.showAttachmentModal = false;
-  this.currentAttachment = null;
-  document.body.classList.remove('modal-open');
-}
+  /**
+   * ✅ เก็บไว้ - ไม่เปลี่ยนแปลง
+   */
+  closeAttachmentModal(): void {
+    this.showAttachmentModal = false;
+    this.currentAttachment = null;
+    document.body.classList.remove('modal-open');
+  }
 
-/**
- * ✅ เปลี่ยนชื่อและใช้ FileService - เดิมชื่อ downloadCurrentAttachment
- */
-downloadAttachment(attachment: any): void {
-  if (!attachment) return;
-  
-  const fileInfo = this.fileService.getFileInfo(attachment);
-  this.fileService.downloadFile(attachment.path, fileInfo.filename);
-  
-  console.log('Downloading attachment:', attachment);
-}
+  /**
+   * ✅ เปลี่ยนชื่อและใช้ FileService - เดิมชื่อ downloadCurrentAttachment
+   */
+  downloadAttachment(attachment: any): void {
+    if (!attachment) return;
+
+    const fileInfo = this.fileService.getFileInfo(attachment);
+    this.fileService.downloadFile(attachment.path, fileInfo.filename);
+
+    console.log('Downloading attachment:', attachment);
+  }
 
   /**
    * ✅ ดาวน์โหลดไฟล์ปัจจุบัน
