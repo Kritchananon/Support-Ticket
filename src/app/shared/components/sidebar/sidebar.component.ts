@@ -3,15 +3,30 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 
+// ✅ เพิ่ม imports ใหม่
+import { AuthService } from '../../services/auth.service';
+import { permissionEnum } from '../../models/permission.model';
+import { PERMISSION_DIRECTIVES } from '../../directives/permission.directive';
+
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [
+    CommonModule, 
+    RouterModule,
+    ...PERMISSION_DIRECTIVES  // ✅ เพิ่ม directives
+  ],
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.css']
 })
 export class SidebarComponent implements OnInit {
   private router = inject(Router);
+
+  // ✅ Inject AuthService
+  protected authService = inject(AuthService);
+  
+  // ✅ Export permissionEnum เพื่อใช้ใน template
+  protected readonly permissionEnum = permissionEnum;
   
   // State for dropdown menus
   isReportDropdownOpen = false;
