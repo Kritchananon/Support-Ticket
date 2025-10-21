@@ -27,7 +27,9 @@ import {
   TICKET_STATUS_IDS,
   canChangeStatus,
   statusIdToActionType,
-  actionTypeToStatusId
+  actionTypeToStatusId,
+  PriorityDDLItem, // ✅ เพิ่ม
+  PriorityDDLResponse // ✅ เพิ่ม
 } from '../../../../shared/models/ticket.model';
 
 import {
@@ -43,6 +45,11 @@ import {
   UserListItem,
   getUserFullName,
 } from '../../../../shared/models/user.model';
+
+// ✅ เพิ่มบรรทัดนี้หลัง user.model import
+import {
+  permissionEnum // ✅ เพิ่มสำหรับตรวจสอบ ASSIGNEE permission
+} from '../../../../shared/models/permission.model';
 
 // Environment
 import { environment } from '../../../../../environments/environment';
@@ -188,6 +195,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   selectedAssigneeId: number | null = null;
   assigneeList: UserListItem[] = [];
 
+  // ✅ เพิ่มบรรทัดนี้หลัง selectedAssigneeId
+  private originalAssigneeId: number | null = null; // ✅ เก็บค่า assignee เดิมจาก ticket data
+
+  // ✅ เพิ่มโค้ดนี้ทันทีหลัง Assignee Properties
+  // ===== ✅ Priority Properties =====
+  priorityDropdownOptions: PriorityDDLItem[] = [];
+  isLoadingPriorities = false;
+  priorityError = '';
+  canUserChangePriority = false;
+
   // File Upload Properties
   selectedFiles: File[] = [];
   fileUploadProgress: FileUploadProgress[] = [];
@@ -285,6 +302,9 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     this.checkUserPermissions();
     this.loadActionDropdownOptions();
     this.initializeAssigneeList();
+
+    // ✅ เพิ่มบรรทัดนี้หลัง initializeAssigneeList()
+    this.loadPriorityDropdownOptions(); // ✅ เพิ่ม
 
     // ✅ NEW: ลบการ restore persisted data ออก - ให้โหลดจาก ticket data เสมอ
     // this.restoreAllPersistedData(); // ❌ ลบบรรทัดนี้
@@ -1789,6 +1809,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       }
     }
 
+    // ✅ เพิ่ม Debug Log เพื่อดูว่า Action ถูก set อย่างไร
+    setTimeout(() => {
+      console.log('🔍 Current form value after onTicketDataChanged:', {
+        action: this.supporterForm.value.action,
+        priority: this.supporterForm.value.priority,
+        ticket_status_id: this.ticketData?.ticket?.status_id,
+        ticket_status_name: this.ticketData?.ticket?.status_name
+      });
+    }, 100);
+
     if (this.justSaved) {
       setTimeout(() => {
         this.justSaved = false;
@@ -1798,28 +1828,9 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   }
 
   private updateFormAfterSave(): void {
-    if (!this.ticketData?.ticket || !this.formDataBeforeRefresh) {
-      this.updateFormWithTicketData();
-      return;
-    }
-
-    const ticket = this.ticketData.ticket;
-    const savedFormData = this.formDataBeforeRefresh;
-
-    console.log('Updating form after save with preserved user data:', savedFormData);
-
-    this.supporterForm.patchValue({
-      action: '',
-      estimate_time: savedFormData.estimate_time || this.parseNumberField(ticket.estimate_time),
-      due_date: savedFormData.due_date || this.formatDateTimeForInput(ticket.due_date),
-      lead_time: savedFormData.lead_time || this.parseNumberField(ticket.lead_time),
-      close_estimate: savedFormData.close_estimate || this.formatDateTimeForInput(ticket.close_estimate),
-      fix_issue_description: savedFormData.fix_issue_description || ticket.fix_issue_description || '',
-      related_ticket_id: savedFormData.related_ticket_id || ticket.related_ticket_id || ''
-    });
-
-    this.validateSupporterForm();
-    this.calculateRealtime();
+    // ✅ แก้ไข - ให้โหลดจาก ticket data เสมอ ไม่ใช้ formDataBeforeRefresh
+    console.log('🔄 updateFormAfterSave - loading from current ticket data');
+    this.updateFormWithTicketData();
   }
 
   // 1️⃣ แก้ไข updateFormWithTicketData() - เพิ่มการดึง action และ assignee
@@ -1855,9 +1866,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     // ✅ NEW: ดึง current status_id มาตั้งค่าใน action dropdown
     const currentStatusId = ticket.status_id;
 
+    console.log('🎯 Setting action value to:', currentStatusId);
+
     // ✅ สร้าง form value พร้อม status_id
     const formValue = {
       action: currentStatusId ? currentStatusId.toString() : '', // ✅ ตั้งค่า action ตาม status_id ปัจจุบัน
+      priority: ticket.priority_id || null, // ✅ เพิ่มบรรทัดนี้
       estimate_time: estimateTime,
       due_date: dueDateFormatted,
       lead_time: leadTime,
@@ -1882,12 +1896,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     // ✅ NEW: ดึงข้อมูล assignee จาก assign array
     this.loadAssigneeFromTicketData();
 
+    // ✅ เพิ่ม Debug Log หลัง patch
     console.log('✅ Form patched successfully:', {
       formValue: this.supporterForm.value,
+      action: this.supporterForm.value.action,
+      priority: this.supporterForm.value.priority,
       estimateTime: this.estimateTime,
-      leadTime: this.leadTime,
-      currentStatusId: currentStatusId,
-      assignee: this.selectedAssigneeId
+      leadTime: this.leadTime
     });
 
     // ✅ Validate form
@@ -1899,6 +1914,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (!this.ticketData?.assign || this.ticketData.assign.length === 0) {
       console.log('📋 No assignee data found');
       this.selectedAssigneeId = null;
+      this.originalAssigneeId = null; // ✅ เพิ่มบรรทัดนี้
       return;
     }
 
@@ -1921,6 +1937,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
       if (matchedUser) {
         this.selectedAssigneeId = matchedUser.id;
+        this.originalAssigneeId = matchedUser.id; // ✅ เพิ่มบรรทัดนี้ - บันทึกค่าเดิม
         console.log('✅ Matched assignee:', {
           id: matchedUser.id,
           name: this.getUserFullName(matchedUser),
@@ -1930,11 +1947,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         console.warn('⚠️ Could not find matching user in assignee list for:', assignToName);
         // ✅ เก็บชื่อไว้ใน temporary variable สำหรับแสดง
         this.tempAssigneeName = assignToName;
+        this.originalAssigneeId = null; // ✅ เพิ่มบรรทัดนี้
       }
     } else {
       console.log('⏳ Assignee list not loaded yet, will retry later');
       // ✅ เก็บชื่อไว้ใน temporary variable
       this.tempAssigneeName = assignToName;
+      this.originalAssigneeId = null; // ✅ เพิ่มบรรทัดนี้
 
       // ✅ ลองโหลด assignee list อีกครั้ง
       this.retryLoadAssignee();
@@ -2159,6 +2178,8 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private initializeSupporterForm(): void {
     this.supporterForm = this.fb.group({
       action: ['', [Validators.required]],
+      // ✅ เพิ่มบรรทัดนี้หลัง action
+      priority: [null], // ✅ เพิ่ม
       estimate_time: [null, [Validators.min(0), Validators.max(1000)]],
       due_date: [''],
       lead_time: [null, [Validators.min(0), Validators.max(10000)]],
@@ -2180,9 +2201,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       this.authService.isAdmin() ||
       this.authService.isSupporter();
 
+    // ✅ เพิ่มโค้ดนี้หลัง canUserSaveSupporter
+    // ✅ เพิ่มการตรวจสอบสิทธิ์ ASSIGNEE (9) สำหรับ Priority
+    this.canUserChangePriority = userPermissions.includes(permissionEnum.ASSIGNEE) ||
+      this.authService.isAdmin();
+
     console.log('User permissions checked:', {
       permissions: userPermissions,
       canSaveSupporter: this.canUserSaveSupporter,
+      canChangePriority: this.canUserChangePriority, // ✅ เพิ่ม
       isAdmin: this.authService.isAdmin(),
       isSupporter: this.authService.isSupporter()
     });
@@ -2439,6 +2466,75 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
+  /**
+ * ✅ โหลด Priority dropdown options จาก Backend
+ */
+  private async loadPriorityDropdownOptions(): Promise<void> {
+    // ถ้าไม่มีสิทธิ์ ไม่ต้องโหลด
+    if (!this.canUserChangePriority) {
+      console.log('ℹ️ User does not have permission to change priority');
+      return;
+    }
+
+    console.log('Loading priority dropdown options...');
+    this.isLoadingPriorities = true;
+    this.priorityError = '';
+
+    try {
+      const response = await new Promise<PriorityDDLResponse>((resolve, reject) => {
+        this.ticketService.getPriorityDDL().subscribe({
+          next: (data) => resolve(data),
+          error: (err) => reject(err)
+        });
+      });
+
+      if (response && response.success && response.data) {
+        this.priorityDropdownOptions = response.data;
+        console.log('✅ Priority dropdown options loaded:', this.priorityDropdownOptions.length, 'options');
+      } else {
+        console.warn('⚠️ Invalid response from getPriorityDDL:', response);
+        this.priorityError = response?.message || 'ไม่สามารถโหลดข้อมูล Priority ได้';
+        this.buildDefaultPriorityOptions();
+      }
+    } catch (error) {
+      console.error('❌ Error loading priority dropdown:', error);
+      this.priorityError = 'เกิดข้อผิดพลาดในการโหลดข้อมูล Priority';
+      this.buildDefaultPriorityOptions();
+    } finally {
+      this.isLoadingPriorities = false;
+    }
+  }
+
+  /**
+   * ✅ สร้าง Priority options เริ่มต้น (fallback)
+   */
+  private buildDefaultPriorityOptions(): void {
+    console.log('Using default priority options');
+    this.priorityDropdownOptions = [
+      { id: 1, name: 'Low' },
+      { id: 2, name: 'Medium' },
+      { id: 3, name: 'High' }
+    ];
+  }
+
+  /**
+   * ✅ Refresh Priority dropdown (สำหรับ retry button)
+   */
+  refreshPriorityDropdown(): void {
+    if (this.priorityDropdownOptions && this.priorityDropdownOptions.length > 0) {
+      console.log('Priority options already loaded');
+      return;
+    }
+    this.loadPriorityDropdownOptions();
+  }
+
+  /**
+   * ✅ TrackBy function สำหรับ Priority dropdown
+   */
+  trackByPriorityOption(index: number, option: PriorityDDLItem): number {
+    return option.id;
+  }
+
   refreshAssigneeList(): void {
     console.log('Refreshing assignee list...');
 
@@ -2691,9 +2787,10 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
 
     const hasSupporterChanges = this.hasSupporterFormChanges();
-    const hasAssigneeSelected = this.selectedAssigneeId !== null;
+    const hasAssigneeChanged = this.selectedAssigneeId !== null &&
+      this.selectedAssigneeId !== this.originalAssigneeId; // ✅ ใหม่
 
-    if (!hasSupporterChanges && !hasAssigneeSelected) {
+    if (!hasSupporterChanges && !hasAssigneeChanged) { // ✅ แก้จาก hasAssigneeSelected เป็น hasAssigneeChanged
       this.supporterFormState.error = 'ไม่มีการเปลี่ยนแปลงข้อมูล';
       return;
     }
@@ -2701,10 +2798,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     this.supporterFormState.isSaving = false;
     this.supporterFormState.error = null;
 
-    this.executeSaveSequence(hasSupporterChanges, hasAssigneeSelected);
+    this.executeSaveSequence(hasSupporterChanges, hasAssigneeChanged); // ✅ แก้จาก hasAssigneeSelected
   }
 
-  private async executeSaveSequence(hasSupporterChanges: boolean, hasAssigneeSelected: boolean): Promise<void> {
+  private async executeSaveSequence(
+    hasSupporterChanges: boolean,
+    hasAssigneeChanged: boolean // ✅ แก้ชื่อ parameter จาก hasAssigneeSelected
+  ): Promise<void> {
     try {
       let supporterSuccess = false;
       let assignSuccess = false;
@@ -2720,14 +2820,20 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         supporterSuccess = true;
       }
 
-      if (hasAssigneeSelected && this.canAssignTicket()) {
+      // ✅ แก้ไขเงื่อนไขนี้
+      if (hasAssigneeChanged && this.canAssignTicket()) { // ✅ แก้จาก hasAssigneeSelected
         console.log('Assigning ticket...');
         assignSuccess = await this.assignTicketData();
       } else {
         assignSuccess = true;
       }
 
-      this.handleUnifiedSaveResult(supporterSuccess, assignSuccess, hasSupporterChanges, hasAssigneeSelected);
+      this.handleUnifiedSaveResult(
+        supporterSuccess,
+        assignSuccess,
+        hasSupporterChanges,
+        hasAssigneeChanged // ✅ แก้จาก hasAssigneeSelected
+      );
 
     } catch (error) {
       console.error('Error in save sequence:', error);
@@ -2777,6 +2883,14 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
           next: async (response: SaveSupporterResponse) => {
             if (response.success) {
               console.log('✅ Supporter data saved');
+
+              // ✅ เพิ่ม Debug Log เพื่อดู response จาก Backend
+              console.log('🔍 Backend Response:', {
+                ticket: response.data?.ticket,
+                status_id: response.data?.ticket?.status_id,
+                status_name: response.data?.ticket?.status_name,
+                priority_id: response.data?.ticket?.priority_id
+              });
 
               // อัปโหลดไฟล์แนบหลังจากบันทึกสำเร็จ
               let filesUploaded = true;
@@ -2858,12 +2972,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     supporterSuccess: boolean,
     assignSuccess: boolean,
     hadSupporterChanges: boolean,
-    hadAssigneeSelected: boolean
+    hadAssigneeChanged: boolean // ✅ แก้ชื่อ parameter จาก hadAssigneeSelected
   ): void {
-    const allSuccess = (!hadSupporterChanges || supporterSuccess) && (!hadAssigneeSelected || assignSuccess);
+    const allSuccess = (!hadSupporterChanges || supporterSuccess) &&
+      (!hadAssigneeChanged || assignSuccess); // ✅ แก้จาก hadAssigneeSelected
 
     if (allSuccess) {
       console.log('✅ Save successful - refreshing form data');
+
+      // ✅ Reset original assignee เป็นค่าใหม่
+      this.originalAssigneeId = this.selectedAssigneeId;
 
       // ✅ NEW: ลบข้อมูลที่บันทึกไว้เมื่อบันทึกสำเร็จ
       if (this.ticket_no && this.currentUserId) {
@@ -2878,11 +2996,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       this.formDataBeforeRefresh = { ...this.supporterForm.value };
       this.justSaved = true;
 
-      this.selectedAssigneeId = null;
       this.selectedFiles = [];
       this.fileUploadProgress = [];
 
-      this.supporterForm.patchValue({ action: '' });
+      // ✅ เพิ่มบรรทัดนี้แทน - Clear formDataBeforeRefresh
+      this.formDataBeforeRefresh = null;
 
       // ✅ CRITICAL: รีเฟรชข้อมูล ticket หลังบันทึก
       this.refreshRequired.emit();
@@ -2904,6 +3022,16 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       const statusId = parseInt(formValue.action.toString());
       if (!isNaN(statusId) && statusId > 0) {
         formData.status_id = statusId;
+      }
+    }
+
+    // ✅ เพิ่มโค้ดนี้ทันทีหลัง status_id mapping
+    // ✅ เพิ่ม priority mapping
+    if (formValue.priority !== null && formValue.priority !== undefined && formValue.priority !== '') {
+      const priorityId = parseInt(formValue.priority.toString());
+      if (!isNaN(priorityId) && priorityId > 0) {
+        formData.priority = priorityId;
+        console.log('✅ Adding priority to form data:', priorityId);
       }
     }
 
@@ -2944,6 +3072,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
 
     const hasOptionalChanges =
+      (formValue.priority !== null && formValue.priority !== '') || // ✅ เพิ่มบรรทัดนี้
       (formValue.estimate_time && formValue.estimate_time !== '') ||
       (formValue.due_date && formValue.due_date !== '') ||
       (formValue.lead_time && formValue.lead_time !== '') ||
@@ -2957,7 +3086,13 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   canSaveAll(): boolean {
     const hasPermission = this.canUserSaveSupporter || this.canAssignTicket();
-    const hasChanges = this.hasSupporterFormChanges() || (this.selectedAssigneeId !== null);
+
+    // ✅ แก้ไขเงื่อนไข - ตรวจสอบว่า Assignee เปลี่ยนแปลงจริงหรือไม่
+    const hasAssigneeChanged = this.selectedAssigneeId !== null &&
+      this.selectedAssigneeId !== this.originalAssigneeId;
+
+    const hasChanges = this.hasSupporterFormChanges() || hasAssigneeChanged; // ✅ แก้จาก (this.selectedAssigneeId !== null)
+
     const notLoading = !this.supporterFormState.isSaving;
     const hasTicket = !!this.ticketData?.ticket;
     const formReady = this.isFormReady();
@@ -2979,13 +3114,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
 
     const hasSupporterChanges = this.hasSupporterFormChanges();
-    const hasAssigneeSelected = this.selectedAssigneeId !== null;
+    // ✅ แก้ไขเงื่อนไข
+    const hasAssigneeChanged = this.selectedAssigneeId !== null &&
+      this.selectedAssigneeId !== this.originalAssigneeId;
 
-    if (hasSupporterChanges && hasAssigneeSelected) {
+    if (hasSupporterChanges && hasAssigneeChanged) { // ✅ แก้จาก hasAssigneeSelected
       return 'Save & Assign';
     } else if (hasSupporterChanges) {
       return 'Save';
-    } else if (hasAssigneeSelected) {
+    } else if (hasAssigneeChanged) { // ✅ แก้จาก hasAssigneeSelected
       return 'Assign';
     }
 
@@ -3019,7 +3156,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
       return 'คุณไม่มีสิทธิ์ในการบันทึกหรือมอบหมาย';
     }
 
-    if (!this.hasSupporterFormChanges() && this.selectedAssigneeId === null) {
+    // ✅ แก้ไขเงื่อนไข
+    const hasAssigneeChanged = this.selectedAssigneeId !== null &&
+      this.selectedAssigneeId !== this.originalAssigneeId;
+
+    if (!this.hasSupporterFormChanges() && !hasAssigneeChanged) { // ✅ แก้จาก selectedAssigneeId === null
       return 'ไม่มีการเปลี่ยนแปลงข้อมูล';
     }
 
@@ -3027,7 +3168,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (this.hasSupporterFormChanges()) {
       actions.push('บันทึกข้อมูล Supporter');
     }
-    if (this.selectedAssigneeId !== null) {
+    if (hasAssigneeChanged) { // ✅ แก้จาก this.selectedAssigneeId !== null
       const selectedUser = this.assigneeList.find(u => u.id === this.selectedAssigneeId);
       const userName = selectedUser ? getUserFullName(selectedUser) : 'ผู้ใช้ที่เลือก';
       actions.push(`มอบหมายให้กับ ${userName}`);
@@ -3038,11 +3179,15 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
   private resetSupporterForm(): void {
     this.supporterForm.patchValue({
-      action: ''
+      action: '',
+      priority: null // ✅ เพิ่ม
     });
 
     this.selectedFiles = [];
     this.fileUploadProgress = [];
+
+    // ✅ เพิ่มบรรทัดนี้
+    this.originalAssigneeId = this.selectedAssigneeId; // Reset original เป็นค่าปัจจุบัน
 
     this.supporterFormValidation = {
       estimate_time: { isValid: true },

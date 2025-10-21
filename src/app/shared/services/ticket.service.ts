@@ -8,7 +8,8 @@ import { environment } from '../../../environments/environment';
 import {
   SaveSupporterResponse,
   SaveSupporterFormData,
-  TicketAttachment
+  TicketAttachment,
+  PriorityDDLResponse // ✅ เพิ่มบรรทัดนี้
 } from '../models/ticket.model';
 
 export interface TicketAttachmentResponse {
@@ -170,6 +171,13 @@ export class TicketService {
     if (formData.status_id !== undefined) {
       requestFormData.append('status_id', formData.status_id.toString());
       console.log('✅ Adding status_id to request:', formData.status_id);
+    }
+
+    // ✅ เพิ่มโค้ดนี้ทันทีหลัง status_id mapping
+    // ✅ เพิ่ม priority mapping - map priority เป็น priority_id
+    if (formData.priority !== undefined && formData.priority !== null) {
+      requestFormData.append('priority_id', formData.priority.toString());
+      console.log('✅ Adding priority_id to request:', formData.priority);
     }
 
     // ✅ เพิ่มไฟล์แนบ (ถ้ามี)
@@ -372,6 +380,15 @@ export class TicketService {
       }
     }
 
+    // ✅ เพิ่มโค้ดนี้ทันทีหลัง status_id validation
+    // ✅ เพิ่ม Priority validation
+    if (formData.priority !== undefined && formData.priority !== null) {
+      const validPriorities = [1, 2, 3]; // Low, Medium, High
+      if (!validPriorities.includes(formData.priority)) {
+        errors.push('ระดับความสำคัญที่เลือกไม่ถูกต้อง');
+      }
+    }
+
     // ตรวจสอบไฟล์แนบ
     if (files.length > 5) {
       errors.push('สามารถแนบไฟล์ได้สูงสุด 5 ไฟล์');
@@ -531,6 +548,31 @@ export class TicketService {
       { headers: this.getAuthHeaders() }
     ).pipe(
       catchError(this.handleError)
+    );
+  }
+
+  // ✅ เพิ่ม method นี้ทันทีหลัง deleteFixIssueAttachment
+  /**
+   * ✅ ดึงข้อมูล Priority DDL จาก Backend
+   * @returns Observable<PriorityDDLResponse>
+   */
+  getPriorityDDL(): Observable<PriorityDDLResponse> {
+    return this.http.post<PriorityDDLResponse>(
+      `${this.apiUrl}/getPriorityDDL`,
+      {}, // Empty body
+      { headers: this.getJsonHeaders() }
+    ).pipe(
+      tap(response => {
+        if (response.success) {
+          console.log('✅ Priority DDL loaded:', response.data);
+        } else {
+          console.warn('⚠️ Priority DDL error:', response.message);
+        }
+      }),
+      catchError((error) => {
+        console.error('❌ getPriorityDDL error:', error);
+        return this.handleError(error);
+      })
     );
   }
 

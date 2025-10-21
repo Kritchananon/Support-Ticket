@@ -84,45 +84,96 @@
 
             <!-- Action Dropdown -->
             <div class="form-section">
-                <div class="form-group width-226">
-                    <label>Actions <span class="text-danger">*</span></label>
+                <div class="row g-3">
 
-                    <!-- Loading State -->
-                    <div *ngIf="isLoadingActions" class="form-control d-flex align-items-center">
-                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                        <span class="text-muted">กำลังโหลดตัวเลือก...</span>
+                    <!-- ✅ Action Dropdown - เปลี่ยนเป็น col-md-6 -->
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Actions <span class="text-danger">*</span></label>
+
+                            <!-- Loading State -->
+                            <div *ngIf="isLoadingActions" class="form-control d-flex align-items-center">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span class="text-muted">กำลังโหลดตัวเลือก...</span>
+                            </div>
+
+                            <!-- Error State -->
+                            <div *ngIf="actionError && !isLoadingActions" class="alert alert-warning p-2 mb-2"
+                                role="alert">
+                                <small class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                    <span>{{ actionError }}</span>
+                                    <button type="button" class="btn btn-outline-warning btn-sm ms-auto"
+                                        (click)="refreshActionDropdown()" [disabled]="!isFormReady()"
+                                        title="โหลดตัวเลือก Action ใหม่">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>
+                                        โหลดใหม่
+                                    </button>
+                                </small>
+                            </div>
+
+                            <!-- Action Dropdown -->
+                            <select id="action" class="form-select" formControlName="action"
+                                [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
+                                [disabled]="!isFormReady() || isLoadingActions || supporterFormState.isSaving"
+                                *ngIf="!isLoadingActions">
+                                <option value="">เลือก Action...</option>
+                                <option *ngFor="let option of actionDropdownOptions; trackBy: trackByActionOption"
+                                    [value]="option.statusId" [disabled]="option.disabled">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+
+                            <!-- Action Help Text -->
+                            <small class="form-text text-muted" *ngIf="supporterForm.get('action')?.value">
+                                การเลือก Action นี้จะเปลี่ยนสถานะ ticket
+                            </small>
+                        </div>
                     </div>
 
-                    <!-- Error State -->
-                    <div *ngIf="actionError && !isLoadingActions" class="alert alert-warning p-2 mb-2" role="alert">
-                        <small class="d-flex align-items-center">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            <span>{{ actionError }}</span>
-                            <button type="button" class="btn btn-outline-warning btn-sm ms-auto"
-                                (click)="refreshActionDropdown()" [disabled]="!isFormReady()"
-                                title="โหลดตัวเลือก Action ใหม่">
-                                <i class="bi bi-arrow-clockwise me-1"></i>
-                                โหลดใหม่
-                            </button>
-                        </small>
+                    <!-- ✅ Priority Dropdown - เพิ่มใหม่ทั้งหมด -->
+                    <div class="col-md-3" *ngIf="canUserChangePriority">
+                        <div class="form-group">
+                            <label>Priority</label>
+
+                            <!-- Loading State -->
+                            <div *ngIf="isLoadingPriorities" class="form-control d-flex align-items-center">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span class="text-muted">กำลังโหลดตัวเลือก...</span>
+                            </div>
+
+                            <!-- Error State -->
+                            <div *ngIf="priorityError && !isLoadingPriorities" class="alert alert-warning p-2 mb-2"
+                                role="alert">
+                                <small class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                    <span>{{ priorityError }}</span>
+                                    <button type="button" class="btn btn-outline-warning btn-sm ms-auto"
+                                        (click)="refreshPriorityDropdown()" [disabled]="!isFormReady()"
+                                        title="โหลดตัวเลือก Priority ใหม่">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>
+                                        ลองใหม่
+                                    </button>
+                                </small>
+                            </div>
+
+                            <!-- Priority Dropdown -->
+                            <select id="priority" class="form-select" formControlName="priority"
+                                [disabled]="!isFormReady() || isLoadingPriorities || supporterFormState.isSaving"
+                                *ngIf="!isLoadingPriorities && !priorityError">
+                                <option [value]="null">เลือกระดับความสำคัญ...</option>
+                                <option *ngFor="let option of priorityDropdownOptions; trackBy: trackByPriorityOption"
+                                    [value]="option.id">
+                                    {{ option.name }}
+                                </option>
+                            </select>
+
+                            <!-- Priority Help Text -->
+                            <small class="form-text text-muted">
+                                ระดับความสำคัญของ ticket (Low, Medium, High)
+                            </small>
+                        </div>
                     </div>
-
-                    <!-- Action Dropdown -->
-                    <select id="action" class="form-select" formControlName="action"
-                        [class.is-invalid]="supporterForm.get('action')?.invalid && supporterForm.get('action')?.touched"
-                        [disabled]="!isFormReady() || isLoadingActions || supporterFormState.isSaving"
-                        *ngIf="!isLoadingActions">
-                        <option value="">เลือก Action...</option>
-                        <option *ngFor="let option of actionDropdownOptions; trackBy: trackByActionOption"
-                            [value]="option.statusId" [disabled]="option.disabled">
-                            {{ option.label }}
-                        </option>
-                    </select>
-
-                    <!-- Action Help Text -->
-                    <small class="form-text text-muted" *ngIf="supporterForm.get('action')?.value">
-                        การเลือก Action นี้จะเปลี่ยนสถานะ ticket
-                    </small>
 
                 </div>
             </div>

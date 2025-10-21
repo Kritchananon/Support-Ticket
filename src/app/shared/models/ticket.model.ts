@@ -16,6 +16,10 @@ export interface Ticket {
   update_date: string;
   update_by: number;
   isenabled: boolean;
+
+  // ✅ เพิ่มบรรทัดนี้ก่อน close_estimate
+  priority_id?: number;
+  priority_name?: string;
   
   // ✅ เพิ่มฟิลด์ใหม่สำหรับ saveSupporter API
   close_estimate?: string;
@@ -94,6 +98,21 @@ export interface SaveSupporterFormData {
   related_ticket_id?: number;
   status_id?: number; // ✅ เพิ่ม status_id สำคัญมาก!
   user_id?: number;
+
+  // ✅ เพิ่มบรรทัดนี้ก่อน user_id หรือหลัง status_id
+  priority?: number;
+}
+
+// ✅ เพิ่ม Interface สำหรับ Priority DDL Response
+export interface PriorityDDLItem {
+  id: number;
+  name: string;
+}
+
+export interface PriorityDDLResponse {
+  success: boolean;
+  message: string;
+  data: PriorityDDLItem[];
 }
 
 // ✅ เพิ่ม Interface สำหรับ Supporter Role Checking
@@ -135,6 +154,34 @@ export const TICKET_STATUS_IDS = {
   RESOLVED: 4,
   COMPLETED: 5,
   CANCEL: 6
+} as const;
+
+// ✅ เพิ่มโค้ดนี้ทันทีหลังจาก TICKET_STATUS_IDS (ประมาณบรรทัด 50-60)
+/**
+ * ✅ Priority ID Constants
+ */
+export const TICKET_PRIORITY_IDS = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3
+} as const;
+
+/**
+ * ✅ Priority Name Mapping - ภาษาไทย
+ */
+export const TICKET_PRIORITY_NAMES_TH = {
+  [TICKET_PRIORITY_IDS.LOW]: 'ต่ำ',
+  [TICKET_PRIORITY_IDS.MEDIUM]: 'กลาง',
+  [TICKET_PRIORITY_IDS.HIGH]: 'สูง'
+} as const;
+
+/**
+ * ✅ Priority Name Mapping - ภาษาอังกฤษ
+ */
+export const TICKET_PRIORITY_NAMES_EN = {
+  [TICKET_PRIORITY_IDS.LOW]: 'Low',
+  [TICKET_PRIORITY_IDS.MEDIUM]: 'Medium',
+  [TICKET_PRIORITY_IDS.HIGH]: 'High'
 } as const;
 
 /**
@@ -260,6 +307,53 @@ export function getStatusIcon(statusId: number): string {
   }
 }
 
+// ✅ เพิ่มโค้ดนี้ทันทีหลัง getStatusIcon function
+/**
+ * ✅ ได้รับชื่อ Priority ตาม Language
+ */
+export function getPriorityName(priorityId: number, language: 'th' | 'en' = 'th'): string {
+  const nameMapping = language === 'th' ? TICKET_PRIORITY_NAMES_TH : TICKET_PRIORITY_NAMES_EN;
+  return nameMapping[priorityId as keyof typeof nameMapping] || `Priority ${priorityId}`;
+}
+
+/**
+ * ✅ ตรวจสอบว่า Priority ID ถูกต้องหรือไม่
+ */
+export function isValidPriorityId(priorityId: number): boolean {
+  return Object.values(TICKET_PRIORITY_IDS).includes(priorityId as any);
+}
+
+/**
+ * ✅ ได้รับ CSS class สำหรับ Priority Badge
+ */
+export function getPriorityBadgeClass(priorityId: number): string {
+  switch (priorityId) {
+    case TICKET_PRIORITY_IDS.LOW:
+      return 'badge-priority-low';
+    case TICKET_PRIORITY_IDS.MEDIUM:
+      return 'badge-priority-medium';
+    case TICKET_PRIORITY_IDS.HIGH:
+      return 'badge-priority-high';
+    default:
+      return 'badge-secondary';
+  }
+}
+
+/**
+ * ✅ ได้รับ Icon สำหรับ Priority
+ */
+export function getPriorityIcon(priorityId: number): string {
+  switch (priorityId) {
+    case TICKET_PRIORITY_IDS.LOW:
+      return 'bi-arrow-down-circle';
+    case TICKET_PRIORITY_IDS.MEDIUM:
+      return 'bi-dash-circle';
+    case TICKET_PRIORITY_IDS.HIGH:
+      return 'bi-arrow-up-circle';
+    default:
+      return 'bi-circle';
+  }
+}
 
 /**
  * ✅ ตรวจสอบว่าสามารถเปลี่ยนจาก status หนึ่งไปยังอีก status ได้หรือไม่
@@ -425,6 +519,12 @@ export interface EnhancedTicket extends Ticket {
   canDelete: boolean;
   canEvaluate: boolean;
   availableActions: ActionDropdownOption[];
+
+  // ✅ เพิ่มบรรทัดเหล่านี้หลัง availableActions
+  priorityName?: string;
+  priorityBadgeClass?: string;
+  priorityIcon?: string;
+
   // ✅ NEW: Role-aware properties
   editRestrictionMessage?: string;
   deleteRestrictionMessage?: string;
@@ -451,6 +551,12 @@ export function enhanceTicket(
     statusName: getStatusName(ticket.status_id, language),
     statusBadgeClass: getStatusBadgeClass(ticket.status_id),
     statusIcon: getStatusIcon(ticket.status_id),
+
+    // ✅ เพิ่มบรรทัดเหล่านี้หลัง statusIcon
+    priorityName: ticket.priority_id ? getPriorityName(ticket.priority_id, language) : undefined,
+    priorityBadgeClass: ticket.priority_id ? getPriorityBadgeClass(ticket.priority_id) : undefined,
+    priorityIcon: ticket.priority_id ? getPriorityIcon(ticket.priority_id) : undefined,
+    
     // ✅ Default permissions (without role context)
     canEdit: !completedOrCancelled.includes(ticket.status_id),
     canDelete: !completedOrCancelled.includes(ticket.status_id),
