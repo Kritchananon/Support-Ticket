@@ -25,7 +25,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     RouterModule,
     HasPermissionDirective,
     HasRoleDirective,
-    NotificationBellComponent  // ✅ เพิ่ม import
+    NotificationBellComponent
   ],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css']
@@ -144,7 +144,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage && ['th', 'en'].includes(savedLanguage)) {
       this.currentLanguage = savedLanguage;
-      console.log('🌍 Language preference loaded:', this.currentLanguage);
+      console.log('🌐 Language preference loaded:', this.currentLanguage);
     }
   }
 
@@ -271,7 +271,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   switchLanguage(lang: string): void {
     if (['th', 'en'].includes(lang) && lang !== this.currentLanguage) {
-      console.log('🌍 Switching language from', this.currentLanguage, 'to', lang);
+      console.log('🌐 Switching language from', this.currentLanguage, 'to', lang);
       
       this.currentLanguage = lang;
       localStorage.setItem('language', lang);
@@ -289,21 +289,74 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // ===== NAVIGATION METHODS ===== ✅
 
+  /**
+   * Navigate to My Profile page
+   * ✅ UPDATED: Now uses correct route '/profile'
+   */
   goToProfile(event: Event): void {
     event.preventDefault();
-    console.log('👤 Navigating to profile');
-    this.router.navigate(['/profile']);
+    console.log('👤 Navigating to My Profile page');
+    
+    // Close dropdown (Bootstrap)
+    const dropdown = event.target as HTMLElement;
+    const dropdownMenu = dropdown.closest('.dropdown');
+    if (dropdownMenu) {
+      const bsDropdown = (window as any).bootstrap?.Dropdown?.getInstance(dropdownMenu);
+      if (bsDropdown) {
+        bsDropdown.hide();
+      }
+    }
+    
+    // Navigate to profile
+    this.router.navigate(['/profile']).then(success => {
+      if (success) {
+        console.log('✅ Successfully navigated to profile');
+      } else {
+        console.error('❌ Failed to navigate to profile');
+      }
+    }).catch(error => {
+      console.error('❌ Navigation error:', error);
+    });
   }
 
+  /**
+   * Navigate to Settings page
+   */
   goToSettings(event: Event): void {
     event.preventDefault();
     console.log('⚙️ Navigating to settings');
-    this.router.navigate(['/settings/general']);
+    
+    // Close dropdown
+    const dropdown = event.target as HTMLElement;
+    const dropdownMenu = dropdown.closest('.dropdown');
+    if (dropdownMenu) {
+      const bsDropdown = (window as any).bootstrap?.Dropdown?.getInstance(dropdownMenu);
+      if (bsDropdown) {
+        bsDropdown.hide();
+      }
+    }
+    
+    this.router.navigate(['/settings/general']).then(success => {
+      if (success) {
+        console.log('✅ Successfully navigated to settings');
+      } else {
+        console.error('❌ Failed to navigate to settings');
+      }
+    });
   }
 
+  /**
+   * Navigate to Dashboard
+   */
   goToDashboard(): void {
     console.log('🏠 Navigating to dashboard');
-    this.router.navigate(['/dashboard']);
+    this.router.navigate(['/dashboard']).then(success => {
+      if (success) {
+        console.log('✅ Successfully navigated to dashboard');
+      } else {
+        console.error('❌ Failed to navigate to dashboard');
+      }
+    });
   }
 
   // ===== LOGOUT FUNCTIONALITY ===== ✅

@@ -19,6 +19,9 @@ import { ProjectComponent } from './pages/settings/project/project.component';
 import { TicketCategoriesComponent } from './pages/settings/ticket-categories/ticket-categories.component';
 import { CustomersComponent } from './pages/settings/customers/customers.component';
 
+// ✅ NEW: Import My Profile Component
+import { MyProfileComponent } from './shared/components/my-profile/my-profile.component';
+
 // Import Permission Guards
 import { 
   authGuard, 
@@ -68,6 +71,18 @@ export const routes: Routes = [
           requireAllPermissions: false
         },
         title: 'Dashboard - Support Ticket System'
+      },
+
+      // ===== ✅ NEW: My Profile Route (All authenticated users can access) =====
+      {
+        path: 'profile',
+        component: MyProfileComponent,
+        canActivate: [authGuard],
+        data: {
+          permissions: [], // No specific permissions required - all authenticated users
+          requireAllPermissions: false
+        },
+        title: 'My Profile - Support Ticket System'
       },
       
       // ===== Ticket Routes - FIXED: More inclusive permissions =====
@@ -229,7 +244,7 @@ export const routes: Routes = [
             data: {
               permissions: [permissionEnum.ADD_USER],
               requireAllPermissions: true,
-              mode: 'create' // Pass mode to component
+              mode: 'create'
             },
             title: 'Create User - Support Ticket System'
           },
@@ -240,13 +255,13 @@ export const routes: Routes = [
             data: {
               permissions: [permissionEnum.ADD_USER],
               requireAllPermissions: true,
-              mode: 'edit' // Pass mode to component
+              mode: 'edit'
             },
             title: 'Edit User - Support Ticket System'
           },
           {
             path: 'project',
-            canActivate: [adminGuard],
+            canActivate: [createPermissionGuard([permissionEnum.MANAGE_PROJECT])],
             component: ProjectComponent,
             data: {
               permissions: [permissionEnum.MANAGE_PROJECT],
@@ -374,11 +389,6 @@ export const routes: Routes = [
       
       // ===== Simple Routes - FIXED: No special permissions =====
       {
-        path: 'profile',
-        component: DashboardComponent,
-        title: 'My Profile - Support Ticket System'
-      },
-      {
         path: 'access-denied',
         component: DashboardComponent,
         title: 'Access Denied - Support Ticket System'
@@ -393,10 +403,15 @@ export const routes: Routes = [
   }
 ];
 
-// ===== Route Configuration Constants - UPDATED =====
+// ===== Route Permission Configuration - UPDATED =====
 export const ROUTE_PERMISSIONS = {
   DASHBOARD: {
-    VIEW: [] // FIXED: No special permissions required
+    VIEW: [] // FIXED: No specific permissions required
+  },
+  // ✅ NEW: Profile permissions
+  PROFILE: {
+    VIEW: [], // All authenticated users can view their profile
+    EDIT: []  // All authenticated users can edit their own profile
   },
   TICKETS: {
     VIEW_ALL: [permissionEnum.VIEW_ALL_TICKETS],
