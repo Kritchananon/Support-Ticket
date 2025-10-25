@@ -9,7 +9,7 @@
   background: #FFFFFF;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid #ECECEC;
+  border: 1px solid #D1D5DB;  /* ✅ ใช้สีเดียวกับเส้นขอบ form controls */
 }
 
 .support-header {
@@ -185,7 +185,7 @@
 
 .divider {
   width: 1px;
-  background: #D9D9D9;
+  background: #D1D5DB;  /* ✅ ใช้สีเดียวกับเส้นขอบ form controls */
   height: 64px;
 }
 
@@ -202,8 +202,8 @@
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid #E5E7EB;
-  background: #F9FAFB;
+  border-bottom: 1px solid #D1D5DB;  /* ✅ ใช้สีเส้นขอบเดียวกับ form controls */
+  background: #FFFFFF;  /* ✅ เปลี่ยนจาก #F9FAFB เป็นสีขาวเหมือน form อื่นๆ */
   gap: 8px;
 }
 
@@ -260,7 +260,7 @@
 .toolbar-separator {
   width: 1px;
   height: 20px;
-  background: #E5E7EB;
+  background: #D1D5DB;  /* ✅ ใช้สีเดียวกับเส้นขอบ form controls */
   margin: 0 4px;
 }
 
@@ -287,8 +287,8 @@
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: #FAFAFA;
-  border: 1px solid #E0E0E0;
+  background: #FFFFFF;  /* ✅ เปลี่ยนจาก #FAFAFA เป็นสีขาวเหมือน form อื่นๆ */
+  border: 1px solid #D1D5DB;  /* ✅ ใช้สีเส้นขอบเดียวกับ form controls */
   border-radius: 8px;
   min-height: 120px;
 }
@@ -401,7 +401,7 @@ app-file-list .remove-attachment-btn:hover {
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: #F5F5F5;
+  background: #FFFFFF;  /* ✅ เปลี่ยนจาก #F5F5F5 เป็นสีขาวเหมือน form อื่นๆ */
   overflow: hidden;
 }
 
@@ -500,7 +500,7 @@ app-file-list .remove-attachment-btn:hover {
   align-items: center;
   margin-top: 32px;
   padding-top: 20px;
-  border-top: 1px solid #E5E7EB;
+  border-top: 1px solid #D1D5DB;  /* ✅ ใช้สีเดียวกับเส้นขอบ form controls */
   gap: 12px;
 }
 
@@ -587,6 +587,204 @@ app-file-list .remove-attachment-btn:hover {
   width: 16px;
   height: 16px;
   border-width: 2px;
+}
+
+/* ... (existing styles) ... */
+
+/* ===== ✅ UPDATED: Disabled States & RBAC Styles (with !important) ===== */
+
+/* 1. Form Controls (Inputs, Selects, Textareas, Buttons) */
+/* ใช้ !important เพื่อบังคับใช้ทับสไตล์เดิมของ form control */
+.form-control[disabled],
+.form-control:disabled,
+.form-select[disabled],
+.form-select:disabled,
+.editor-content[disabled],
+.editor-content:disabled,
+.toolbar-btn[disabled],
+.toolbar-btn:disabled,
+.toolbar-select[disabled],
+.toolbar-select:disabled,
+.input-duedate[disabled],
+.input-duedate:disabled,
+.remove-attachment-btn[disabled],
+.remove-attachment-btn:disabled,
+input[disabled],
+input:disabled,
+select[disabled],
+select:disabled,
+textarea[disabled],
+textarea:disabled,
+button[disabled],
+button:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important; /* สีพื้นหลังทึบเล็กน้อย */
+  pointer-events: auto !important; /* อนุญาตให้แสดง cursor */
+}
+
+/* ✅ เพิ่ม: สำหรับ label ของ field ที่ disabled */
+.form-group:has(input:disabled) label,
+.form-group:has(select:disabled) label,
+.form-group:has(textarea:disabled) label {
+  opacity: 0.6;
+}
+
+/* 2. Custom Visual-Only Disabled (เช่น Change Request div) */
+/* อันนี้เป็น div ธรรมดา ต้องใช้ pointer-events: none */
+.disabled-visual {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important;
+  pointer-events: auto !important; /* ✅ อนุญาตให้แสดง cursor */
+}
+
+/* ✅ เพิ่ม: ป้องกันการเลือกข้อความใน disabled-visual */
+.disabled-visual * {
+  pointer-events: none !important;
+}
+
+/* 3. Custom Upload Area Disabled */
+/* พื้นที่อัปโหลด (div, app-file-list) ไม่ใช่ form control แท้
+  จึงต้องใช้ pointer-events: none เพื่อหยุดการคลิกและ drag/drop 
+*/
+.disabled-upload,
+.disabled-upload app-file-list,
+.disabled-upload .attachment-upload-card,
+.attachment-upload-card.disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important; /* ✅ เพิ่ม: สีเทาอ่อนเหมือน disabled อื่นๆ */
+  pointer-events: none !important; /* ✅ สำคัญ: หยุดการคลิก, drop, hover */
+}
+
+/* ✅ เพิ่ม: ให้ทั้ง attachment container แสดง cursor not-allowed */
+.attachment-container.disabled-upload {
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important; /* ✅ เพิ่ม: สีเทาอ่อนเหมือน disabled อื่นๆ */
+}
+
+.attachment-container.disabled-upload * {
+  cursor: not-allowed !important;
+}
+
+/* 3. ✅ NEW: Fade the ENTIRE Issue Resolution fieldset */
+/* ทำให้ fieldset ทั้งก้อนทึบและเป็นเครื่องหมายห้าม */
+fieldset.form-section[disabled] {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important; /* ✅ เพิ่ม: สีเทาอ่อนเหมือน disabled อื่นๆ */
+  /* ใช้ pointer-events เพื่อหยุดการคลิกบน label หรือพื้นที่ว่าง */
+  pointer-events: none !important; 
+}
+
+/* ✅ เพิ่ม: สำหรับ text-editor (Issue Resolution) */
+fieldset.text-editor[disabled],
+fieldset.text-editor:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background-color: #F3F4F6 !important; /* ✅ เพิ่ม: สีเทาอ่อนเหมือน disabled อื่นๆ */
+  pointer-events: all !important; /* อนุญาตให้แสดง cursor */
+}
+
+fieldset.text-editor[disabled] *,
+fieldset.text-editor:disabled * {
+  cursor: not-allowed !important;
+  pointer-events: none !important; /* ป้องกันการคลิก */
+}
+
+/* 4. ทำให้ปุ่มลบไฟล์ (ของเก่า) หายไปเมื่อ disabled */
+.disabled-upload .remove-attachment-btn {
+  display: none !important;
+}
+
+/* 5. ทำให้การ hover ไม่มีผลเมื่อ upload card disabled */
+.attachment-upload-card.disabled:hover {
+  background: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+}
+
+/* ✅ ทำให้ input ดูเหมือนข้อความธรรมดา แต่ยังเป็น input อยู่ */
+.form-control-as-text {
+  border: none !important;
+  background: transparent !important;
+  height: auto !important;
+  cursor: default !important;
+  pointer-events: none; /* ป้องกันผู้ใช้คลิกแก้ แต่ยังอัปเดตค่าในโค้ดได้ */
+  color: #111827; /* สีตัวอักษรหลัก */
+  font-size: 14px;
+  font-weight: 500;
+  width: auto;
+  display: inline;
+}
+
+/* ✅ เพิ่ม: cursor not-allowed สำหรับ input, select, textarea ที่ disabled */
+.form-control:disabled,
+.form-control[disabled],
+.form-select:disabled,
+.form-select[disabled],
+textarea:disabled,
+textarea[disabled],
+input:disabled,
+input[disabled],
+select:disabled,
+select[disabled] {
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+/* ✅ เพิ่ม: cursor not-allowed สำหรับ form-group ที่มี disabled field */
+.form-group:has(input:disabled),
+.form-group:has(select:disabled),
+.form-group:has(textarea:disabled) {
+  cursor: not-allowed;
+}
+
+/* ✅ เพิ่ม: สำหรับ input-field (Change Request, etc.) */
+.input-field {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  min-height: 38px;
+}
+
+/* ✅ เพิ่ม: สำหรับ days-display ที่ disabled */
+.input-field.days-display.disabled-visual {
+  background-color: #F3F4F6 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* ซ่อนปุ่มขึ้น/ลงของ number input */
+.form-control-as-text::-webkit-outer-spin-button,
+.form-control-as-text::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ✅ กล่อง Priority แบบ readonly */
+.readonly-box {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  pointer-events: auto !important; /* ✅ อนุญาตให้แสดง cursor */
+  background-color: #F3F4F6 !important;
+  border: 1px solid #d1d5db;        /* เส้นขอบเทาอ่อน */
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+/* ✅ เพิ่ม: ป้องกันการเลือกข้อความใน readonly-box */
+.readonly-box * {
+  pointer-events: none !important;
 }
 
 /* ===== ANIMATIONS ===== */

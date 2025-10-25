@@ -8,7 +8,7 @@ export enum permissionEnum {
   REPLY_TICKET = 6,           // ตอบกลับ ticket
   CLOSE_TICKET = 7,           // ปิด ticket
   SOLVE_PROBLEM = 8,          // แก้ไขปัญหา
-  ASSIGNEE = 9,               // ผู้รับเรื่อง
+  ASSIGN_TO = 9,              // ผู้รับเรื่อง
   MANAGE_PROJECT = 10,        // จัดการ project
   RESTORE_TICKET = 11,        // กู้คืน ticket
   VIEW_OWN_TICKETS = 12,      // ดูรายงานตั๋วของตัวเอง
@@ -18,7 +18,7 @@ export enum permissionEnum {
   DEL_USER = 16,              // ลบผู้ใช้
   MANAGE_CATEGORY = 17,       // จัดการ category
   MANAGE_STATUS = 18,         // จัดการ status
-  VIEW_DASHBOARD = 19,        // มอนเทอริ่ง
+  ASSIGNEE = 19,              // มอบหมายงาน
   MANAGE_CUSTOMER = 20        // จัดการ customer
 }
 
@@ -63,7 +63,7 @@ export const ROLE_ID_PERMISSIONS: Record<RoleId, number[]> = {
     6,  // REPLY_TICKET
     7,  // CLOSE_TICKET
     8,  // SOLVE_PROBLEM
-    9,  // ASSIGNEE
+    9,  // ASSIGN_TO
     10, // MANAGE_PROJECT
     11, // RESTORE_TICKET
     12, // VIEW_OWN_TICKETS
@@ -73,7 +73,7 @@ export const ROLE_ID_PERMISSIONS: Record<RoleId, number[]> = {
     16, // DELETE_USER
     17, // MANAGE_CATEGORY
     18, // MANAGE_STATUS
-    19, // VIEW_DASHBOARD
+    19, // ASSIGNEE
     20  // MANAGE_CUSTOMER
   ],
   [ROLE_IDS.SUPPORTER]: [
@@ -83,11 +83,11 @@ export const ROLE_ID_PERMISSIONS: Record<RoleId, number[]> = {
     6,  // REPLY_TICKET
     7,  // CLOSE_TICKET
     8,  // SOLVE_PROBLEM
-    9,  // ASSIGNEE
+    9,  // ASSIGN_TO
     11, // RESTORE_TICKET
     12, // VIEW_OWN_TICKETS
     13, // VIEW_ALL_TICKETS
-    19, // VIEW_DASHBOARD
+    19, // ASSIGNEE
     20  // MANAGE_CUSTOMER
   ],
   [ROLE_IDS.USER]: [
@@ -499,7 +499,7 @@ export const PERMISSION_GROUPS = {
   TICKET_ADMINISTRATION: [
     13, // VIEW_ALL_TICKETS
     5,  // CHANGE_STATUS
-    9,  // ASSIGNEE
+    9,  // ASSIGN_TO
     7,  // CLOSE_TICKET
     11  // RESTORE_TICKET
   ],
@@ -516,7 +516,7 @@ export const PERMISSION_GROUPS = {
     17, // MANAGE_CATEGORY
     18, // MANAGE_STATUS
     10, // MANAGE_PROJECT
-    19  // VIEW_DASHBOARD
+    19  // ASSIGNEE
   ],
   CUSTOMER_MANAGEMENT: [
     20  // MANAGE_CUSTOMER

@@ -103,44 +103,6 @@
           <!-- Action Buttons -->
           <div class="ticket-header-right">
             <div class="action-buttons">
-              <!-- ✅ Export PDF Dropdown Button -->
-              <div class="dropdown me-2" *ngIf="hasPermission(1)">
-                <button [class]="getExportButtonClass()" type="button" id="exportDropdown" data-bs-toggle="dropdown"
-                  aria-expanded="false" [disabled]="!canExportPdf()" title="ส่งออกเป็น PDF">
-
-                  <span *ngIf="isExportingPdf" class="spinner-border spinner-border-sm me-1" role="status"></span>
-                  <i class="bi bi-file-earmark-pdf me-1" *ngIf="!isExportingPdf"></i>
-                  <span>{{ getExportButtonText() }}</span>
-                  <i class="bi bi-chevron-down ms-1" *ngIf="!isExportingPdf"></i>
-                </button>
-
-                <ul class="dropdown-menu" aria-labelledby="exportDropdown" *ngIf="canExportPdf()">
-                  <li>
-                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportSummaryPdf()">
-                      <i class="bi bi-file-earmark-text me-2"></i>
-                      Export Summary PDF
-                      <small class="text-muted d-block">ข้อมูลพื้นฐานเท่านั้น</small>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportDetailedPdf()">
-                      <i class="bi bi-file-earmark-richtext me-2"></i>
-                      Export Detailed PDF
-                      <small class="text-muted d-block">รวมไฟล์แนบและรายละเอียดครบถ้วน</small>
-                    </a>
-                  </li>
-                  <li>
-                    <hr class="dropdown-divider">
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="javascript:void(0)" (click)="exportCustomPdf()">
-                      <i class="bi bi-gear me-2"></i>
-                      Custom Export
-                      <small class="text-muted d-block">กำหนดเองตาม exportOptions</small>
-                    </a>
-                  </li>
-                </ul>
-              </div>
 
               <!-- ✅ Delete Button with Enhanced Tooltip -->
               <button [class]="getDeleteButtonClass()" (click)="onDeleteTicket()"
@@ -159,6 +121,14 @@
                 <span *ngIf="isEditing" class="spinner-border spinner-border-sm me-1" role="status"></span>
                 <i class="bi bi-pencil" *ngIf="!isEditing"></i>
                 <span>{{ getEditButtonText() }}</span>
+              </button>
+
+              <!-- ✅ Export PDF Button -->
+              <button [class]="getExportButtonClass()" type="button" (click)="exportToPdf()"
+                [disabled]="!canExportPdf()" title="ส่งออกเป็น PDF" *ngIf="hasPermission(1)">
+                <span *ngIf="isExportingPdf" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <i class="bi bi-file-earmark-pdf me-1" *ngIf="!isExportingPdf"></i>
+                <span>{{ getExportButtonText() }}</span>
               </button>
 
             </div>

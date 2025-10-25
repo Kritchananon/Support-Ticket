@@ -2,6 +2,8 @@ import { Component, OnInit, Input, Output, EventEmitter, inject, OnChanges, Simp
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs';
 
 // ✅ เพิ่มบรรทัดนี้ - import TicketData จาก ticket-detail component
 import { TicketData } from '../ticket-detail.component';
@@ -134,6 +136,12 @@ interface ActionDropdownOption {
 export class SupportInformationFormComponent implements OnInit, OnChanges, OnDestroy {
   estimateTime: number = 0;
   leadTime: number = 0;
+
+  // ===== ✅ NEW: Role-Based Access Control (RBAC) Properties =====
+  isAdmin: boolean = false;
+  isSupporter: boolean = false;
+
+  canEditAssignee = false;
 
   // === Drag & drop state ===
   isDraggingFiles = false;
@@ -325,6 +333,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     this.isComponentInitialized = true;
     console.log('Form component initialization complete');
+
+    // ✅ ตรวจสอบสิทธิ์การแก้ไข Assign
+    const roleIds = this.authService.getCurrentUser()?.roleIds || [];
+    this.canEditAssignee = roleIds.includes(19); // Admin(13)
+    console.log('🔐 canEditAssignee:', this.canEditAssignee);
+
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -1387,6 +1401,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     if (!attachment?.attachment_id) return;
     if (!this.isFormReady() || this.supporterFormState.isSaving) return;
 
+    // ✅ NEW: RBAC Check
+    if (!this.isSupporter) {
+      this.supporterFormState.error = 'คุณไม่มีสิทธิ์ลบไฟล์แนบ';
+      setTimeout(() => (this.supporterFormState.error = ''), 2500);
+      return;
+    }
 
     const ok = window.confirm('ยืนยันการลบไฟล์แนบนี้หรือไม่?');
     if (!ok) return;
@@ -1907,6 +1927,31 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
 
     // ✅ Validate form
     this.validateSupporterForm();
+
+    // ✅ เพิ่มบรรทัดนี้ไว้ "ท้ายสุด" ของ updateFormWithTicketData()
+    // ✅ เพิ่มท้ายฟังก์ชัน updateFormWithTicketData()
+    const dueControl = this.supporterForm.get('due_date');
+
+    // ถ้าเป็น supporter (role_id = 8) เท่านั้นให้กรอกได้
+    if (this.isSupporter && !this.isAdmin) {
+      dueControl?.enable({ emitEvent: false });
+      console.log('✅ Re-enabled due_date for supporter');
+    } else {
+      dueControl?.disable({ emitEvent: false });
+      console.log('🚫 Disabled due_date for admin or other roles');
+    }
+
+    const closeEstimateControl = this.supporterForm.get('close_estimate');
+
+    // ถ้าเป็น supporter (role_id = 8) เท่านั้นให้กรอกได้
+    if (this.isAdmin && !this.isSupporter) {
+      closeEstimateControl?.enable({ emitEvent: false });
+      console.log('✅ Re-enabled close_estimate for supporter');
+    } else {
+      closeEstimateControl?.disable({ emitEvent: false });
+      console.log('🚫 Disabled close_estimate for admin or other roles');
+    }
+
   }
 
   // 2️⃣ NEW: เพิ่ม method สำหรับดึงข้อมูล assignee
@@ -2196,22 +2241,46 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   private checkUserPermissions(): void {
     const userPermissions = this.authService.getEffectivePermissions();
 
+    // === 1. ตรรกะ "รวมสิทธิ์" (สำหรับปุ่ม Save) ===
     this.canUserSaveSupporter = userPermissions.includes(8) ||
       userPermissions.includes(19) ||
       this.authService.isAdmin() ||
       this.authService.isSupporter();
 
-    // ✅ เพิ่มโค้ดนี้หลัง canUserSaveSupporter
-    // ✅ เพิ่มการตรวจสอบสิทธิ์ ASSIGNEE (9) สำหรับ Priority
-    this.canUserChangePriority = userPermissions.includes(permissionEnum.ASSIGNEE) ||
-      this.authService.isAdmin();
+    // === 2. ตรรกะ "แยกสิทธิ์" (สำหรับ [disabled] ใน HTML) ===
 
-    console.log('User permissions checked:', {
-      permissions: userPermissions,
-      canSaveSupporter: this.canUserSaveSupporter,
-      canChangePriority: this.canUserChangePriority, // ✅ เพิ่ม
-      isAdmin: this.authService.isAdmin(),
-      isSupporter: this.authService.isSupporter()
+    // ดึงค่าดิบจาก Service
+    const isUserAdmin = this.authService.isAdmin();
+    const isUserSupporter = this.authService.isSupporter();
+
+    // --- 🕵️‍♂️ LOG ค่าดิบ ---
+    console.log('AuthService Raw Values:', {
+      isAdmin: isUserAdmin,
+      isSupporter: isUserSupporter
+    });
+
+    // this.isAdmin คือ Admin เท่านั้น
+    this.isAdmin = isUserAdmin;
+
+    // this.isSupporter คือ Supporter แท้ๆ ที่ *ไม่ใช่* Admin
+    this.isSupporter = isUserSupporter && !isUserAdmin;
+
+    // --- 🕵️‍♂️ LOG ค่าที่ใช้จริงใน Component ---
+    console.log('Component Final RBAC Values:', {
+      this_isAdmin: this.isAdmin,
+      this_isSupporter: this.isSupporter
+    });
+
+    // === 3. ตรรกะส่วนที่เหลือ ===
+    this.canUserChangePriority = userPermissions.includes(permissionEnum.ASSIGNEE) ||
+      this.isAdmin;
+
+    // === 4. Log สรุป (อันเดิม) ===
+    console.log('User permissions checked (Summary):', {
+      canUserSaveSupporter: this.canUserSaveSupporter,
+      canChangePriority: this.canUserChangePriority,
+      isAdmin: this.isAdmin,
+      isSupporter: this.isSupporter
     });
   }
 
@@ -2307,7 +2376,7 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     }
   }
 
-  // 8️⃣ แก้ไข buildActionDropdownOptions() - แสดง current status ด้วย
+  // ✅ UPDATED: กรองตัวเลือกตาม Role (Admin/Supporter)
   private buildActionDropdownOptions(): void {
     if (!this.statusList || this.statusList.length === 0) {
       this.buildDefaultActionOptions();
@@ -2321,19 +2390,39 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
     const currentStatus = this.statusList.find(s => s.id === currentStatusId);
 
     this.actionDropdownOptions = this.statusList
-      .filter(status => {
-        // ✅ แสดงทุก status แต่ disable ตัวที่ไม่สามารถเปลี่ยนได้
-        return true;
-      })
       .map(status => {
         const canChange = canChangeStatus(currentStatusId, status.id);
         const isCurrent = status.id === currentStatusId;
 
+        // ✅ NEW: RBAC Logic
+        let isDisabledByRole = false;
+        if (this.isAdmin) {
+          // Admin: เลือกได้แค่ Open Ticket (2) และ Cancel (6)
+          if (status.id !== TICKET_STATUS_IDS.OPEN_TICKET && status.id !== TICKET_STATUS_IDS.CANCEL) {
+            isDisabledByRole = true;
+          }
+        } else if (this.isSupporter) {
+          // Supporter: เลือกได้แค่ In Progress (3), Resolved (4), Completed (5)
+          const supporterActions: number[] = [
+            TICKET_STATUS_IDS.IN_PROGRESS,
+            TICKET_STATUS_IDS.RESOLVED,
+            TICKET_STATUS_IDS.COMPLETED
+          ];
+          if (!supporterActions.includes(status.id)) {
+            isDisabledByRole = true;
+          }
+        } else {
+          // ถ้าไม่ใช่ทั้ง Admin และ Supporter, disable ทั้งหมด
+          isDisabledByRole = true;
+        }
+        // =======================
+
         return {
           value: status.id.toString(),
-          label: status.name + (isCurrent ? ' (ปัจจุบัน)' : ''),
+          label: status.name + (isCurrent ? '' : ''),
           statusId: status.id,
-          disabled: !canChange || isCurrent // ✅ disable current status และ status ที่เปลี่ยนไม่ได้
+          // ✅ disable current status, status ที่เปลี่ยนไม่ได้, และ status ที่ไม่มีสิทธิ์ตาม Role
+          disabled: !canChange || isCurrent || isDisabledByRole
         };
       });
 
@@ -2708,6 +2797,12 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
   }
 
   removeSelectedFile(index: number): void {
+    // ✅ NEW: RBAC Check (ป้องกันการลบผ่าน console)
+    if (!this.isSupporter) {
+      console.warn('User does not have permission to remove files.');
+      return;
+    }
+
     const file = this.selectedFiles[index];
 
     // Revoke blob URL if exists
@@ -3266,6 +3361,11 @@ export class SupportInformationFormComponent implements OnInit, OnChanges, OnDes
         console.error('❌ ลบไฟล์ไม่สำเร็จ:', err);
       },
     });
+  }
+
+  getPriorityName(id: number): string {
+    const option = this.priorityDropdownOptions?.find(o => o.id === id);
+    return option ? option.name : '-';
   }
 
   // ปิด modal แสดงไฟล์แนบ

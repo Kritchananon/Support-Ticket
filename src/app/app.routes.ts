@@ -176,7 +176,7 @@ export const routes: Routes = [
               // FIXED: Allow supporters and admins, but also users who can view their own tickets
               permissions: [
                 permissionEnum.VIEW_ALL_TICKETS, 
-                permissionEnum.ASSIGNEE,
+                permissionEnum.ASSIGN_TO,
                 permissionEnum.VIEW_OWN_TICKETS  // Users can see their own reports
               ],
               requireAllPermissions: false
@@ -190,7 +190,7 @@ export const routes: Routes = [
             data: {
               permissions: [
                 permissionEnum.VIEW_ALL_TICKETS, 
-                permissionEnum.ASSIGNEE,
+                permissionEnum.ASSIGN_TO,
                 permissionEnum.VIEW_OWN_TICKETS  // Users can see their own reports
               ],
               requireAllPermissions: false
@@ -331,7 +331,7 @@ export const routes: Routes = [
             path: 'dashboard',
             component: DashboardComponent,
             data: {
-              permissions: [permissionEnum.VIEW_DASHBOARD],
+              permissions: [permissionEnum.ASSIGNEE],
               viewMode: 'admin'
             },
             title: 'Admin Dashboard - Support Ticket System'
@@ -361,7 +361,7 @@ export const routes: Routes = [
             path: 'queue',
             component: TicketListComponent,
             data: {
-              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+              permissions: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGN_TO],
               viewMode: 'support-queue'
             },
             title: 'Support Queue - Support Ticket System'
@@ -370,7 +370,7 @@ export const routes: Routes = [
             path: 'assigned',
             component: TicketListComponent,
             data: {
-              permissions: [permissionEnum.ASSIGNEE, permissionEnum.SOLVE_PROBLEM],
+              permissions: [permissionEnum.ASSIGN_TO, permissionEnum.SOLVE_PROBLEM],
               viewMode: 'assigned-to-me'
             },
             title: 'Assigned Tickets - Support Ticket System'
@@ -379,7 +379,7 @@ export const routes: Routes = [
             path: 'dashboard',
             component: DashboardComponent,
             data: {
-              permissions: [permissionEnum.VIEW_DASHBOARD],
+              permissions: [permissionEnum.ASSIGNEE],
               viewMode: 'support'
             },
             title: 'Support Dashboard - Support Ticket System'
@@ -421,14 +421,14 @@ export const ROUTE_PERMISSIONS = {
     EDIT: [permissionEnum.EDIT_TICKET, permissionEnum.CHANGE_STATUS],
     DELETE: [permissionEnum.DELETE_TICKET],
     TRACK: [permissionEnum.TRACK_TICKET],
-    ASSIGN: [permissionEnum.ASSIGNEE],
+    ASSIGN: [permissionEnum.ASSIGN_TO],
     SOLVE: [permissionEnum.SOLVE_PROBLEM],
     REPLY: [permissionEnum.REPLY_TICKET],
     CLOSE: [permissionEnum.CLOSE_TICKET],
     RESTORE: [permissionEnum.RESTORE_TICKET]
   },
   REPORTS: {
-    VIEW: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE, permissionEnum.VIEW_OWN_TICKETS], // FIXED: More inclusive
+    VIEW: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGN_TO, permissionEnum.VIEW_OWN_TICKETS], // FIXED: More inclusive
     EXPORT: [permissionEnum.VIEW_ALL_TICKETS]
   },
   SETTINGS: {
@@ -446,12 +446,10 @@ export const ROUTE_PERMISSIONS = {
   ADMIN: {
     USERS: [permissionEnum.ADD_USER, permissionEnum.DEL_USER],
     SETTINGS: [permissionEnum.MANAGE_PROJECT, permissionEnum.MANAGE_CATEGORY, permissionEnum.MANAGE_STATUS],
-    DASHBOARD: [permissionEnum.VIEW_DASHBOARD]
   },
   SUPPORT: {
-    QUEUE: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGNEE],
+    QUEUE: [permissionEnum.VIEW_ALL_TICKETS, permissionEnum.ASSIGN_TO],
     SOLVE: [permissionEnum.SOLVE_PROBLEM, permissionEnum.REPLY_TICKET],
-    DASHBOARD: [permissionEnum.VIEW_DASHBOARD]
   },
   SATISFACTION: [permissionEnum.SATISFACTION]
 } as const;
@@ -516,7 +514,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     permissions: [
       permissionEnum.VIEW_ALL_TICKETS,
       permissionEnum.VIEW_OWN_TICKETS,
-      permissionEnum.ASSIGNEE
+      permissionEnum.ASSIGN_TO
     ],
     icon: 'report',
     children: [

@@ -54,7 +54,7 @@ interface HtmlToPdfDto {
   reportDate: string;
   status: string;
   reporter: string;
-  priority_id: string | number;  // ✅ แก้ไขตรงนี้ - รองรับทั้ง string และ number
+  priority: string;  // ✅ แก้ไขตรงนี้ - รองรับทั้ง string และ number
   category: string;
   project: string;
   issueTitle: string;
@@ -308,7 +308,7 @@ export class TicketDetailComponent implements OnInit {
       reportDate: this.formatDateForPdf(new Date().toISOString()),
       status: this.getCurrentStatusName() || '',
       reporter: ticket.create_by || '',
-      priority_id: this.getPriorityText(ticket.priority_id),  // ✅ ใช้ helper method แปลงเป็น text เลย
+      priority: this.getPriorityText(ticket.priority_id),  // ✅ ใช้ helper method แปลงเป็น text เลย
       category: ticket.categories_name || '',
       project: ticket.project_name || '',
       issueTitle: `Ticket ${ticket.ticket_no}`,

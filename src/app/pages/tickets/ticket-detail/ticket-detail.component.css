@@ -355,7 +355,6 @@
   align-items: center;
   padding: 5px 0px;
   gap: 4px;
-  width: 45px;
   height: 24px;
   border-radius: 6px;
   border: none;
@@ -2726,26 +2725,17 @@ i.status-icon {
 }
 
 .action-buttons .btn-export-pdf {
+  width: 120px;
   height: 24px;
-  /* เท่ากับ btn-edit */
   line-height: 100%;
-  /* เท่ากับ btn-edit */
   padding: 5px 12px;
-  /* เท่ากับ btn-edit */
   font-size: 14px;
-  /* เท่ากับ btn-edit */
   font-weight: 600;
-  /* เท่ากับ btn-edit */
   min-width: auto;
-  /* ลบ min-width */
   border-radius: 6px;
-  /* เท่ากับ btn-edit */
   gap: 4px;
-  /* เท่ากับ btn-edit */
   border: 1px solid #17A2B8;
-  /* เปลี่ยนจาก 2px เป็น 1px */
   background: transparent;
-  /* เหมือน btn-edit */
   color: #17A2B8;
 }
 
