@@ -734,59 +734,6 @@ export class TicketListComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===== DEBUG METHODS =====
-
-  debugSearchData(): void {
-    console.log('🛠 Debug Search Data:');
-    console.log('Total tickets:', this.tickets.length);
-    console.log('Current search:', this.searchText);
-    console.log('Filtered tickets:', this.filteredTickets.length);
-
-    if (this.tickets.length > 0) {
-      console.log('Sample ticket data:', {
-        ticket_no: this.tickets[0].ticket_no,
-        issue_description: this.tickets[0].issue_description,
-        project_name: this.tickets[0].project_name,
-        user_name: this.tickets[0].user_name,
-        categories_name: this.tickets[0].categories_name
-      });
-    }
-  }
-
-  testApiCall(): void {
-    console.log('🧪 Testing API Call with different parameter formats...');
-
-    const params1 = {
-      page: 1,
-      perPage: 10,
-      status_id: 2,
-      category_id: 20,
-      project_id: 2,
-      priority: 'medium'
-    };
-
-    console.log('Test 1 - With _id suffix:', params1);
-    this.apiService.getAllTickets(params1).subscribe({
-      next: (res) => console.log('✅ Test 1 Response:', res),
-      error: (err) => console.error('❌ Test 1 Error:', err)
-    });
-
-    const params2 = {
-      page: 1,
-      perPage: 10,
-      status: 2,
-      category: 20,
-      project: 2,
-      priority: 'medium'
-    };
-
-    console.log('Test 2 - Without _id suffix:', params2);
-    this.apiService.getAllTickets(params2).subscribe({
-      next: (res) => console.log('✅ Test 2 Response:', res),
-      error: (err) => console.error('❌ Test 2 Error:', err)
-    });
-  }
-
   // ===== STYLING METHODS =====
 
   // ✅ Helper method สำหรับแสดงชื่อผู้ใช้

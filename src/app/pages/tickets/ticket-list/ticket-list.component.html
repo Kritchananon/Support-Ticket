@@ -109,30 +109,6 @@
     </div>
   </div>
 
-  <!-- ✅ Debug Section (แสดงค่า filter ปัจจุบัน) -->
-  <div class="debug-section mb-3" style="background: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 12px;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        <strong>🔍 Current Filters:</strong>
-        <ul style="margin: 5px 0; padding-left: 20px;">
-          <li>Priority: <strong>{{ selectedPriority || '(All)' }}</strong></li>
-          <li>Status: <strong>{{ selectedStatus || '(All)' }}</strong></li>
-          <li>Category: <strong>{{ selectedCategory || '(All)' }}</strong></li>
-          <li>Project: <strong>{{ selectedProject || '(All)' }}</strong></li>
-          <li>Search: <strong>{{ searchText || '(Empty)' }}</strong></li>
-        </ul>
-      </div>
-      <div>
-        <button class="btn btn-sm btn-warning" (click)="testApiCall()">
-          🧪 Test API
-        </button>
-        <button class="btn btn-sm btn-info ms-2" (click)="debugSearchData()">
-          🛠 Debug
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- ✅ Filter Loading State -->
   <div *ngIf="loadingFilters" class="filter-loading">
     <div class="loading-message">
