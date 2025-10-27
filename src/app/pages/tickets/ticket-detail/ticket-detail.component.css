@@ -355,6 +355,7 @@
   align-items: center;
   padding: 5px 0px;
   gap: 4px;
+  width: 45px;
   height: 24px;
   border-radius: 6px;
   border: none;
@@ -2408,52 +2409,6 @@ i.status-icon {
   border-left-color: #DC3545;
 }
 
-/* Quick Actions Export Buttons */
-.quick-actions .export-actions {
-  margin-bottom: 8px;
-}
-
-.quick-actions .export-actions .btn-group {
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.quick-actions .export-actions .btn-group .btn {
-  border-radius: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: 11px;
-  padding: 6px 8px;
-  flex: 1;
-}
-
-.quick-actions .export-actions .btn-group .btn:last-child {
-  border-right: none;
-}
-
-.quick-actions .export-actions .btn-group .btn:first-child {
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
-
-.quick-actions .export-actions .btn-group .btn:last-child {
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-/* Export Status Indicator in Quick Actions */
-.quick-actions .export-status {
-  background: #F8F9FF;
-  border: 1px solid #E3E7FF;
-  border-radius: 6px;
-  padding: 8px;
-  text-align: center;
-}
-
-.quick-actions .export-status small {
-  color: #5873F8;
-  font-weight: 500;
-}
-
 /* Export Options Panel */
 .export-options .card {
   border: 1px solid #E3E7FF;
@@ -2663,11 +2618,6 @@ i.status-icon {
     font-size: 11px;
   }
 
-  .quick-actions .export-actions .btn-group .btn {
-    font-size: 10px;
-    padding: 5px 6px;
-  }
-
   .export-options .card-body {
     padding: 10px;
   }
@@ -2725,17 +2675,26 @@ i.status-icon {
 }
 
 .action-buttons .btn-export-pdf {
-  width: 120px;
   height: 24px;
+  /* เท่ากับ btn-edit */
   line-height: 100%;
+  /* เท่ากับ btn-edit */
   padding: 5px 12px;
+  /* เท่ากับ btn-edit */
   font-size: 14px;
+  /* เท่ากับ btn-edit */
   font-weight: 600;
+  /* เท่ากับ btn-edit */
   min-width: auto;
+  /* ลบ min-width */
   border-radius: 6px;
+  /* เท่ากับ btn-edit */
   gap: 4px;
+  /* เท่ากับ btn-edit */
   border: 1px solid #17A2B8;
+  /* เปลี่ยนจาก 2px เป็น 1px */
   background: transparent;
+  /* เหมือน btn-edit */
   color: #17A2B8;
 }
 

@@ -480,32 +480,6 @@ export class TicketDetailComponent implements OnInit {
   }
 
   /**
-   * ✅ Export with specific options - สำหรับใช้ใน template
-   */
-  exportSummaryPdf(): void {
-    this.exportToPdf({
-      includeAttachments: false,
-      includeSolutionDetails: false,
-      includeSatisfactionRating: false,
-      format: 'summary'
-    });
-  }
-
-  exportDetailedPdf(): void {
-    this.exportToPdf({
-      includeAttachments: true,
-      includeSolutionDetails: true,
-      includeSatisfactionRating: true,
-      format: 'detailed'
-    });
-  }
-
-  exportCustomPdf(): void {
-    // สามารถเปิด modal เพื่อให้ user เลือก options ได้
-    this.exportToPdf(this.exportOptions);
-  }
-
-  /**
    * ✅ ตรวจสอบว่าสามารถ export ได้หรือไม่
    */
   canExportPdf(): boolean {
@@ -895,87 +869,30 @@ export class TicketDetailComponent implements OnInit {
  * ✅ ตรวจสอบว่าสามารถแก้ไขได้หรือไม่ (with role-based status restrictions)
  */
   canEdit(): boolean {
-    if (!this.ticketData?.ticket) {
-      console.log('❌ canEdit: No ticket data');
+    if (!this.ticketData?.ticket) return false;
+
+    // 🚫 Supporter ไม่มีสิทธิ์แก้ไขเลย
+    if (this.authService.hasRole(ROLES.SUPPORTER) || this.authService.hasRoleId(ROLE_IDS.SUPPORTER)) {
       return false;
     }
 
     const hasEditPermission = this.authService.hasPermission(permissionEnum.EDIT_TICKET) ||
-      this.authService.hasAnyRole([ROLES.SUPPORTER, ROLES.ADMIN]);
+      this.authService.hasAnyRole([ROLES.ADMIN]);
 
-    console.log('🔍 Edit Permission Check:', {
-      hasEditPermission,
-      hasEditTicketPermission: this.authService.hasPermission(permissionEnum.EDIT_TICKET),
-      hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
-      hasSupporterRole: this.authService.hasRole(ROLES.SUPPORTER),
-      userRoles: this.authService.getUserRoles(),
-      userRoleIds: this.authService.getUserRoleIds()  // ✅ เพิ่ม debug
-    });
-
-    if (!hasEditPermission) {
-      console.log('❌ canEdit: No edit permission');
-      return false;
-    }
+    if (!hasEditPermission) return false;
 
     const currentStatus = Number(this.getCurrentStatusId());
+    const isAdmin = this.authService.hasRole(ROLES.ADMIN) || this.authService.hasRoleId(ROLE_IDS.ADMIN);
+    const isUser = this.authService.hasRole(ROLES.USER) || this.authService.hasRoleId(ROLE_IDS.USER);
 
-    console.log('📊 Status Check:', {
-      currentStatus,
-      currentStatusName: this.getCurrentStatusName(),
-      CREATED: TICKET_STATUS_IDS.CREATED,
-      OPEN_TICKET: TICKET_STATUS_IDS.OPEN_TICKET,
-      isCreated: currentStatus === TICKET_STATUS_IDS.CREATED,
-      isOpenTicket: currentStatus === TICKET_STATUS_IDS.OPEN_TICKET
-    });
-
-    // ✅ เช็ค Admin ก่อน (priority สูงสุด)
-    const isAdmin = this.authService.hasRole(ROLES.ADMIN) ||
-      this.authService.hasRoleId(ROLE_IDS.ADMIN);  // ✅ เพิ่มการเช็ค Role ID
-
-    const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) ||
-      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
-
-    const isUser = this.authService.hasRole(ROLES.USER) ||
-      this.authService.hasRoleId(ROLE_IDS.USER);
-
-    console.log('👤 Role Checks (Enhanced):', {
-      isAdmin,
-      isSupporter,
-      isUser,
-      hasAdminRole: this.authService.hasRole(ROLES.ADMIN),
-      hasAdminRoleId: this.authService.hasRoleId(ROLE_IDS.ADMIN),
-      userRoles: this.authService.getUserRoles(),
-      userRoleIds: this.authService.getUserRoleIds()
-    });
-
-    // ✅ Admin - แก้ไขได้จนถึง Open Ticket
     if (isAdmin) {
-      const result = currentStatus === TICKET_STATUS_IDS.CREATED ||
-        currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
-      console.log('👑 ADMIN can edit:', result, {
-        currentStatus,
-        currentStatusName: this.getCurrentStatusName(),
-        canEditStatuses: ['Created', 'Open Ticket']
-      });
-      return result;
+      return currentStatus === TICKET_STATUS_IDS.CREATED || currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
     }
 
-    // ✅ Supporter - แก้ไขได้ทุก status ยกเว้น Completed และ Cancel
-    if (isSupporter) {
-      const result = currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
-        currentStatus !== TICKET_STATUS_IDS.CANCEL;
-      console.log('🔧 SUPPORTER can edit:', result);
-      return result;
-    }
-
-    // ✅ User - แก้ไขได้เฉพาะ Created
     if (isUser) {
-      const result = currentStatus === TICKET_STATUS_IDS.CREATED;
-      console.log('👨 USER can edit:', result);
-      return result;
+      return currentStatus === TICKET_STATUS_IDS.CREATED;
     }
 
-    console.log('❌ canEdit: No matching role');
     return false;
   }
 
@@ -985,35 +902,26 @@ export class TicketDetailComponent implements OnInit {
   canDelete(): boolean {
     if (!this.ticketData?.ticket) return false;
 
+    // 🚫 Supporter ไม่มีสิทธิ์ลบเลย
+    if (this.authService.hasRole(ROLES.SUPPORTER) || this.authService.hasRoleId(ROLE_IDS.SUPPORTER)) {
+      return false;
+    }
+
     const hasDeletePermission = this.authService.hasPermission(permissionEnum.DELETE_TICKET) ||
       this.authService.isAdmin();
 
     if (!hasDeletePermission) return false;
 
     const currentStatus: number = this.getCurrentStatusId();
+    const isAdmin = this.authService.hasRole(ROLES.ADMIN) || this.authService.hasRoleId(ROLE_IDS.ADMIN);
+    const isUser = this.authService.hasRole(ROLES.USER) || this.authService.hasRoleId(ROLE_IDS.USER);
 
-    // ✅ เช็คทั้ง role name และ role ID
-    const isAdmin = this.authService.hasRole(ROLES.ADMIN) ||
-      this.authService.hasRoleId(ROLE_IDS.ADMIN);
-
-    const isSupporter = this.authService.hasRole(ROLES.SUPPORTER) ||
-      this.authService.hasRoleId(ROLE_IDS.SUPPORTER);
-
-    const isUser = this.authService.hasRole(ROLES.USER) ||
-      this.authService.hasRoleId(ROLE_IDS.USER);
-
-    if (isUser && !isAdmin && !isSupporter) {
+    if (isUser && !isAdmin) {
       return currentStatus === TICKET_STATUS_IDS.CREATED;
     }
 
     if (isAdmin) {
-      return currentStatus === TICKET_STATUS_IDS.CREATED ||
-        currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
-    }
-
-    if (isSupporter) {
-      return currentStatus !== TICKET_STATUS_IDS.COMPLETED &&
-        currentStatus !== TICKET_STATUS_IDS.CANCEL;
+      return currentStatus === TICKET_STATUS_IDS.CREATED || currentStatus === TICKET_STATUS_IDS.OPEN_TICKET;
     }
 
     return false;
