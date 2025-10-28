@@ -14,8 +14,9 @@ import { User, AuthState, UserWithPermissions } from '../../models/user.model';
 // ✅ Import Permission Directives
 import { HasPermissionDirective, HasRoleDirective } from '../../directives/permission.directive';
 
-// ✅ NEW: Import NotificationBellComponent
+// ✅ Import NotificationBellComponent and NotificationService
 import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-header',
@@ -32,6 +33,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
 })
 export class HeaderComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
+  private notificationService = inject(NotificationService); // ✅ Inject NotificationService
   private router = inject(Router);
 
   // ✅ User and Auth State with enhanced types
@@ -43,6 +45,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
   // ✅ UI State
   currentLanguage = 'th';
   isLoading = false;
+
+  // ✅ WebSocket Connection State
+  socketConnectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
 
   // ✅ Token Warning Properties
   showTokenWarning = false;
@@ -60,10 +65,22 @@ export class HeaderComponent implements OnInit, OnDestroy {
     console.log('🔧 Header component initialized');
     this.initializeComponent();
     this.setupSubscriptions();
+    
+    // ✅ เริ่มการเชื่อมต่อ WebSocket ถ้า user ล็อกอินแล้ว
+    if (this.authService.isAuthenticated()) {
+      console.log('🔌 User authenticated, connecting WebSocket...');
+      this.notificationService.connectSocket();
+    }
   }
 
   ngOnDestroy(): void {
     console.log('🧹 Header component cleanup');
+    
+    // ✅ ตัดการเชื่อมต่อ WebSocket ก่อน cleanup
+    console.log('🔌 Disconnecting WebSocket...');
+    this.notificationService.disconnectSocket();
+    
+    // Cleanup subscriptions
     this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
@@ -98,9 +115,25 @@ export class HeaderComponent implements OnInit, OnDestroy {
         roleCount: state.roles.length,
         permissionCount: state.permissions.length
       });
+      
       this.authState = state;
       this.userPermissions = state.permissions || [];
       this.userRoles = state.roles || [];
+
+      // ✅ จัดการการเชื่อมต่อ WebSocket ตามสถานะการ login
+      if (state.isAuthenticated) {
+        // User logged in - connect socket ถ้ายังไม่ได้เชื่อมต่อ
+        if (!this.notificationService.isConnected()) {
+          console.log('🔌 User logged in, connecting WebSocket...');
+          this.notificationService.connectSocket();
+        }
+      } else {
+        // User logged out - disconnect socket
+        if (this.notificationService.isConnected()) {
+          console.log('🔌 User logged out, disconnecting WebSocket...');
+          this.notificationService.disconnectSocket();
+        }
+      }
     });
 
     // ✅ Subscribe to token warning
@@ -112,7 +145,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.subscriptions.push(userSub, authSub, warningSub);
+    // ✅ Subscribe to WebSocket connection state
+    const socketStateSub = this.notificationService.connectionState$.subscribe(state => {
+      console.log('🔌 Socket connection state changed:', state);
+      this.socketConnectionState = state;
+    });
+
+    this.subscriptions.push(userSub, authSub, warningSub, socketStateSub);
   }
 
   // ===== DATA LOADING ===== ✅
@@ -241,6 +280,49 @@ export class HeaderComponent implements OnInit, OnDestroy {
       case ROLES.USER: return this.currentLanguage === 'th' ? 'ผู้ใช้งาน' : 'User';
       default: return primaryRole;
     }
+  }
+
+  // ===== WEBSOCKET STATUS METHODS ===== ✅
+
+  /**
+   * ตรวจสอบสถานะการเชื่อมต่อ WebSocket
+   */
+  isSocketConnected(): boolean {
+    return this.socketConnectionState === 'connected';
+  }
+
+  /**
+   * ตรวจสอบว่ากำลังเชื่อมต่อหรือไม่
+   */
+  isSocketConnecting(): boolean {
+    return this.socketConnectionState === 'connecting';
+  }
+
+  /**
+   * รับข้อความแสดงสถานะ WebSocket
+   */
+  getSocketStatusText(): string {
+    switch (this.socketConnectionState) {
+      case 'connected':
+        return this.getText('Connected', 'เชื่อมต่อแล้ว');
+      case 'connecting':
+        return this.getText('Connecting...', 'กำลังเชื่อมต่อ...');
+      case 'disconnected':
+        return this.getText('Disconnected', 'ไม่ได้เชื่อมต่อ');
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * ลองเชื่อมต่อ WebSocket ใหม่ (Manual reconnect)
+   */
+  reconnectSocket(): void {
+    console.log('🔄 Manual socket reconnection requested');
+    this.notificationService.disconnectSocket();
+    setTimeout(() => {
+      this.notificationService.connectSocket();
+    }, 1000);
   }
 
   // ===== GREETING METHODS ===== ✅
@@ -385,11 +467,24 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     
     try {
-      this.authService.logout();
-      console.log('✅ Logout completed');
+      // ✅ CRITICAL: ตัดการเชื่อมต่อ WebSocket ก่อน logout
+      console.log('🔌 Disconnecting WebSocket before logout...');
+      this.notificationService.disconnectSocket();
+      
+      // เพิ่ม delay เล็กน้อยเพื่อให้ socket disconnect เสร็จก่อน
+      setTimeout(() => {
+        // ทำการ logout
+        this.authService.logout();
+        console.log('✅ Logout completed');
+      }, 100);
+      
     } catch (error) {
       console.error('❌ Logout error:', error);
+      
+      // ถ้าเกิด error ก็ force disconnect และ clear auth data
+      this.notificationService.disconnectSocket();
       this.authService.clearAuthData();
+      
     } finally {
       this.isLoading = false;
     }
@@ -408,6 +503,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
         this.showTokenWarning = false;
         this.isRefreshing = false;
         this.updateTokenInfo();
+        
+        // ✅ Reconnect socket ด้วย token ใหม่
+        console.log('🔄 Reconnecting socket with new token...');
+        this.notificationService.disconnectSocket();
+        setTimeout(() => {
+          this.notificationService.connectSocket();
+        }, 500);
       },
       error: (error) => {
         console.error('❌ Manual token refresh failed:', error);

@@ -1,8 +1,9 @@
 // src/app/shared/models/notification.model.ts
 
 /**
- * ✅ Notification Model
+ * ✅ Notification Model (UPDATED FOR NEW BACKEND API)
  * สำหรับจัดการข้อมูล notification ในระบบ
+ * รองรับ Backend response format จาก GET /api/notifications/list
  */
 
 // ===== ENUMS ===== ✅
@@ -39,10 +40,67 @@ export enum NotificationPriority {
   URGENT = 'urgent'
 }
 
-// ===== INTERFACES ===== ✅
+// ===== BACKEND INTERFACES ===== ✅
 
 /**
- * Payload สำหรับส่งไปยัง backend API
+ * ✅ NEW: Backend Notification Response Structure
+ * รูปแบบที่ได้จาก Backend API
+ */
+export interface BackendNotification {
+  id: number;
+  title: string;
+  message: string;
+  ticket_no: string;
+  notification_type: string; // 'status_change', 'new_ticket', etc.
+  is_read: boolean;
+  create_date: string; // ISO date string
+  read_at: string | null;
+  type_label: string;
+  type_color: string;
+  type_icon: string;
+  time_ago: string;
+  ticket: {
+    id: number;
+    ticket_no: string;
+    status_id: number;
+  };
+  status?: {
+    id: number;
+    name: string;
+  };
+}
+
+/**
+ * ✅ NEW: Backend List Response
+ * Response จาก GET /api/notifications/list
+ */
+export interface BackendNotificationListResponse {
+  success: boolean;
+  data: {
+    notifications: BackendNotification[];
+    summary: {
+      total: number;
+      unread_count: number;
+    };
+  };
+}
+
+/**
+ * ✅ NEW: Backend Unread Count Response
+ * Response จาก GET /api/unread-count (หากมี)
+ */
+export interface BackendUnreadCountResponse {
+  success: boolean;
+  data: {
+    unread_count: number;
+    user_id: number;
+  };
+  message?: string;
+}
+
+/**
+ * ✅ Payload สำหรับส่งไปยัง backend API /api/notify-changes
+ * ใช้เมื่อต้องการแจ้งเตือนการเปลี่ยนแปลง ticket
  */
 export interface NotificationPayload {
   ticket_no: string;
@@ -51,20 +109,24 @@ export interface NotificationPayload {
   isNewTicket?: boolean;
 }
 
+// ===== FRONTEND INTERFACES ===== ✅
+
 /**
- * ข้อมูล notification ที่ได้จาก backend
+ * ข้อมูล notification สำหรับใช้งานใน Frontend
+ * (แปลงมาจาก BackendNotification)
  */
 export interface AppNotification {
   id: number;
   ticket_no: string;
-  notification_type: NotificationType;
+  notification_type: NotificationType | string;
   title: string;
   message: string;
-  status: NotificationStatus;
+  status: NotificationStatus | string;
   priority: NotificationPriority;
   created_at: string;
-  read_at?: string;
-  user_id: number;
+  read_at?: string | null;
+  user_id?: number;
+  status_id?: number;
   related_user_id?: number;
   metadata?: NotificationMetadata;
 }
@@ -80,17 +142,22 @@ export interface NotificationMetadata {
   assigned_to?: number;
   comment_id?: number;
   mentioned_by?: number;
+  email_sent?: boolean;
+  email_sent_at?: string | null;
+  type_label?: string;
+  type_color?: string;
+  type_icon?: string;
   [key: string]: any;
 }
 
 /**
- * Response จาก backend API /api/notify-changes
+ * Response จาก backend API (legacy format for compatibility)
  */
 export interface NotificationResponse {
   success: boolean;
   message: string;
   data: AppNotification[];
-  summary: {
+  summary?: {
     total_notifications: number;
     new_ticket: number;
     status_change: number;
@@ -107,7 +174,7 @@ export interface NotificationSummary {
   today: number;
   high_priority: number;
   by_type: {
-    [key in NotificationType]?: number;
+    [key: string]: number;
   };
 }
 
@@ -115,8 +182,8 @@ export interface NotificationSummary {
  * ตัวเลือกสำหรับดึงรายการ notification
  */
 export interface NotificationQueryOptions {
-  status?: NotificationStatus;
-  type?: NotificationType;
+  status?: NotificationStatus | string;
+  type?: NotificationType | string;
   limit?: number;
   offset?: number;
   sort?: 'asc' | 'desc';
@@ -131,7 +198,7 @@ export interface NotificationSettings {
   push_enabled: boolean;
   sound_enabled: boolean;
   types: {
-    [key in NotificationType]: boolean;
+    [key: string]: boolean;
   };
   priority_filter: NotificationPriority[];
 }
@@ -146,23 +213,132 @@ export interface DisplayNotification extends AppNotification {
   route?: string;
 }
 
+// ===== TRANSFORMATION FUNCTIONS ===== ✅
+
+/**
+ * ✅ NEW: แปลง Backend notification เป็น Frontend AppNotification
+ */
+export function transformBackendToApp(backend: BackendNotification): AppNotification {
+  // แปลง notification_type จาก snake_case เป็น UPPER_CASE
+  const normalizedType = normalizeNotificationType(backend.notification_type);
+  
+  return {
+    id: backend.id,
+    ticket_no: backend.ticket_no,
+    notification_type: normalizedType,
+    title: backend.title,
+    message: backend.message,
+    
+    // แปลง is_read เป็น status
+    status: backend.is_read ? NotificationStatus.READ : NotificationStatus.UNREAD,
+    
+    priority: NotificationPriority.MEDIUM, // Backend ไม่มี priority, ใช้ค่า default
+    
+    // แปลง create_date เป็น created_at
+    created_at: backend.create_date,
+    read_at: backend.read_at,
+    
+    // เพิ่ม ticket info
+    status_id: backend.ticket?.status_id,
+    
+    // เพิ่ม metadata จาก Backend
+    metadata: {
+      ticket_id: backend.ticket?.id,
+      type_label: backend.type_label,
+      type_color: backend.type_color,
+      type_icon: backend.type_icon,
+      old_status: backend.status?.id,
+      new_status: backend.ticket?.status_id
+    }
+  };
+}
+
+/**
+ * ✅ NEW: แปลง notification_type จาก Backend format เป็น Frontend format
+ * Backend: 'status_change', 'new_ticket'
+ * Frontend: 'STATUS_CHANGE', 'NEW_TICKET'
+ */
+function normalizeNotificationType(type: string): string {
+  const typeMap: { [key: string]: string } = {
+    'status_change': 'STATUS_CHANGE',
+    'new_ticket': 'NEW_TICKET',
+    'assignment': 'ASSIGNMENT',
+    'comment': 'COMMENT',
+    'mention': 'MENTION',
+    'resolved': 'RESOLVED',
+    'closed': 'CLOSED'
+  };
+  
+  return typeMap[type.toLowerCase()] || type.toUpperCase();
+}
+
+/**
+ * ✅ NEW: แปลง Backend summary เป็น Frontend NotificationSummary
+ */
+export function transformBackendSummary(
+  backendSummary: { total: number; unread_count: number },
+  notifications: AppNotification[]
+): NotificationSummary {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // นับ notifications วันนี้
+  const todayNotifications = notifications.filter(n => {
+    try {
+      return n && n.created_at && new Date(n.created_at) >= today;
+    } catch {
+      return false;
+    }
+  });
+
+  // นับ high priority
+  const highPriorityNotifications = notifications.filter(n =>
+    n && (
+      n.priority === NotificationPriority.HIGH || 
+      n.priority === NotificationPriority.URGENT
+    )
+  );
+
+  // สร้าง by_type จาก notifications
+  const byType: { [key: string]: number } = {};
+  notifications.forEach(n => {
+    const type = n.notification_type.toString();
+    byType[type] = (byType[type] || 0) + 1;
+  });
+
+  return {
+    total: backendSummary.total,
+    unread: backendSummary.unread_count,
+    today: todayNotifications.length,
+    high_priority: highPriorityNotifications.length,
+    by_type: byType
+  };
+}
+
 // ===== HELPER FUNCTIONS ===== ✅
 
 /**
  * แปลง NotificationType เป็นข้อความแสดง
  */
-export function getNotificationTypeLabel(type: NotificationType, language: 'th' | 'en' = 'th'): string {
-  const labels: { [key in NotificationType]: { th: string; en: string } } = {
-    [NotificationType.NEW_TICKET]: { th: 'Ticket ใหม่', en: 'New Ticket' },
-    [NotificationType.STATUS_CHANGE]: { th: 'เปลี่ยนสถานะ', en: 'Status Changed' },
-    [NotificationType.ASSIGNMENT]: { th: 'มอบหมายงาน', en: 'Assignment' },
-    [NotificationType.COMMENT]: { th: 'ความคิดเห็น', en: 'Comment' },
-    [NotificationType.MENTION]: { th: 'แท็กคุณ', en: 'Mentioned' },
-    [NotificationType.RESOLVED]: { th: 'แก้ไขแล้ว', en: 'Resolved' },
-    [NotificationType.CLOSED]: { th: 'ปิดแล้ว', en: 'Closed' }
+export function getNotificationTypeLabel(type: NotificationType | string, language: 'th' | 'en' = 'th'): string {
+  const labels: { [key: string]: { th: string; en: string } } = {
+    'NEW_TICKET': { th: 'Ticket ใหม่', en: 'New Ticket' },
+    'new_ticket': { th: 'Ticket ใหม่', en: 'New Ticket' },
+    'STATUS_CHANGE': { th: 'เปลี่ยนสถานะ', en: 'Status Changed' },
+    'status_change': { th: 'เปลี่ยนสถานะ', en: 'Status Changed' },
+    'ASSIGNMENT': { th: 'มอบหมายงาน', en: 'Assignment' },
+    'assignment': { th: 'มอบหมายงาน', en: 'Assignment' },
+    'COMMENT': { th: 'ความคิดเห็น', en: 'Comment' },
+    'comment': { th: 'ความคิดเห็น', en: 'Comment' },
+    'MENTION': { th: 'แท็กคุณ', en: 'Mentioned' },
+    'mention': { th: 'แท็กคุณ', en: 'Mentioned' },
+    'RESOLVED': { th: 'แก้ไขแล้ว', en: 'Resolved' },
+    'resolved': { th: 'แก้ไขแล้ว', en: 'Resolved' },
+    'CLOSED': { th: 'ปิดแล้ว', en: 'Closed' },
+    'closed': { th: 'ปิดแล้ว', en: 'Closed' }
   };
 
-  return labels[type][language];
+  return labels[type]?.[language] || labels['NEW_TICKET'][language];
 }
 
 /**
@@ -182,35 +358,49 @@ export function getNotificationPriorityLabel(priority: NotificationPriority, lan
 /**
  * ได้รับสีตาม NotificationType
  */
-export function getNotificationTypeColor(type: NotificationType): string {
-  const colors: { [key in NotificationType]: string } = {
-    [NotificationType.NEW_TICKET]: '#6c5ce7',    // สีม่วง
-    [NotificationType.STATUS_CHANGE]: '#74b9ff', // สีฟ้า
-    [NotificationType.ASSIGNMENT]: '#fdcb6e',    // สีเหลือง
-    [NotificationType.COMMENT]: '#00b894',       // สีเขียว
-    [NotificationType.MENTION]: '#e17055',       // สีส้ม
-    [NotificationType.RESOLVED]: '#00b894',      // สีเขียว
-    [NotificationType.CLOSED]: '#636e72'         // สีเทา
+export function getNotificationTypeColor(type: NotificationType | string): string {
+  const colors: { [key: string]: string } = {
+    'NEW_TICKET': '#6c5ce7',
+    'new_ticket': '#6c5ce7',
+    'STATUS_CHANGE': '#74b9ff',
+    'status_change': '#74b9ff',
+    'ASSIGNMENT': '#fdcb6e',
+    'assignment': '#fdcb6e',
+    'COMMENT': '#00b894',
+    'comment': '#00b894',
+    'MENTION': '#e17055',
+    'mention': '#e17055',
+    'RESOLVED': '#00b894',
+    'resolved': '#00b894',
+    'CLOSED': '#636e72',
+    'closed': '#636e72'
   };
 
-  return colors[type];
+  return colors[type] || '#6c5ce7';
 }
 
 /**
  * ได้รับ icon class ตาม NotificationType
  */
-export function getNotificationTypeIcon(type: NotificationType): string {
-  const icons: { [key in NotificationType]: string } = {
-    [NotificationType.NEW_TICKET]: 'bi-plus-circle-fill',
-    [NotificationType.STATUS_CHANGE]: 'bi-arrow-repeat',
-    [NotificationType.ASSIGNMENT]: 'bi-person-check-fill',
-    [NotificationType.COMMENT]: 'bi-chat-dots-fill',
-    [NotificationType.MENTION]: 'bi-at',
-    [NotificationType.RESOLVED]: 'bi-check-circle-fill',
-    [NotificationType.CLOSED]: 'bi-x-circle-fill'
+export function getNotificationTypeIcon(type: NotificationType | string): string {
+  const icons: { [key: string]: string } = {
+    'NEW_TICKET': 'bi-plus-circle-fill',
+    'new_ticket': 'bi-plus-circle-fill',
+    'STATUS_CHANGE': 'bi-arrow-repeat',
+    'status_change': 'bi-arrow-repeat',
+    'ASSIGNMENT': 'bi-person-check-fill',
+    'assignment': 'bi-person-check-fill',
+    'COMMENT': 'bi-chat-dots-fill',
+    'comment': 'bi-chat-dots-fill',
+    'MENTION': 'bi-at',
+    'mention': 'bi-at',
+    'RESOLVED': 'bi-check-circle-fill',
+    'resolved': 'bi-check-circle-fill',
+    'CLOSED': 'bi-x-circle-fill',
+    'closed': 'bi-x-circle-fill'
   };
 
-  return icons[type];
+  return icons[type] || 'bi-plus-circle-fill';
 }
 
 /**
@@ -218,10 +408,10 @@ export function getNotificationTypeIcon(type: NotificationType): string {
  */
 export function getNotificationPriorityColor(priority: NotificationPriority): string {
   const colors: { [key in NotificationPriority]: string } = {
-    [NotificationPriority.LOW]: '#00b894',       // สีเขียว
-    [NotificationPriority.MEDIUM]: '#74b9ff',    // สีฟ้า
-    [NotificationPriority.HIGH]: '#fdcb6e',      // สีเหลือง
-    [NotificationPriority.URGENT]: '#e17055'     // สีแดง
+    [NotificationPriority.LOW]: '#00b894',
+    [NotificationPriority.MEDIUM]: '#74b9ff',
+    [NotificationPriority.HIGH]: '#fdcb6e',
+    [NotificationPriority.URGENT]: '#e17055'
   };
 
   return colors[priority];
@@ -238,7 +428,7 @@ export function isUrgentNotification(notification: AppNotification): boolean {
  * ตรวจสอบว่า notification ยังไม่ได้อ่านหรือไม่
  */
 export function isUnreadNotification(notification: AppNotification): boolean {
-  return notification.status === NotificationStatus.UNREAD;
+  return notification.status === NotificationStatus.UNREAD || notification.status === 'unread';
 }
 
 /**
@@ -318,13 +508,20 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   push_enabled: true,
   sound_enabled: true,
   types: {
-    [NotificationType.NEW_TICKET]: true,
-    [NotificationType.STATUS_CHANGE]: true,
-    [NotificationType.ASSIGNMENT]: true,
-    [NotificationType.COMMENT]: true,
-    [NotificationType.MENTION]: true,
-    [NotificationType.RESOLVED]: true,
-    [NotificationType.CLOSED]: true
+    'NEW_TICKET': true,
+    'new_ticket': true,
+    'STATUS_CHANGE': true,
+    'status_change': true,
+    'ASSIGNMENT': true,
+    'assignment': true,
+    'COMMENT': true,
+    'comment': true,
+    'MENTION': true,
+    'mention': true,
+    'RESOLVED': true,
+    'resolved': true,
+    'CLOSED': true,
+    'closed': true
   },
   priority_filter: [
     NotificationPriority.LOW,

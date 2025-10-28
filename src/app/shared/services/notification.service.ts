@@ -1,17 +1,16 @@
 // src/app/shared/services/notification.service.ts
 
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, OnDestroy } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { Observable, BehaviorSubject, throwError, interval, timer } from 'rxjs';
-import { catchError, tap, map, switchMap, filter, shareReplay } from 'rxjs/operators';
+import { Observable, BehaviorSubject, throwError, Subject, timer } from 'rxjs';
+import { catchError, tap, takeUntil, map, switchMap } from 'rxjs/operators';
+import { io, Socket } from 'socket.io-client';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
 // ✅ Import models
 import {
   AppNotification,
-  NotificationPayload,
-  NotificationResponse,
   NotificationSummary,
   NotificationQueryOptions,
   NotificationSettings,
@@ -20,44 +19,67 @@ import {
   NotificationPriority,
   DisplayNotification,
   createDisplayNotification,
-  DEFAULT_NOTIFICATION_SETTINGS
+  DEFAULT_NOTIFICATION_SETTINGS,
+  BackendNotificationListResponse,
+  transformBackendToApp,
+  transformBackendSummary,
+  NotificationPayload,
+  NotificationResponse
 } from '../models/notification.model';
 
 /**
- * ✅ Notification Service
- * จัดการ notification ทั้งหมดในระบบ
+ * ✅ UPDATED: Notification Service - New Backend API Compatible
+ * 
+ * New Backend API Endpoints:
+ * - GET /api/notifications/list - รายการ notifications ทั้งหมด
+ * 
+ * Backend Response Format:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "notifications": [...],
+ *     "summary": {
+ *       "total": 2,
+ *       "unread_count": 1
+ *     }
+ *   }
+ * }
  */
 @Injectable({
   providedIn: 'root'
 })
-export class NotificationService {
+export class NotificationService implements OnDestroy {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
   private apiUrl = environment.apiUrl;
+  
+  // ===== WEBSOCKET CONFIGURATION ===== ✅
+  
+  private socket: Socket | null = null;
+  private readonly SOCKET_URL = 'http://localhost:4200'; // WebSocket URL
+  private readonly SOCKET_NAMESPACE = '/notifications';
+  
+  // Connection state
+  private connectionStateSubject = new BehaviorSubject<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  public connectionState$ = this.connectionStateSubject.asObservable();
 
   // ===== STATE MANAGEMENT ===== ✅
 
-  // Notifications state
   private notificationsSubject = new BehaviorSubject<AppNotification[]>([]);
   public notifications$ = this.notificationsSubject.asObservable();
 
-  // Unread count state
   private unreadCountSubject = new BehaviorSubject<number>(0);
   public unreadCount$ = this.unreadCountSubject.asObservable();
 
-  // Summary state
   private summarySubject = new BehaviorSubject<NotificationSummary | null>(null);
   public summary$ = this.summarySubject.asObservable();
 
-  // Settings state
   private settingsSubject = new BehaviorSubject<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   public settings$ = this.settingsSubject.asObservable();
 
-  // Loading state
   private loadingSubject = new BehaviorSubject<boolean>(false);
   public loading$ = this.loadingSubject.asObservable();
 
-  // Error state
   private errorSubject = new BehaviorSubject<string | null>(null);
   public error$ = this.errorSubject.asObservable();
 
@@ -65,399 +87,623 @@ export class NotificationService {
 
   private readonly CACHE_KEY = 'app_notifications_cache';
   private readonly SETTINGS_KEY = 'app_notification_settings';
-  private readonly POLLING_INTERVAL = 30000; // 30 seconds
   private readonly MAX_NOTIFICATIONS = 50;
-
-  // Polling subscription
+  private readonly POLLING_INTERVAL = 30000; // 30 วินาที
+  
+  private destroy$ = new Subject<void>();
   private pollingSubscription: any = null;
 
   // ===== INITIALIZATION ===== ✅
 
   constructor() {
-    console.log('✅ NotificationService initialized');
+    console.log('✅ NotificationService initialized - New Backend API Compatible');
     this.initializeService();
   }
 
-  /**
-   * เริ่มต้น service
-   */
   private initializeService(): void {
-    // โหลด settings จาก localStorage
     this.loadSettingsFromStorage();
-
-    // โหลด cached notifications
     this.loadCachedNotifications();
 
-    // เริ่ม polling ถ้า user login แล้ว
-    if (this.authService.isAuthenticated()) {
-      this.startPolling();
-    }
-
-    // Subscribe to auth state changes
-    this.authService.authState$.subscribe(state => {
-      if (state.isAuthenticated) {
-        this.startPolling();
-        this.loadNotifications();
-      } else {
-        this.stopPolling();
-        this.clearNotifications();
-      }
-    });
+    this.authService.authState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(state => {
+        if (state.isAuthenticated) {
+          // ✅ เรียก API ทันทีเมื่อ login
+          this.fetchNotifications().subscribe();
+          
+          // ✅ เริ่ม polling
+          this.startPolling();
+          
+          // ✅ เชื่อมต่อ WebSocket (ถ้ามี)
+          this.connectSocket();
+        } else {
+          this.stopPolling();
+          this.disconnectSocket();
+          this.clearNotifications();
+        }
+      });
   }
 
-  // ===== API METHODS ===== ✅
+  // ===== NEW BACKEND API METHODS ===== ✅
 
   /**
-   * ✅ ส่ง notification ผ่าน backend API
-   * @param payload ข้อมูลสำหรับส่ง notification
-   * @returns Observable<NotificationResponse>
+   * ✅ NEW: เรียก GET /api/notifications/list
+   * ดึงรายการ notifications ทั้งหมดพร้อม summary
    */
-  notifyTicketChanges(payload: NotificationPayload): Observable<NotificationResponse> {
-    console.log('📤 Sending notification:', payload);
+  public fetchNotifications(): Observable<AppNotification[]> {
+    console.log('📡 Fetching notifications from NEW API: GET /api/notifications/list');
+    
+    this.loadingSubject.next(true);
+    this.errorSubject.next(null);
 
-    return this.http.post<NotificationResponse>(
-      `${this.apiUrl}/notify-changes`,
-      payload,
+    return this.http.get<BackendNotificationListResponse>(
+      `${this.apiUrl}/notifications/list`,
       { headers: this.getAuthHeaders() }
     ).pipe(
       tap(response => {
-        console.log('✅ Notification sent successfully:', response);
+        console.log('📡 Backend API response:', response);
         
         if (response.success && response.data) {
-          // เพิ่ม notifications ใหม่เข้า state
-          this.addNotifications(response.data);
+          // ✅ แปลง Backend notifications เป็น Frontend format
+          const transformedNotifications = response.data.notifications.map(n => 
+            transformBackendToApp(n)
+          );
+          
+          console.log('✅ Transformed notifications:', transformedNotifications.length);
+          
+          // ✅ อัพเดท notifications state
+          this.notificationsSubject.next(transformedNotifications);
+          
+          // ✅ อัพเดท unread count จาก summary
+          const unreadCount = this.getSafeNumber(response.data.summary.unread_count);
+          this.unreadCountSubject.next(unreadCount);
+          
+          // ✅ แปลง summary
+          const transformedSummary = transformBackendSummary(
+            response.data.summary,
+            transformedNotifications
+          );
+          this.summarySubject.next(transformedSummary);
+          
+          // ✅ Cache notifications
+          this.cacheNotifications(transformedNotifications);
+          
+          console.log('📊 Summary:', {
+            total: response.data.summary.total,
+            unread: unreadCount
+          });
         }
       }),
+      map(response => {
+        const transformed = response.data.notifications.map(n => transformBackendToApp(n));
+        this.loadingSubject.next(false);
+        return transformed;
+      }),
       catchError(error => {
-        console.error('❌ Error sending notification:', error);
+        this.loadingSubject.next(false);
         return this.handleError(error);
       })
     );
   }
 
   /**
-   * ✅ โหลด notifications ทั้งหมด
-   * @param options ตัวเลือกสำหรับ filter
-   * @returns Observable<Notification[]>
+   * ✅ Mark notification as read (keep existing API)
+   * PUT /api/mark-read/:notificationId
    */
-  loadNotifications(options?: NotificationQueryOptions): Observable<AppNotification[]> {
-    console.log('📥 Loading notifications with options:', options);
+  public markAsRead(notificationId: number): Observable<any> {
+    console.log('✅ Marking notification as read:', notificationId);
 
-    this.loadingSubject.next(true);
-    this.errorSubject.next(null);
-
-    // TODO: เปลี่ยนเป็น API endpoint ที่ดึง notifications ของ user
-    // ตอนนี้ใช้ mock data ก่อน
-    return this.getMockNotifications(options).pipe(
-      tap(notifications => {
-        console.log('✅ Notifications loaded:', notifications.length);
-        this.notificationsSubject.next(notifications);
-        this.updateUnreadCount();
+    return this.http.put(
+      `${this.apiUrl}/mark-read/${notificationId}`,
+      {},
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(() => {
+        // อัพเดท local state
+        const notifications = this.notificationsSubject.value;
+        const updatedNotifications = notifications.map(n =>
+          n.id === notificationId
+            ? { ...n, status: NotificationStatus.READ, read_at: new Date().toISOString() }
+            : n
+        );
+        
+        this.notificationsSubject.next(updatedNotifications);
+        
+        // อัพเดท unread count
+        const newUnreadCount = Math.max(0, this.unreadCountSubject.value - 1);
+        this.unreadCountSubject.next(newUnreadCount);
+        
         this.updateSummary();
-        this.cacheNotifications(notifications);
-        this.loadingSubject.next(false);
+        this.cacheNotifications(updatedNotifications);
       }),
-      catchError(error => {
-        console.error('❌ Error loading notifications:', error);
-        this.loadingSubject.next(false);
-        this.errorSubject.next('ไม่สามารถโหลดการแจ้งเตือนได้');
-        return throwError(() => error);
-      })
+      catchError(this.handleError.bind(this))
     );
   }
 
   /**
-   * ✅ ทำเครื่องหมายว่าอ่านแล้ว
-   * @param notificationId ID ของ notification
-   * @returns Observable<boolean>
+   * ✅ Mark all notifications as read
+   * PUT /api/mark-all-read
    */
-  markAsRead(notificationId: number): Observable<boolean> {
-    console.log('📖 Marking notification as read:', notificationId);
+  public markAllAsRead(): Observable<any> {
+    console.log('✅ Marking all notifications as read');
 
-    // TODO: เรียก API เพื่ออัพเดท status
-    // ตอนนี้อัพเดท local state ก่อน
-    const notifications = this.notificationsSubject.value;
-    const updatedNotifications = notifications.map(n => 
-      n.id === notificationId 
-        ? { ...n, status: NotificationStatus.READ, read_at: new Date().toISOString() }
-        : n
+    return this.http.put(
+      `${this.apiUrl}/mark-all-read`,
+      {},
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(() => {
+        // อัพเดท local state
+        const notifications = this.notificationsSubject.value;
+        const updatedNotifications = notifications.map(n => ({
+          ...n,
+          status: NotificationStatus.READ,
+          read_at: new Date().toISOString()
+        }));
+        
+        this.notificationsSubject.next(updatedNotifications);
+        this.unreadCountSubject.next(0);
+        
+        this.updateSummary();
+        this.cacheNotifications(updatedNotifications);
+      }),
+      catchError(this.handleError.bind(this))
     );
-
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
-    this.cacheNotifications(updatedNotifications);
-
-    return new Observable(observer => {
-      observer.next(true);
-      observer.complete();
-    });
   }
 
   /**
-   * ✅ ทำเครื่องหมายทั้งหมดว่าอ่านแล้ว
-   * @returns Observable<boolean>
+   * ✅ Delete notification
+   * DELETE /api/delete-notification/:notificationId
    */
-  markAllAsRead(): Observable<boolean> {
-    console.log('📖 Marking all notifications as read');
-
-    const notifications = this.notificationsSubject.value;
-    const updatedNotifications = notifications.map(n => ({
-      ...n,
-      status: NotificationStatus.READ,
-      read_at: n.read_at || new Date().toISOString()
-    }));
-
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
-    this.cacheNotifications(updatedNotifications);
-
-    return new Observable(observer => {
-      observer.next(true);
-      observer.complete();
-    });
-  }
-
-  /**
-   * ✅ ลบ notification
-   * @param notificationId ID ของ notification
-   * @returns Observable<boolean>
-   */
-  deleteNotification(notificationId: number): Observable<boolean> {
+  public deleteNotification(notificationId: number): Observable<any> {
     console.log('🗑️ Deleting notification:', notificationId);
 
-    const notifications = this.notificationsSubject.value;
-    const updatedNotifications = notifications.filter(n => n.id !== notificationId);
-
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
-    this.updateSummary();
-    this.cacheNotifications(updatedNotifications);
-
-    return new Observable(observer => {
-      observer.next(true);
-      observer.complete();
-    });
+    return this.http.delete(
+      `${this.apiUrl}/delete-notification/${notificationId}`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(() => {
+        // อัพเดท local state
+        const notifications = this.notificationsSubject.value;
+        const notificationToDelete = notifications.find(n => n.id === notificationId);
+        const updatedNotifications = notifications.filter(n => n.id !== notificationId);
+        
+        this.notificationsSubject.next(updatedNotifications);
+        
+        // ถ้าเป็น unread ให้ลด count
+        if (notificationToDelete && notificationToDelete.status === NotificationStatus.UNREAD) {
+          const newUnreadCount = Math.max(0, this.unreadCountSubject.value - 1);
+          this.unreadCountSubject.next(newUnreadCount);
+        }
+        
+        this.updateSummary();
+        this.cacheNotifications(updatedNotifications);
+      }),
+      catchError(this.handleError.bind(this))
+    );
   }
 
   /**
-   * ✅ ลบทั้งหมด
-   * @returns Observable<boolean>
+   * ✅ Delete all notifications
+   * DELETE /api/delete-all-notifications
    */
-  deleteAllNotifications(): Observable<boolean> {
+  public deleteAllNotifications(): Observable<any> {
     console.log('🗑️ Deleting all notifications');
 
-    this.notificationsSubject.next([]);
-    this.unreadCountSubject.next(0);
-    this.summarySubject.next(null);
-    this.clearCache();
-
-    return new Observable(observer => {
-      observer.next(true);
-      observer.complete();
-    });
-  }
-
-  // ===== HELPER METHODS ===== ✅
-
-  /**
-   * เพิ่ม notifications ใหม่
-   */
-  private addNotifications(newNotifications: AppNotification[]): void {
-    const current = this.notificationsSubject.value;
-    const combined = [...newNotifications, ...current];
-    
-    // เก็บเฉพาะจำนวนที่กำหนด
-    const limited = combined.slice(0, this.MAX_NOTIFICATIONS);
-    
-    this.notificationsSubject.next(limited);
-    this.updateUnreadCount();
-    this.updateSummary();
-    this.cacheNotifications(limited);
-
-    // แสดง toast notification ถ้ามี new notifications
-    this.showToastForNewNotifications(newNotifications);
+    return this.http.delete(
+      `${this.apiUrl}/delete-all-notifications`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(() => {
+        this.notificationsSubject.next([]);
+        this.unreadCountSubject.next(0);
+        this.summarySubject.next({
+          total: 0,
+          unread: 0,
+          today: 0,
+          high_priority: 0,
+          by_type: {}
+        });
+        this.clearCache();
+      }),
+      catchError(this.handleError.bind(this))
+    );
   }
 
   /**
-   * อัพเดทจำนวน unread
+   * ✅ Notify ticket changes (สำหรับส่ง notification เมื่อมีการเปลี่ยนแปลง ticket)
+   * POST /api/notify-changes
+   * 
+   * ใช้เมื่อ:
+   * - สร้าง ticket ใหม่
+   * - เปลี่ยนสถานะ ticket
+   * - มอบหมายงาน
    */
-  private updateUnreadCount(): void {
-    const notifications = this.notificationsSubject.value;
-    const unread = notifications.filter(n => n.status === NotificationStatus.UNREAD).length;
-    this.unreadCountSubject.next(unread);
+  public notifyTicketChanges(payload: NotificationPayload): Observable<NotificationResponse> {
+    console.log('📤 Notifying ticket changes:', payload);
+
+    return this.http.post<{
+      success: boolean;
+      message: string;
+      data: any[];
+      summary?: any;
+    }>(
+      `${this.apiUrl}/notify-changes`,
+      payload,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('✅ Ticket changes notified:', response);
+        
+        // อัพเดท local state ถ้า Backend ส่ง notifications กลับมา
+        if (response.success && response.data && response.data.length > 0) {
+          const transformedNotifications = response.data.map(n => 
+            transformBackendToApp(n)
+          );
+          
+          // เพิ่ม notifications ใหม่เข้า list
+          const currentNotifications = this.notificationsSubject.value;
+          const updatedNotifications = [...transformedNotifications, ...currentNotifications];
+          this.notificationsSubject.next(updatedNotifications.slice(0, this.MAX_NOTIFICATIONS));
+          
+          // อัพเดท summary ถ้ามี
+          if (response.summary) {
+            const transformedSummary = transformBackendSummary(
+              response.summary,
+              updatedNotifications
+            );
+            this.summarySubject.next(transformedSummary);
+          }
+          
+          this.cacheNotifications(updatedNotifications);
+        }
+        
+        // Refresh notifications จาก API
+        this.fetchNotifications().subscribe();
+      }),
+      map(response => ({
+        success: response.success,
+        message: response.message,
+        data: response.data?.map(n => transformBackendToApp(n)) || [],
+        summary: response.summary
+      })),
+      catchError(this.handleError.bind(this))
+    );
   }
 
-  /**
-   * อัพเดท summary
-   */
-  private updateSummary(): void {
-    const notifications = this.notificationsSubject.value;
-    
-    const summary: NotificationSummary = {
-      total: notifications.length,
-      unread: notifications.filter(n => n.status === NotificationStatus.UNREAD).length,
-      today: this.countTodayNotifications(notifications),
-      high_priority: notifications.filter(n => 
-        n.priority === NotificationPriority.HIGH || 
-        n.priority === NotificationPriority.URGENT
-      ).length,
-      by_type: this.countByType(notifications)
-    };
-
-    this.summarySubject.next(summary);
-  }
+  // ===== POLLING ===== ✅
 
   /**
-   * นับ notifications วันนี้
+   * ✅ เริ่ม polling เพื่อดึง notifications ทุกๆ 30 วินาที
    */
-  private countTodayNotifications(notifications: AppNotification[]): number {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return notifications.filter(n => {
-      const nDate = new Date(n.created_at);
-      nDate.setHours(0, 0, 0, 0);
-      return nDate.getTime() === today.getTime();
-    }).length;
-  }
-
-  /**
-   * นับตาม type
-   */
-  private countByType(notifications: AppNotification[]): { [key in NotificationType]?: number } {
-    const result: { [key in NotificationType]?: number } = {};
-
-    notifications.forEach(n => {
-      result[n.notification_type] = (result[n.notification_type] || 0) + 1;
-    });
-
-    return result;
-  }
-
-  /**
-   * แสดง toast notification
-   */
-  private showToastForNewNotifications(notifications: AppNotification[]): void {
-    // ตรวจสอบ settings ก่อน
-    const settings = this.settingsSubject.value;
-    if (!settings.push_enabled) return;
-
-    notifications.forEach(notification => {
-      // ตรวจสอบว่า type นี้เปิดใช้งานหรือไม่
-      if (!settings.types[notification.notification_type]) return;
-
-      // แสดง browser notification (ถ้า permission อนุญาต)
-      this.showBrowserNotification(notification);
-
-      // เล่นเสียง (ถ้าเปิดใช้งาน)
-      if (settings.sound_enabled) {
-        this.playNotificationSound();
-      }
-    });
-  }
-
-  /**
-   * แสดง browser notification
-   */
-  private showBrowserNotification(notification: AppNotification): void {
-    if (!('Notification' in window)) {
-      console.warn('Browser does not support notifications');
+  private startPolling(): void {
+    if (this.pollingSubscription) {
       return;
     }
 
-    if (Notification.permission === 'granted') {
-      const n = new Notification(notification.title, {
-        body: notification.message,
-        icon: '/assets/images/notification-icon.png',
-        badge: '/assets/images/badge-icon.png',
-        tag: `notification-${notification.id}`,
-        requireInteraction: notification.priority === NotificationPriority.URGENT
+    console.log('🔄 Starting notifications polling (interval:', this.POLLING_INTERVAL, 'ms)');
+    
+    this.pollingSubscription = timer(this.POLLING_INTERVAL, this.POLLING_INTERVAL)
+      .pipe(
+        takeUntil(this.destroy$),
+        switchMap(() => this.fetchNotifications())
+      )
+      .subscribe({
+        next: (notifications) => console.log('🔄 Polling update - notifications:', notifications.length),
+        error: (error) => console.error('❌ Polling error:', error)
       });
-
-      n.onclick = () => {
-        window.focus();
-        // Navigate to ticket detail
-        window.location.href = `/tickets/${notification.ticket_no}`;
-      };
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          this.showBrowserNotification(notification);
-        }
-      });
-    }
   }
 
   /**
-   * เล่นเสียงแจ้งเตือน
+   * ✅ หยุด polling
    */
+  private stopPolling(): void {
+    if (this.pollingSubscription) {
+      console.log('🛑 Stopping notifications polling...');
+      this.pollingSubscription.unsubscribe();
+      this.pollingSubscription = null;
+    }
+  }
+
+  // ===== WEBSOCKET METHODS ===== ✅
+
+  public connectSocket(): void {
+    const token = this.authService.getToken();
+    if (!token) {
+      console.warn('⚠️ No token available, cannot connect socket');
+      return;
+    }
+
+    if (this.socket?.connected) {
+      console.log('ℹ️ Socket already connected');
+      return;
+    }
+
+    console.log('🔌 Connecting to WebSocket server...');
+    this.connectionStateSubject.next('connecting');
+
+    try {
+      this.socket = io(`${this.SOCKET_URL}${this.SOCKET_NAMESPACE}`, {
+        auth: { token: token },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 3000,
+        timeout: 10000
+      });
+
+      this.setupSocketListeners();
+
+    } catch (error) {
+      console.error('❌ Error creating socket connection:', error);
+      this.connectionStateSubject.next('disconnected');
+      this.errorSubject.next('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์แจ้งเตือนได้');
+    }
+  }
+
+  private setupSocketListeners(): void {
+    if (!this.socket) return;
+
+    // ===== CONNECTION EVENTS ===== ✅
+    
+    this.socket.on('connect', () => {
+      console.log('✅ Socket connected successfully:', this.socket?.id);
+      this.connectionStateSubject.next('connected');
+      this.errorSubject.next(null);
+    });
+
+    this.socket.on('connection_success', (data: any) => {
+      console.log('✅ Connection success event received:', data);
+      this.connectionStateSubject.next('connected');
+      this.errorSubject.next(null);
+      
+      // เรียก API เมื่อเชื่อมต่อสำเร็จ
+      this.fetchNotifications().subscribe();
+    });
+
+    this.socket.on('subscribed', (data: any) => {
+      console.log('✅ Subscribed to notifications:', data);
+    });
+
+    this.socket.on('disconnect', (reason: string) => {
+      console.log('⚠️ Socket disconnected:', reason);
+      this.connectionStateSubject.next('disconnected');
+      
+      if (reason === 'io server disconnect') {
+        console.log('🔄 Server forced disconnect, attempting manual reconnect...');
+        setTimeout(() => this.socket?.connect(), 3000);
+      }
+    });
+
+    this.socket.on('connect_error', (error: Error) => {
+      console.error('❌ Socket connection error:', error.message);
+      this.connectionStateSubject.next('disconnected');
+      
+      if (error.message.includes('Authentication') || error.message.includes('jwt')) {
+        this.errorSubject.next('การตรวจสอบสิทธิ์ล้มเหลว กรุณาเข้าสู่ระบบใหม่');
+        this.authService.logout();
+      } else {
+        this.errorSubject.next('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+      }
+    });
+
+    // ===== NOTIFICATION EVENTS ===== ✅
+
+    this.socket.on('new_notification', (data: any) => {
+      console.log('🔔 New notification event received:', data);
+      
+      // Refresh notifications from API
+      this.fetchNotifications().subscribe();
+    });
+
+    this.socket.on('unread_count_update', (data: { unread_count: number }) => {
+      console.log('📊 Unread count update event received:', data);
+      
+      if (data && data.unread_count !== undefined) {
+        const safeCount = this.getSafeNumber(data.unread_count);
+        this.unreadCountSubject.next(safeCount);
+        this.updateSummaryWithCount(safeCount);
+      }
+    });
+
+    this.socket.on('notification_read', (data: { notificationId: number }) => {
+      console.log('✅ Notification read event received:', data);
+      
+      // อัพเดท local state
+      const notifications = this.notificationsSubject.value;
+      const updatedNotifications = notifications.map(n =>
+        n.id === data.notificationId
+          ? { ...n, status: NotificationStatus.READ, read_at: new Date().toISOString() }
+          : n
+      );
+      
+      this.notificationsSubject.next(updatedNotifications);
+      
+      // อัพเดท unread count
+      const newUnreadCount = Math.max(0, this.unreadCountSubject.value - 1);
+      this.unreadCountSubject.next(newUnreadCount);
+      
+      this.updateSummary();
+    });
+
+    this.socket.on('notification_deleted', (data: { notificationId: number }) => {
+      console.log('🗑️ Notification deleted event received:', data);
+      
+      const notifications = this.notificationsSubject.value;
+      const notificationToDelete = notifications.find(n => n.id === data.notificationId);
+      const updatedNotifications = notifications.filter(n => n.id !== data.notificationId);
+      
+      this.notificationsSubject.next(updatedNotifications);
+      
+      if (notificationToDelete && notificationToDelete.status === NotificationStatus.UNREAD) {
+        const newUnreadCount = Math.max(0, this.unreadCountSubject.value - 1);
+        this.unreadCountSubject.next(newUnreadCount);
+      }
+      
+      this.updateSummary();
+    });
+
+    // Error handling
+    this.socket.on('error', (error: any) => {
+      console.error('❌ Socket error event:', error);
+      this.errorSubject.next(error.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    });
+  }
+
+  public disconnectSocket(): void {
+    if (this.socket) {
+      console.log('🔌 Disconnecting socket...');
+      this.socket.disconnect();
+      this.socket = null;
+      this.connectionStateSubject.next('disconnected');
+    }
+  }
+
+  public reconnectSocket(): void {
+    console.log('🔄 Manually reconnecting socket...');
+    this.disconnectSocket();
+    setTimeout(() => this.connectSocket(), 1000);
+  }
+
+  // ===== SUMMARY MANAGEMENT ===== ✅
+
+  private updateSummary(): void {
+    try {
+      const notifications = this.notificationsSubject.value;
+      const unreadCount = this.unreadCountSubject.value;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const todayNotifications = notifications.filter(n => {
+        try {
+          return n && n.created_at && new Date(n.created_at) >= today;
+        } catch {
+          return false;
+        }
+      });
+
+      const highPriorityNotifications = notifications.filter(n =>
+        n && (
+          n.priority === NotificationPriority.HIGH || 
+          n.priority === NotificationPriority.URGENT
+        )
+      );
+
+      const byType: { [key: string]: number } = {};
+      notifications.forEach(n => {
+        const type = n.notification_type.toString();
+        byType[type] = (byType[type] || 0) + 1;
+      });
+
+      const summary: NotificationSummary = {
+        total: notifications.length,
+        unread: unreadCount,
+        today: todayNotifications.length,
+        high_priority: highPriorityNotifications.length,
+        by_type: byType
+      };
+
+      this.summarySubject.next(summary);
+    } catch (error) {
+      console.error('❌ Error updating summary:', error);
+      this.summarySubject.next(null);
+    }
+  }
+
+  private updateSummaryWithCount(unreadCount: number): void {
+    const currentSummary = this.summarySubject.value;
+    const notifications = this.notificationsSubject.value;
+    
+    const updatedSummary: NotificationSummary = {
+      total: currentSummary?.total || notifications.length,
+      unread: unreadCount,
+      today: currentSummary?.today || 0,
+      high_priority: currentSummary?.high_priority || 0,
+      by_type: currentSummary?.by_type || {}
+    };
+    
+    this.summarySubject.next(updatedSummary);
+  }
+
+  /**
+   * ✅ Helper method to safely convert any value to a valid number
+   */
+  private getSafeNumber(value: any): number {
+    if (value === null || value === undefined) {
+      return 0;
+    }
+
+    const num = Number(value);
+
+    if (Number.isNaN(num)) {
+      return 0;
+    }
+
+    if (!Number.isFinite(num) || num < 0) {
+      return 0;
+    }
+
+    return Math.floor(num);
+  }
+
+  private showBrowserNotification(notification: AppNotification): void {
+    const settings = this.settingsSubject.value;
+    
+    if (!settings.push_enabled) {
+      return;
+    }
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const browserNotification = new Notification(notification.title, {
+          body: notification.message,
+          icon: '/assets/icons/notification-icon.png',
+          badge: '/assets/icons/badge-icon.png',
+          tag: `notification-${notification.id}`,
+          requireInteraction: notification.priority === NotificationPriority.URGENT
+        });
+
+        browserNotification.onclick = (event) => {
+          event.preventDefault();
+          window.focus();
+          console.log('Browser notification clicked:', notification.ticket_no);
+        };
+
+      } catch (error) {
+        console.warn('Error showing browser notification:', error);
+      }
+    }
+  }
+
   private playNotificationSound(): void {
     try {
       const audio = new Audio('/assets/sounds/notification.mp3');
       audio.volume = 0.5;
       audio.play().catch(error => {
-        console.warn('Cannot play notification sound:', error);
+        console.warn('Could not play notification sound:', error);
       });
     } catch (error) {
       console.warn('Error playing notification sound:', error);
     }
   }
 
-  // ===== POLLING ===== ✅
-
-  /**
-   * เริ่มต้น polling
-   */
-  private startPolling(): void {
-    if (this.pollingSubscription) {
-      return; // Already polling
-    }
-
-    console.log('🔄 Starting notification polling');
-
-    this.pollingSubscription = interval(this.POLLING_INTERVAL).pipe(
-      switchMap(() => this.loadNotifications())
-    ).subscribe();
-  }
-
-  /**
-   * หยุด polling
-   */
-  private stopPolling(): void {
-    if (this.pollingSubscription) {
-      console.log('⏸️ Stopping notification polling');
-      this.pollingSubscription.unsubscribe();
-      this.pollingSubscription = null;
-    }
-  }
-
   // ===== CACHE MANAGEMENT ===== ✅
 
-  /**
-   * บันทึก notifications ลง cache
-   */
   private cacheNotifications(notifications: AppNotification[]): void {
     try {
-      const cacheData = {
-        notifications,
-        timestamp: new Date().toISOString()
-      };
+      const cacheData = { notifications, timestamp: new Date().toISOString() };
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(cacheData));
     } catch (error) {
       console.warn('Error caching notifications:', error);
     }
   }
 
-  /**
-   * โหลด notifications จาก cache
-   */
   private loadCachedNotifications(): void {
     try {
       const cached = localStorage.getItem(this.CACHE_KEY);
       if (cached) {
         const cacheData = JSON.parse(cached);
         this.notificationsSubject.next(cacheData.notifications || []);
-        this.updateUnreadCount();
         this.updateSummary();
         console.log('✅ Loaded cached notifications:', cacheData.notifications.length);
       }
@@ -466,16 +712,10 @@ export class NotificationService {
     }
   }
 
-  /**
-   * ล้าง cache
-   */
   private clearCache(): void {
     localStorage.removeItem(this.CACHE_KEY);
   }
 
-  /**
-   * ล้าง notifications
-   */
   private clearNotifications(): void {
     this.notificationsSubject.next([]);
     this.unreadCountSubject.next(0);
@@ -485,9 +725,6 @@ export class NotificationService {
 
   // ===== SETTINGS MANAGEMENT ===== ✅
 
-  /**
-   * โหลด settings จาก storage
-   */
   private loadSettingsFromStorage(): void {
     try {
       const saved = localStorage.getItem(this.SETTINGS_KEY);
@@ -500,18 +737,12 @@ export class NotificationService {
     }
   }
 
-  /**
-   * บันทึก settings
-   */
   updateSettings(settings: NotificationSettings): void {
     this.settingsSubject.next(settings);
     localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(settings));
     console.log('✅ Notification settings updated');
   }
 
-  /**
-   * รีเซ็ต settings
-   */
   resetSettings(): void {
     this.settingsSubject.next(DEFAULT_NOTIFICATION_SETTINGS);
     localStorage.removeItem(this.SETTINGS_KEY);
@@ -520,44 +751,34 @@ export class NotificationService {
 
   // ===== PUBLIC GETTERS ===== ✅
 
-  /**
-   * ได้รับ notifications ปัจจุบัน
-   */
   getCurrentNotifications(): AppNotification[] {
     return this.notificationsSubject.value;
   }
 
-  /**
-   * ได้รับ unread count
-   */
   getUnreadCount(): number {
-    return this.unreadCountSubject.value;
+    return this.getSafeNumber(this.unreadCountSubject.value);
   }
 
-  /**
-   * ได้รับ summary
-   */
   getSummary(): NotificationSummary | null {
     return this.summarySubject.value;
   }
 
-  /**
-   * ได้รับ settings
-   */
   getSettings(): NotificationSettings {
     return this.settingsSubject.value;
   }
 
-  /**
-   * ได้รับ display notifications
-   */
+  getConnectionState(): 'connected' | 'disconnected' | 'connecting' {
+    return this.connectionStateSubject.value;
+  }
+
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
   getDisplayNotifications(): DisplayNotification[] {
     return this.notificationsSubject.value.map(n => createDisplayNotification(n));
   }
 
-  /**
-   * Filter notifications
-   */
   filterNotifications(options: NotificationQueryOptions): AppNotification[] {
     let notifications = this.notificationsSubject.value;
 
@@ -573,7 +794,6 @@ export class NotificationService {
       notifications = notifications.filter(n => n.priority === options.priority);
     }
 
-    // Sort
     if (options.sort === 'asc') {
       notifications.sort((a, b) => 
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -584,7 +804,6 @@ export class NotificationService {
       );
     }
 
-    // Limit
     if (options.limit) {
       notifications = notifications.slice(0, options.limit);
     }
@@ -592,59 +811,8 @@ export class NotificationService {
     return notifications;
   }
 
-  // ===== MOCK DATA (สำหรับ development) ===== ✅
-
-  /**
-   * ✅ Mock notifications สำหรับ testing
-   */
-  private getMockNotifications(options?: NotificationQueryOptions): Observable<AppNotification[]> {
-    const mockNotifications: AppNotification[] = [
-      {
-        id: 1,
-        ticket_no: 'TK-2025-001',
-        notification_type: NotificationType.NEW_TICKET,
-        title: 'Ticket ใหม่ถูกสร้าง',
-        message: 'มี ticket ใหม่ TK-2025-001 ถูกสร้างขึ้น',
-        status: NotificationStatus.UNREAD,
-        priority: NotificationPriority.MEDIUM,
-        created_at: new Date(Date.now() - 5 * 60000).toISOString(), // 5 minutes ago
-        user_id: 1,
-        metadata: {
-          ticket_id: 1
-        }
-      },
-      {
-        id: 2,
-        ticket_no: 'TK-2025-002',
-        notification_type: NotificationType.ASSIGNMENT,
-        title: 'มอบหมายงานให้คุณ',
-        message: 'คุณได้รับมอบหมายให้ดูแล ticket TK-2025-002',
-        status: NotificationStatus.UNREAD,
-        priority: NotificationPriority.HIGH,
-        created_at: new Date(Date.now() - 30 * 60000).toISOString(), // 30 minutes ago
-        user_id: 1,
-        related_user_id: 2,
-        metadata: {
-          ticket_id: 2,
-          assigned_by: 2,
-          assigned_to: 1
-        }
-      }
-    ];
-
-    return new Observable(observer => {
-      setTimeout(() => {
-        observer.next(mockNotifications);
-        observer.complete();
-      }, 500);
-    });
-  }
-
   // ===== UTILITIES ===== ✅
 
-  /**
-   * ได้รับ auth headers
-   */
   private getAuthHeaders(): HttpHeaders {
     const token = this.authService.getToken();
     return new HttpHeaders({
@@ -653,9 +821,6 @@ export class NotificationService {
     });
   }
 
-  /**
-   * จัดการ error
-   */
   private handleError(error: HttpErrorResponse): Observable<never> {
     let errorMessage = 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
 
@@ -684,9 +849,6 @@ export class NotificationService {
     return throwError(() => errorMessage);
   }
 
-  /**
-   * ✅ Request browser notification permission
-   */
   async requestNotificationPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
       console.warn('Browser does not support notifications');
@@ -705,10 +867,11 @@ export class NotificationService {
     return false;
   }
 
-  /**
-   * ✅ Cleanup on service destroy
-   */
   ngOnDestroy(): void {
+    console.log('🧹 NotificationService cleanup');
     this.stopPolling();
+    this.disconnectSocket();
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

@@ -3,7 +3,7 @@
 import { Component, OnInit, OnDestroy, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms'; // ✅ NEW: เพิ่ม FormsModule
+import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 // ✅ Import Services
@@ -25,8 +25,9 @@ import {
 import { permissionEnum, UserRole, ROLES } from '../../models/permission.model';
 
 /**
- * ✅ Notification Bell Component
+ * ✅ Notification Bell Component with WebSocket Support
  * แสดง notification icon พร้อม dropdown menu
+ * รองรับ Real-time updates ผ่าน WebSocket
  */
 @Component({
   selector: 'app-notification-bell',
@@ -34,7 +35,7 @@ import { permissionEnum, UserRole, ROLES } from '../../models/permission.model';
   imports: [
     CommonModule,
     RouterModule,
-    FormsModule  // ✅ NEW: เพิ่ม FormsModule
+    FormsModule
   ],
   templateUrl: './notification-bell.component.html',
   styleUrls: ['./notification-bell.component.css']
@@ -47,11 +48,14 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
 
   // ===== COMPONENT STATE ===== ✅
   notifications: DisplayNotification[] = [];
-  unreadCount = 0;
+  unreadCount = 0; // ✅ เริ่มต้นที่ 0 เสมอ
   summary: NotificationSummary | null = null;
   isDropdownOpen = false;
   isLoading = false;
   error: string | null = null;
+
+  // ✅ WebSocket connection state
+  socketConnectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
 
   // ===== FILTER STATE ===== ✅
   selectedFilter: 'all' | 'unread' | 'today' = 'all';
@@ -87,7 +91,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     // โหลด language preference
     this.loadLanguagePreference();
 
-    // Subscribe to notifications
+    // Subscribe to notifications (จะได้รับ updates แบบ real-time ผ่าน WebSocket)
     this.subscribeToNotifications();
 
     // Subscribe to unread count
@@ -102,8 +106,13 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     // Subscribe to error state
     this.subscribeToError();
 
-    // โหลด notifications ครั้งแรก
-    this.loadNotifications();
+    // ✅ Subscribe to WebSocket connection state
+    this.subscribeToConnectionState();
+
+    // ไม่จำเป็นต้องโหลด notifications ทันทีเพราะ:
+    // 1. HeaderComponent จะเรียก connectSocket() ซึ่งจะโหลด notifications อัตโนมัติ
+    // 2. Socket จะ emit notifications แบบ real-time
+    // แต่ถ้าต้องการโหลดเพื่อแสดงข้อมูล cached ก็สามารถเรียกได้
   }
 
   /**
@@ -123,6 +132,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
 
   /**
    * Subscribe to notifications
+   * จะได้รับ updates แบบ real-time จาก WebSocket
    */
   private subscribeToNotifications(): void {
     const sub = this.notificationService.notifications$.subscribe(notifications => {
@@ -134,22 +144,58 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
         route: `/tickets/${n.ticket_no}`
       }));
 
-      console.log('🔔 Notifications updated:', this.notifications.length);
+      console.log('🔔 Notifications updated (real-time):', this.notifications.length);
     });
 
     this.subscriptions.push(sub);
   }
 
   /**
-   * Subscribe to unread count
+   * ✅ FIXED: Subscribe to unread count with NaN protection
+   * ป้องกันค่า NaN โดยการตรวจสอบและแปลงค่าให้ถูกต้อง
    */
   private subscribeToUnreadCount(): void {
     const sub = this.notificationService.unreadCount$.subscribe(count => {
-      this.unreadCount = count;
-      console.log('🔔 Unread count:', count);
+      // ✅ ตรวจสอบและแปลงค่าให้เป็นตัวเลขที่ถูกต้อง
+      const safeCount = this.getSafeNumber(count);
+      this.unreadCount = safeCount;
+      
+      console.log('🔔 Unread count:', safeCount, '(original:', count, ')');
+      
+      // ✅ เพิ่มการเตือนถ้าได้รับค่าที่ไม่ถูกต้อง
+      if (count !== safeCount) {
+        console.warn('⚠️ Invalid unread count received:', count, '- converted to:', safeCount);
+      }
     });
 
     this.subscriptions.push(sub);
+  }
+
+  /**
+   * ✅ NEW: Helper method to safely convert value to number
+   * แปลงค่าใดๆ เป็นตัวเลขที่ปลอดภัย โดยตั้งค่าเริ่มต้นเป็น 0 ถ้าไม่สามารถแปลงได้
+   */
+  private getSafeNumber(value: any): number {
+    // ถ้าเป็น null หรือ undefined ให้คืนค่า 0
+    if (value === null || value === undefined) {
+      return 0;
+    }
+
+    // แปลงเป็น number
+    const num = Number(value);
+
+    // ตรวจสอบว่าเป็น NaN หรือไม่ (ใช้ Number.isNaN เพราะแม่นยำกว่า isNaN)
+    if (Number.isNaN(num)) {
+      return 0;
+    }
+
+    // ตรวจสอบว่าเป็นตัวเลขที่ถูกต้อง (ไม่ติดลบ และเป็นจำนวนเต็ม)
+    if (!Number.isFinite(num) || num < 0) {
+      return 0;
+    }
+
+    // คืนค่าเป็นจำนวนเต็มที่ปัดลง
+    return Math.floor(num);
   }
 
   /**
@@ -158,6 +204,14 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   private subscribeToSummary(): void {
     const sub = this.notificationService.summary$.subscribe(summary => {
       this.summary = summary;
+      
+      // ✅ OPTIONAL: ตรวจสอบความสอดคล้องระหว่าง summary และ unreadCount
+      if (summary && summary.unread !== undefined) {
+        const safeSummaryUnread = this.getSafeNumber(summary.unread);
+        if (safeSummaryUnread !== this.unreadCount) {
+          console.log('📊 Summary unread:', safeSummaryUnread, 'vs unreadCount:', this.unreadCount);
+        }
+      }
     });
 
     this.subscriptions.push(sub);
@@ -185,24 +239,30 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     this.subscriptions.push(sub);
   }
 
+  /**
+   * ✅ Subscribe to WebSocket connection state
+   */
+  private subscribeToConnectionState(): void {
+    const sub = this.notificationService.connectionState$.subscribe(state => {
+      this.socketConnectionState = state;
+      console.log('🔔 Socket connection state:', state);
+    });
+
+    this.subscriptions.push(sub);
+  }
+
   // ===== NOTIFICATION ACTIONS ===== ✅
 
   /**
-   * โหลด notifications
-   */
-  loadNotifications(): void {
-    this.notificationService.loadNotifications().subscribe({
-      next: () => console.log('✅ Notifications loaded'),
-      error: (error) => console.error('❌ Error loading notifications:', error)
-    });
-  }
-
-  /**
-   * Refresh notifications
+   * ✅ Refresh notifications จาก API (force reload)
+   * ใช้เมื่อต้องการ refresh ข้อมูลใหม่จาก server
    */
   refreshNotifications(): void {
-    console.log('🔄 Refreshing notifications');
-    this.loadNotifications();
+    console.log('🔄 Manually refreshing notifications from API');
+    this.notificationService.fetchNotifications().subscribe({
+      next: () => console.log('✅ Notifications refreshed from API'),
+      error: (error) => console.error('❌ Error refreshing notifications:', error)
+    });
   }
 
   /**
@@ -213,8 +273,11 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
 
     if (this.isDropdownOpen) {
       console.log('🔔 Notification dropdown opened');
-      // Refresh เมื่อเปิด dropdown
-      this.refreshNotifications();
+      
+      // ✅ Optional: refresh เมื่อเปิด dropdown (ถ้าต้องการ sync กับ server)
+      // ถ้า WebSocket ทำงานดี ก็ไม่จำเป็นต้อง refresh ทุกครั้ง
+      // แต่ถ้าต้องการความแน่ใจ 100% ว่าข้อมูลตรงกับ server ให้ uncomment บรรทัดด้านล่าง
+      // this.refreshNotifications();
     }
   }
 
@@ -264,33 +327,11 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ทำเครื่องหมายทั้งหมดว่าอ่านแล้ว
-   */
-  markAllAsRead(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-
-    console.log('📖 Marking all as read');
-
-    this.notificationService.markAllAsRead().subscribe({
-      next: () => {
-        console.log('✅ All marked as read');
-        this.closeDropdown();
-      },
-      error: (error) => console.error('❌ Error marking all as read:', error)
-    });
-  }
-
-  /**
    * ลบ notification
    */
   deleteNotification(notification: DisplayNotification, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-
-    if (!confirm(this.getText('Delete this notification?', 'ลบการแจ้งเตือนนี้?'))) {
-      return;
-    }
 
     console.log('🗑️ Deleting notification:', notification.id);
 
@@ -301,13 +342,31 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ลบทั้งหมด
+   * ทำเครื่องหมายทั้งหมดว่าอ่านแล้ว
+   */
+  markAllAsRead(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    console.log('📖 Marking all as read');
+
+    this.notificationService.markAllAsRead().subscribe({
+      next: () => console.log('✅ All marked as read'),
+      error: (error) => console.error('❌ Error marking all as read:', error)
+    });
+  }
+
+  /**
+   * ลบ notification ทั้งหมด
    */
   deleteAllNotifications(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
 
-    if (!confirm(this.getText('Delete all notifications?', 'ลบการแจ้งเตือนทั้งหมด?'))) {
+    if (!confirm(this.getText(
+      'Are you sure you want to delete all notifications?',
+      'คุณแน่ใจหรือไม่ว่าต้องการลบการแจ้งเตือนทั้งหมด?'
+    ))) {
       return;
     }
 
@@ -378,10 +437,12 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ตรวจสอบว่ามี unread notifications หรือไม่
+   * ✅ IMPROVED: ตรวจสอบว่ามี unread notifications หรือไม่
+   * เพิ่มการตรวจสอบเพิ่มเติมเพื่อความปลอดภัย
    */
   hasUnreadNotifications(): boolean {
-    return this.unreadCount > 0;
+    const safeCount = this.getSafeNumber(this.unreadCount);
+    return safeCount > 0;
   }
 
   /**
@@ -389,6 +450,36 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
    */
   getFilteredCount(): number {
     return this.getFilteredNotifications().length;
+  }
+
+  /**
+   * ✅ ตรวจสอบสถานะการเชื่อมต่อ WebSocket
+   */
+  isSocketConnected(): boolean {
+    return this.socketConnectionState === 'connected';
+  }
+
+  /**
+   * ✅ ตรวจสอบว่ากำลังเชื่อมต่อหรือไม่
+   */
+  isSocketConnecting(): boolean {
+    return this.socketConnectionState === 'connecting';
+  }
+
+  /**
+   * ✅ รับข้อความแสดงสถานะการเชื่อมต่อ
+   */
+  getConnectionStatusText(): string {
+    switch (this.socketConnectionState) {
+      case 'connected':
+        return this.getText('Live', 'สด');
+      case 'connecting':
+        return this.getText('Connecting...', 'กำลังเชื่อมต่อ...');
+      case 'disconnected':
+        return this.getText('Offline', 'ออฟไลน์');
+      default:
+        return '';
+    }
   }
 
   /**
@@ -424,37 +515,51 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ได้รับ notification icon
+   * ✅ UPDATED: ได้รับ notification icon (รองรับทั้ง enum และ string)
    */
-  getNotificationIcon(type: NotificationType): string {
-    const icons: { [key in NotificationType]: string } = {
-      [NotificationType.NEW_TICKET]: 'bi-plus-circle-fill',
-      [NotificationType.STATUS_CHANGE]: 'bi-arrow-repeat',
-      [NotificationType.ASSIGNMENT]: 'bi-person-check-fill',
-      [NotificationType.COMMENT]: 'bi-chat-dots-fill',
-      [NotificationType.MENTION]: 'bi-at',
-      [NotificationType.RESOLVED]: 'bi-check-circle-fill',
-      [NotificationType.CLOSED]: 'bi-x-circle-fill'
+  getNotificationIcon(type: NotificationType | string): string {
+    const icons: { [key: string]: string } = {
+      'NEW_TICKET': 'bi-plus-circle-fill',
+      'new_ticket': 'bi-plus-circle-fill',
+      'STATUS_CHANGE': 'bi-arrow-repeat',
+      'status_change': 'bi-arrow-repeat',
+      'ASSIGNMENT': 'bi-person-check-fill',
+      'assignment': 'bi-person-check-fill',
+      'COMMENT': 'bi-chat-dots-fill',
+      'comment': 'bi-chat-dots-fill',
+      'MENTION': 'bi-at',
+      'mention': 'bi-at',
+      'RESOLVED': 'bi-check-circle-fill',
+      'resolved': 'bi-check-circle-fill',
+      'CLOSED': 'bi-x-circle-fill',
+      'closed': 'bi-x-circle-fill'
     };
 
-    return icons[type];
+    return icons[type] || 'bi-bell-fill'; // fallback icon
   }
 
   /**
-   * ได้รับ notification color
+   * ✅ UPDATED: ได้รับ notification color (รองรับทั้ง enum และ string)
    */
-  getNotificationColor(type: NotificationType): string {
-    const colors: { [key in NotificationType]: string } = {
-      [NotificationType.NEW_TICKET]: '#6c5ce7',
-      [NotificationType.STATUS_CHANGE]: '#74b9ff',
-      [NotificationType.ASSIGNMENT]: '#fdcb6e',
-      [NotificationType.COMMENT]: '#00b894',
-      [NotificationType.MENTION]: '#e17055',
-      [NotificationType.RESOLVED]: '#00b894',
-      [NotificationType.CLOSED]: '#636e72'
+  getNotificationColor(type: NotificationType | string): string {
+    const colors: { [key: string]: string } = {
+      'NEW_TICKET': '#6c5ce7',
+      'new_ticket': '#6c5ce7',
+      'STATUS_CHANGE': '#74b9ff',
+      'status_change': '#74b9ff',
+      'ASSIGNMENT': '#fdcb6e',
+      'assignment': '#fdcb6e',
+      'COMMENT': '#00b894',
+      'comment': '#00b894',
+      'MENTION': '#e17055',
+      'mention': '#e17055',
+      'RESOLVED': '#00b894',
+      'resolved': '#00b894',
+      'CLOSED': '#636e72',
+      'closed': '#636e72'
     };
 
-    return colors[type];
+    return colors[type] || '#6c5ce7'; // fallback color
   }
 
   /**
@@ -472,9 +577,9 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ได้รับ notification type label
+   * ✅ UPDATED: ได้รับ notification type label (รองรับทั้ง enum และ string)
    */
-  getNotificationTypeLabel(type: NotificationType): string {
+  getNotificationTypeLabel(type: NotificationType | string): string {
     return getNotificationTypeLabel(type, this.currentLanguage);
   }
 
@@ -510,7 +615,6 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
    * ตรวจสอบว่า user มีสิทธิ์ดู notifications หรือไม่
    */
   canViewNotifications(): boolean {
-    // ตอนนี้อนุญาตให้ทุก role ดู notifications
     return this.authService.isAuthenticated();
   }
 
@@ -575,13 +679,15 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   debugState(): void {
     console.group('🔔 Notification Bell Debug');
     console.log('Notifications:', this.notifications);
-    console.log('Unread Count:', this.unreadCount);
+    console.log('Unread Count:', this.unreadCount, '(safe:', this.getSafeNumber(this.unreadCount), ')');
     console.log('Summary:', this.summary);
     console.log('Filter:', this.selectedFilter);
     console.log('Type Filter:', this.selectedType);
     console.log('Filtered Count:', this.getFilteredCount());
     console.log('Is Dropdown Open:', this.isDropdownOpen);
     console.log('Is Loading:', this.isLoading);
+    console.log('Socket Connection State:', this.socketConnectionState);
+    console.log('Is Socket Connected:', this.isSocketConnected());
     console.log('Error:', this.error);
     console.groupEnd();
   }

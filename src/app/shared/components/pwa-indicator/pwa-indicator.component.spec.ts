@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { PwaIndicatorComponent } from './pwa-indicator.component';
+import { PWAIndicatorComponent } from './pwa-indicator.component';
 
-describe('PwaIndicatorComponent', () => {
-  let component: PwaIndicatorComponent;
-  let fixture: ComponentFixture<PwaIndicatorComponent>;
+describe('PWAIndicatorComponent', () => {
+  let component: PWAIndicatorComponent;
+  let fixture: ComponentFixture<PWAIndicatorComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PwaIndicatorComponent]
+      imports: [PWAIndicatorComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(PwaIndicatorComponent);
+    fixture = TestBed.createComponent(PWAIndicatorComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
