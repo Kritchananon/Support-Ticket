@@ -559,3 +559,171 @@
   right: 20px;
   z-index: 9999;
 }
+
+/* ===== ADDITIONAL CSS FOR IMPROVED VERSION ===== */
+/* เพิ่มในไฟล์ notification-bell.component.css */
+
+/* ===== CONNECTION STATUS INDICATOR ===== */
+.connection-status {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.connection-status i {
+  font-size: 8px;
+}
+
+.connection-status.connected {
+  color: #00b894;
+  background: rgba(0, 184, 148, 0.1);
+}
+
+.connection-status.connected i {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.connection-status.connecting {
+  color: #fdcb6e;
+  background: rgba(253, 203, 110, 0.1);
+}
+
+.connection-status.connecting i {
+  animation: spin 1s linear infinite;
+}
+
+.connection-status.disconnected {
+  color: #e17055;
+  background: rgba(225, 112, 85, 0.1);
+}
+
+/* ===== SPIN ANIMATION FOR LOADING ===== */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+
+/* ===== PULSE ANIMATION ===== */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ===== IMPROVED ERROR STATE ===== */
+.notification-error {
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.notification-error i {
+  font-size: 32px;
+  color: #e17055;
+}
+
+.error-message {
+  color: #2d3436;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.error-sub-message {
+  color: #6c757d;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.error-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== LOADING INDICATOR IMPROVEMENTS ===== */
+.notification-loading {
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #6c757d;
+}
+
+/* ===== REFRESH BUTTON DISABLED STATE ===== */
+.btn-icon-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-icon-small:disabled:hover {
+  background: white;
+  border-color: #e9ecef;
+  color: #6c757d;
+  transform: none;
+}
+
+/* ===== SMOOTH TRANSITIONS ===== */
+.notification-dropdown {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.notification-item {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== ACCESSIBILITY IMPROVEMENTS ===== */
+.btn-icon-small:focus,
+.btn-icon-tiny:focus,
+.filter-tab:focus {
+  outline: 2px solid #6c5ce7;
+  outline-offset: 2px;
+}
+
+/* ===== RESPONSIVE IMPROVEMENTS ===== */
+@media (max-width: 576px) {
+  .connection-status {
+    font-size: 10px;
+  }
+  
+  .error-message {
+    font-size: 13px;
+  }
+  
+  .error-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .error-actions .btn {
+    width: 100%;
+  }
+}

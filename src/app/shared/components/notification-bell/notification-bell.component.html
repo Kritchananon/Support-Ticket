@@ -1,7 +1,8 @@
 <!-- src/app/shared/components/notification-bell/notification-bell.component.html -->
+<!-- ✅ IMPROVED VERSION - Better Error Display -->
 
 <!-- ✅ Notification Bell Container -->
-<div class="notification-bell-container" *ngIf="canViewNotifications()">
+<div class="notification-bell-container me-2" *ngIf="canViewNotifications()">
   
   <!-- ✅ Bell Button -->
   <button 
@@ -40,6 +41,18 @@
         <span class="notification-count-text" *ngIf="summary">
           {{ summary.unread }} {{ getText('unread', 'ยังไม่ได้อ่าน') }}
         </span>
+        
+        <!-- ✅ NEW: Connection Status Indicator -->
+        <span class="connection-status" 
+              [class.connected]="isSocketConnected()"
+              [class.connecting]="isSocketConnecting()"
+              [class.disconnected]="!isSocketConnected() && !isSocketConnecting()">
+          <i class="bi" 
+             [class.bi-circle-fill]="isSocketConnected()"
+             [class.bi-arrow-repeat]="isSocketConnecting()"
+             [class.bi-exclamation-circle]="!isSocketConnected() && !isSocketConnecting()"></i>
+          {{ getConnectionStatusText() }}
+        </span>
       </div>
       
       <div class="header-right">
@@ -49,7 +62,10 @@
           (click)="refreshNotifications()"
           [disabled]="isLoading"
           [attr.aria-label]="getText('Refresh', 'รีเฟรช')">
-          <i class="bi" [class.bi-arrow-clockwise]="!isLoading" [class.bi-hourglass-split]="isLoading"></i>
+          <i class="bi" 
+             [class.bi-arrow-clockwise]="!isLoading" 
+             [class.bi-hourglass-split]="isLoading"
+             [class.spin-animation]="isLoading"></i>
         </button>
 
         <!-- Settings Button -->
@@ -98,7 +114,7 @@
       </button>
     </div>
 
-    <!-- ✅ Type Filter Dropdown (Optional) -->
+    <!-- ✅ Type Filter Dropdown -->
     <div class="notification-type-filter" *ngIf="hasNotifications()">
       <select 
         class="form-select form-select-sm"
@@ -131,17 +147,26 @@
       <span class="ms-2">{{ getText('Loading notifications...', 'กำลังโหลดการแจ้งเตือน...') }}</span>
     </div>
 
-    <!-- ✅ Error State -->
-    <div class="notification-error" *ngIf="error && !isLoading">
+    <!-- ✅ IMPROVED: Error State with Retry Button -->
+    <div class="notification-error" *ngIf="errorMessage && !isLoading">
       <i class="bi bi-exclamation-triangle-fill text-warning"></i>
-      <span>{{ error }}</span>
-      <button class="btn btn-sm btn-outline-primary mt-2" (click)="refreshNotifications()">
-        {{ getText('Retry', 'ลองใหม่') }}
-      </button>
+      <span class="error-message">{{ errorMessage }}</span>
+      
+      <!-- ✅ NEW: Connection Status Message -->
+      <span class="error-sub-message" *ngIf="!isSocketConnected()">
+        {{ getText('Trying to reconnect...', 'กำลังพยายามเชื่อมต่อใหม่...') }}
+      </span>
+      
+      <div class="error-actions">
+        <button class="btn btn-sm btn-outline-primary" (click)="refreshNotifications()">
+          <i class="bi bi-arrow-clockwise"></i>
+          {{ getText('Retry', 'ลองใหม่') }}
+        </button>
+      </div>
     </div>
 
     <!-- ✅ Notification List -->
-    <div class="notification-list" *ngIf="!isLoading && !error">
+    <div class="notification-list" *ngIf="!isLoading && !errorMessage">
       
       <!-- Empty State -->
       <div class="notification-empty" *ngIf="getFilteredNotifications().length === 0">
@@ -252,12 +277,3 @@
     (click)="closeDropdown()">
   </div>
 </div>
-
-<!-- ✅ Debug Panel (เฉพาะ development) -->
-<!-- 
-<div class="debug-panel" *ngIf="!environment.production">
-  <button class="btn btn-sm btn-outline-secondary" (click)="debugState()">
-    Debug Notifications
-  </button>
-</div>
--->
