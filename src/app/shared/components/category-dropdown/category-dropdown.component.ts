@@ -1,8 +1,8 @@
 import { Component, OnInit, Input, Output, EventEmitter, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { Subject, Observable, of } from 'rxjs';
+import { takeUntil, map, catchError, tap } from 'rxjs/operators';
 import { CategoryService } from '../../services/category.service';
 import { CategoryDDL, CategoryStatus, isCategoryStatus, cateDDL } from '../../models/category.model';
 
@@ -38,7 +38,7 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   ngOnInit(): void {
-    this.loadCategories();
+    // this.loadCategories(); ← comment หรือลบออก
   }
 
   ngOnDestroy(): void {
@@ -46,55 +46,56 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadCategories(): void {
+  loadCategories(): Observable<CategoryDDL[]> {  // ← เปลี่ยน return type
     this.loading = true;
     this.error = '';
     this.hasError = false;
 
-    // ✅ Fix: Type guard เพื่อให้แน่ใจว่า status เป็น CategoryStatus
     const statusValue: CategoryStatus = isCategoryStatus(this.status) ? this.status : 'active';
 
-    this.categoryService.getCategoriesDDLWithCache({ status: statusValue })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
+    return this.categoryService.getCategoriesDDLWithCache({ status: statusValue })
+      .pipe(
+        map(response => {
           console.log('Categories DDL Response:', response);
           if (response.code === 1) {
             this.categories = response.data;
             this.error = '';
+            this.loading = false;
+            return response.data;
           } else {
             this.error = response.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
             this.categories = [];
+            this.loading = false;
+            throw new Error(this.error);
           }
-          this.loading = false;
-        },
-        error: (err) => {
+        }),
+        catchError(err => {
           console.error('Error loading categories:', err);
 
-          // ✅ PWA: ลองใช้ cached data ถ้า API ล้มเหลว
-          this.categoryService.getCachedCategories(statusValue)
-            .pipe(takeUntil(this.destroy$))
-            .subscribe({
-              next: (cachedData) => {
-                if (cachedData && cachedData.length > 0) {
-                  console.log('✅ Using cached categories:', cachedData.length);
-                  this.categories = cachedData;
-                  this.error = ''; // Clear error ถ้ามี cached data
-                  this.showOfflineIndicator();
-                } else {
-                  this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-                  this.categories = [];
-                }
-                this.loading = false;
-              },
-              error: () => {
+          return this.categoryService.getCachedCategories(statusValue).pipe(
+            tap(cachedData => {
+              if (cachedData && cachedData.length > 0) {
+                console.log('✅ Using cached categories:', cachedData.length);
+                this.categories = cachedData;
+                this.error = '';
+                this.showOfflineIndicator();
+              } else {
                 this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
                 this.categories = [];
-                this.loading = false;
               }
-            });
-        }
-      });
+              this.loading = false;
+            }),
+            map(cachedData => cachedData || []),
+            catchError(() => {
+              this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+              this.categories = [];
+              this.loading = false;
+              return of([]);
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      );
   }
 
   private showOfflineIndicator(): void {
@@ -133,7 +134,10 @@ export class CategoryDropdownComponent implements OnInit, OnDestroy {
   }
 
   refresh(): void {
-    this.loadCategories();
+    this.loadCategories().subscribe({
+      next: () => console.log('✅ Categories refreshed'),
+      error: (err) => console.error('❌ Refresh error:', err)
+    });
   }
 
   // Method สำหรับ validation จากภายนอก

@@ -1,8 +1,8 @@
 import { Component, OnInit, Input, Output, EventEmitter, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { Subject, Observable, of } from 'rxjs';  // ← เพิ่ม Observable, of
+import { takeUntil, map, catchError, tap } from 'rxjs/operators';  // ← เพิ่ม map, catchError, tap
 import { ProjectService } from '../../services/project.service';
 import { ProjectDDL, ProjectStatus, isProjectStatus } from '../../models/project.model';
 
@@ -15,7 +15,7 @@ import { ProjectDDL, ProjectStatus, isProjectStatus } from '../../models/project
 })
 export class ProjectDropdownComponent implements OnInit, OnDestroy {
   private projectService = inject(ProjectService);
-  
+
   @Input() label: string = 'เลือกโปรเจค';
   @Input() placeholder: string = '-- เลือกโปรเจค --';
   @Input() selectedProjectId: number | string = '';
@@ -24,9 +24,9 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
   @Input() disabled: boolean = false;
   @Input() showCode: boolean = false;
   @Input() errorText: string = '';
-  
+
   @Output() selectionChange = new EventEmitter<{
-    project: ProjectDDL | null, 
+    project: ProjectDDL | null,
     projectId: number | string
   }>();
 
@@ -34,11 +34,13 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
   loading = false;
   error: string = '';
   hasError = false;
-  
+
   private destroy$ = new Subject<void>();
 
+  // ✏️ แก้ไขเป็น (ลบการเรียก loadProjects ออก):
   ngOnInit(): void {
-    this.loadProjects();
+    // ไม่ต้องโหลดที่นี่แล้ว - ให้ parent component เรียก
+    // this.loadProjects(); ← ลบหรือ comment ออก
   }
 
   ngOnDestroy(): void {
@@ -46,62 +48,64 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadProjects(): void {
+  loadProjects(): Observable<ProjectDDL[]> {  // ← เปลี่ยน return type จาก void เป็น Observable
     this.loading = true;
     this.error = '';
     this.hasError = false;
 
-    // ✅ Fix: Type guard เพื่อให้แน่ใจว่า status เป็น ProjectStatus
     const statusValue: ProjectStatus = isProjectStatus(this.status) ? this.status : 'active';
 
-    this.projectService.getProjectDDLWithCache({ status: statusValue })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
+    return this.projectService.getProjectDDLWithCache({ status: statusValue })
+      .pipe(
+        map(response => {  // ← ใช้ map แทน subscribe
           console.log('Project DDL Response:', response);
           if (response.code === 1) {
             this.projects = response.data;
             this.error = '';
+            this.loading = false;
+            return response.data;  // ← return ข้อมูล
           } else {
             this.error = response.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
             this.projects = [];
+            this.loading = false;
+            throw new Error(this.error);  // ← throw error เพื่อให้ catchError จัดการ
           }
-          this.loading = false;
-        },
-        error: (err) => {
+        }),
+        catchError(err => {  // ← เปลี่ยนจาก error callback ใน subscribe
           console.error('Error loading projects:', err);
-          
+
           // ✅ PWA: ลองใช้ cached data ถ้า API ล้มเหลว
-          this.projectService.getCachedProjects(statusValue)
-            .pipe(takeUntil(this.destroy$))
-            .subscribe({
-              next: (cachedData) => {
-                if (cachedData && cachedData.length > 0) {
-                  console.log('✅ Using cached projects:', cachedData.length);
-                  this.projects = cachedData;
-                  this.error = ''; // Clear error ถ้ามี cached data
-                  this.showOfflineIndicator();
-                } else {
-                  this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
-                  this.projects = [];
-                }
-                this.loading = false;
-              },
-              error: () => {
+          return this.projectService.getCachedProjects(statusValue).pipe(
+            tap(cachedData => {
+              if (cachedData && cachedData.length > 0) {
+                console.log('✅ Using cached projects:', cachedData.length);
+                this.projects = cachedData;
+                this.error = '';
+                this.showOfflineIndicator();
+              } else {
                 this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
                 this.projects = [];
-                this.loading = false;
               }
-            });
-        }
-      });
+              this.loading = false;
+            }),
+            map(cachedData => cachedData || []),  // ← แปลงเป็น array
+            catchError(() => {
+              this.error = typeof err === 'string' ? err : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+              this.projects = [];
+              this.loading = false;
+              return of([]);  // ← return empty array
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      );
   }
 
   private showOfflineIndicator(): void {
     // แสดง indicator ว่าใช้ cached data
     const offlineMsg = 'ใช้ข้อมูลที่เก็บไว้ (ออฟไลน์)';
     console.log('📱 PWA:', offlineMsg);
-    
+
     // อาจจะแสดง toast notification หรือ indicator ใน UI
     setTimeout(() => {
       const event = new CustomEvent('pwa-offline-data', {
@@ -115,7 +119,7 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLSelectElement;
     const projectId = target.value;
     let selectedProject: ProjectDDL | null = null;
-    
+
     if (projectId) {
       selectedProject = this.projects.find(p => p.id === +projectId) || null;
     }
@@ -132,8 +136,12 @@ export class ProjectDropdownComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ✏️ แก้ไขเป็น:
   refresh(): void {
-    this.loadProjects();
+    this.loadProjects().subscribe({
+      next: () => console.log('✅ Projects refreshed'),
+      error: (err) => console.error('❌ Refresh error:', err)
+    });
   }
 
   // Method สำหรับ validation จากภายนอก
